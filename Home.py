@@ -351,7 +351,6 @@ st.markdown(
             justify-content: space-between;
         }}
         /* Hover effect on the card itself */
-        /* Note: This class is applied via the Streamlit button's CSS hook */
         .strategy-link-card:hover {{
             border-color: var(--purple); 
             transform: translateY(-5px); 
