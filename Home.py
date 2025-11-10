@@ -124,7 +124,15 @@ def get_skew_and_price(ticker_symbol):
     if current_price is None:
         return None, "Failed to fetch current market price."
 
-    combined_chain = pd.concat([chain.calls, chain.puts], ignore_index=True)
+    # --- FIX: Manually add optionType column before concatenating ---
+    df_calls = chain.calls.copy()
+    df_puts = chain.puts.copy()
+    
+    df_calls['optionType'] = 'call'
+    df_puts['optionType'] = 'put'
+    
+    combined_chain = pd.concat([df_calls, df_puts], ignore_index=True)
+    # --- END FIX ---
     
     combined_chain['impliedVolatility'] = pd.to_numeric(combined_chain['impliedVolatility'], errors='coerce')
     combined_chain = combined_chain.dropna(subset=['impliedVolatility'])
@@ -138,6 +146,7 @@ def get_skew_and_price(ticker_symbol):
     
     # 4. Find OTM Put strike IV (5% OTM proxy for the 25-delta put)
     otm_put_target = current_price * 0.95
+    # This line now works because 'optionType' is present:
     otm_put = combined_chain[combined_chain['optionType'] == 'put']
     otm_put_strike = otm_put.iloc[(otm_put['strike'] - otm_put_target).abs().argsort()[:1]]
     otm_put_iv = otm_put_strike['impliedVolatility'].mean()
