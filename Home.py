@@ -50,12 +50,8 @@ COUNTRY_TICKERS = {
 }
 HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())))
 
-# List of all (simulated) S&P 500 tickers for the Movers section (approx 500 tickers)
-# Note: We must fetch this large list from a static source or simulate it robustly. 
-# We'll use a representative, extended list for demonstration purposes, as fetching 
-# 500 tickers from yfinance frequently is unstable.
+# List of all S&P 500 tickers for the Movers section
 def get_spx_tickers():
-    # --- IMPLEMENTING USER'S PROVIDED LIST ---
     return [
         'MMM', 'AOS', 'ABT', 'ABBV', 'ACN', 'ADBE', 'AMD', 'AES', 'AFL', 'A',
         'APD', 'ABNB', 'AKAM', 'ALB', 'ARE', 'ALGN', 'ALLE', 'LNT', 'ALL', 'GOOGL',
@@ -127,13 +123,8 @@ def get_market_status():
 
     is_open = is_weekday and (market_open <= now < market_close)
     
-    # Determine TTL based on market status
-    if is_open:
-        # 30 minute cache update while market is open
-        cache_ttl = timedelta(minutes=30) 
-    else:
-        # Longer 4 hour cache when market is closed
-        cache_ttl = timedelta(hours=4)
+    # TTL is now fixed and only used for the Market Summary KPIs
+    cache_ttl = timedelta(hours=4) # Using a fixed longer period for non-interactive data
 
     if not is_weekday:
         status_text = "Market Closed (Weekend)"
@@ -150,6 +141,9 @@ def get_market_status():
 
     return now, is_open, status_text, status_color, cache_ttl
 
+# --- IMPORTANT: Caching functions now run with no TTL to be manually invalidated ---
+
+@st.cache_data(show_spinner=False)
 def get_metric_styles(change_pct):
     """Determines color and icon based on percentage percentage change."""
     if change_pct > 0.01:
@@ -163,29 +157,23 @@ def get_metric_styles(change_pct):
         icon = '•'
     return f"var({color_token})", icon, f"var({color_token})"
 
-# Use cache_ttl from market status function
-@st.cache_data(ttl=get_market_status()[4])
+@st.cache_data(show_spinner=False)
 def fetch_ticker_data(tickers):
     """Fetches the last 15 months of adjusted close prices for tickers."""
-    # Ensure no duplicates in the list
     tickers = list(set(tickers)) 
-    
-    # Fetch data only if the list is not empty
     if not tickers:
         return pd.DataFrame()
-        
     data = yf.download(tickers, period="15mo", interval="1d", progress=False, auto_adjust=True)
     if data.empty:
         return pd.DataFrame()
     return data['Close']
 
-@st.cache_data(ttl=get_market_status()[4])
+@st.cache_data(show_spinner=False)
 def fetch_live_summary(tickers):
     """Fetches key metrics for market summary (Run frequently)."""
     try:
         data = yf.Tickers(tickers).fast_info
         if isinstance(data, pd.DataFrame):
-            # Transpose to get {Ticker: {key: value}} structure
             summary = data.T.to_dict() 
         else:
             summary = {t: data.get(t, {}) for t in tickers}
@@ -200,9 +188,7 @@ def calculate_returns(data, period):
     
     last_price = data.iloc[-1]
     
-    # Calculate reference price based on period (logic is robust)
     if period == '1D':
-        # Safely get previous close
         ref_price = data.iloc[-2] if len(data) >= 2 else data.iloc[-1]
     elif period == '7D':
         idx = max(0, len(data) - 6) 
@@ -219,15 +205,16 @@ def calculate_returns(data, period):
         if pd.notna(ytd_start_index) and ytd_start_index in data.index:
              ref_price = data.loc[ytd_start_index]
         else:
-            # If YTD start is same as current date, return 0.0
             return pd.Series(0.0, index=data.columns) 
 
     returns = ((last_price - ref_price) / ref_price) * 100
 
     return returns.fillna(0.0)
 
-@st.cache_data(ttl=get_market_status()[4])
+@st.cache_data(show_spinner=False)
 def generate_heatmap_data(period, tickers_list):
+    """Generates data for the market heatmap."""
+    # This data is generally stable, but we allow manual invalidation via the button logic.
     all_close_data = fetch_ticker_data(tickers_list)
     if all_close_data.empty: return pd.DataFrame(), False
     
@@ -254,11 +241,10 @@ def generate_heatmap_data(period, tickers_list):
     return df, True
 
 def get_metric_html(title, price, change_pct, accent_color_token):
-    """Generates the HTML for a Market KPI Card with full border/outer bounds."""
+    """Generates the HTML for a Market KPI Card."""
     color, icon, _ = get_metric_styles(change_pct)
     change_text = f"{icon} {abs(change_pct):.2f}%"
     
-    # Using inline styles to define the outer boundary, background, and accent left border
     return dedent(f"""
         <div class="kpi" style="
              background: var(--inputlight); 
@@ -283,7 +269,6 @@ def get_metric_html(title, price, change_pct, accent_color_token):
 def get_heatmap_color_style(return_val):
     """Calculates the CSS style string for a single heatmap box based on return value."""
     if pd.isna(return_val):
-        # Placeholder style for missing data
         return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
     
     try:
@@ -295,38 +280,33 @@ def get_heatmap_color_style(return_val):
     max_saturation = 4.0
     
     if val > 0:
-        # Green: Scale alpha from 0.1 (low return) to 0.9 (high return)
         alpha = min(0.9, 0.1 + (val / max_saturation) * 0.8) 
         bg = f'rgba(38, 208, 124, {alpha})' 
     elif val < 0:
-        # Red: Scale alpha from 0.1 (low return) to 0.9 (high return)
         alpha = min(0.9, 0.1 + (abs(val) / max_saturation) * 0.8)
         bg = f'rgba(217, 83, 79, {alpha})' 
     else:
-        # Returns near zero get a light purple hue
         bg = f'rgba(138, 124, 245, 0.1)' 
         
-    # Text color is always white (var(--text)) for maximum readability
     return f'background-color: {bg}; color: var(--text); border: 1px solid rgba(255,255,255,0.1);'
 
-@st.cache_data(ttl=get_market_status()[4])
-def get_top_movers(ticker_list, period):
+# Caching for Top Movers is now removed to be manually triggered/cached in the fragment
+def get_top_movers_uncached(ticker_list, period):
     """Fetches data, calculates returns, and returns top 5 gainers/losers."""
     
-    # Use the unified caching function to fetch data for the full list
+    # NOTE: This function's output is not cached using @st.cache_data.
+    # The data fetching inside (fetch_ticker_data) is cached, but this calculation is rerun
+    # when the fragment executes.
+    
     all_close_data = fetch_ticker_data(ticker_list)
     
     if all_close_data.empty: return pd.DataFrame(), pd.DataFrame()
     
     returns = calculate_returns(all_close_data, period).rename("Return (%)")
-    
-    # Get last closing price for display (important for the UI)
     last_prices = all_close_data.iloc[-1].rename("Price ($)")
     
-    # Combine returns and prices
     combined_df = pd.concat([returns, last_prices], axis=1).dropna(subset=['Price ($)'])
     
-    # Sort and slice
     top_gainers = combined_df.nlargest(5, "Return (%)")
     top_losers = combined_df.nsmallest(5, "Return (%)")
     
@@ -603,7 +583,7 @@ with st.sidebar:
     st.markdown(f"""
         <div style="color: var(--muted); font-size: .85rem; padding: 10px 0;">
             <p>Session started <b>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b></p>
-            <p>Cache TTL: <b>{get_market_status()[3]}</b></p>
+            <p>Cache TTL: <b>{get_market_status()[4].total_seconds() / 3600:.1f} hours</b></p>
         </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
@@ -646,12 +626,15 @@ def display_market_kpis(is_open, status_text, status_color):
     
     tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
     if is_open:
+        # Use the non-cached version for live pricing for the main KPIs
         market_data = fetch_live_summary(tickers_to_fetch)
     else:
-        market_data = {} 
+        # If market is closed, rely on the cached data to get EOD/Previous close
+        market_data = fetch_live_summary(tickers_to_fetch) 
         
     def get_ticker_metric(ticker):
-            if is_open and ticker in market_data:
+            # Try to get live data if available (even when closed, yfinance might have delayed data)
+            if ticker in market_data:
                 data = market_data[ticker]
                 price = data.get('lastPrice', 0.0)
                 change_pct = data.get('regularMarketChangePercent', 0.0)
@@ -746,7 +729,7 @@ if available:
             # 1. The Invisible, Clickable Link (Button)
             st.page_link(
                 rel_path, 
-                label="", # Empty label ensures no visible text from the button itself
+                label="", 
                 icon=None,
                 use_container_width=True
             )
@@ -772,6 +755,9 @@ return_period = st.selectbox(
     index=0, 
     key='return_period_toggle'
 )
+
+# NOTE: Heatmap generation is still cached, but it relies on data fetched via a function 
+# that is now manually invalidated by the Movers button.
 
 heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
 
@@ -821,63 +807,101 @@ else:
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# 📈 Top Movers Section (Now uses the full S&P 500 proxy list)
+# 📈 Top Movers Section (Manually Triggered)
 # --------------------------------------------------------------------------------------
-st.markdown(f"### Top Movers (S&P 500 Scan, {return_period})")
 
-gainer_df, loser_df = get_top_movers(SPX_MOVER_TICKERS, return_period)
-
-col_gainers, col_losers = st.columns(2)
-
-# --- Top Gainers ---
-with col_gainers:
-    st.markdown("#### Top 5 Gainers", unsafe_allow_html=True)
-    if not gainer_df.empty:
-        gainer_list_html = '<div class="movers-list">'
-        for ticker, row in gainer_df.iterrows():
-            return_str = f"+{row['Return (%)']:.2f}%"
-            price_str = f"{row['Price ($)']:.2f}"
+# --- Manually triggered fragment ---
+@st.experimental_fragment
+def top_movers_fragment(return_period):
+    
+    # Check if the user clicked the run button (key is used to link click to fragment)
+    run_clicked = st.button("Run S&P 500 Scan", type="primary", use_container_width=True, help="Fetch and analyze the latest data for all 496 S&P 500 tickers.")
+    
+    # --- Run Logic (Initial state vs. Clicked state) ---
+    if run_clicked or 'movers_run' not in st.session_state:
+        if run_clicked:
+            # When run is clicked, clear the cache for all dependent data fetching functions
+            # to ensure fresh data is used for the entire scan.
+            fetch_ticker_data.clear()
+            get_top_movers_uncached.clear() # Clear the helper function's cache too
+            st.session_state['movers_run'] = datetime.now()
             
-            gainer_list_html += dedent(f"""
-                <div class="movers-item">
-                    <span class="movers-ticker" style="color: var(--green-accent);">{ticker}</span>
-                    <span class="movers-price">${price_str}</span>
-                    <span class="movers-return" style="color: var(--green-accent);">{return_str}</span>
-                </div>
-            """)
-        gainer_list_html += '</div>'
-        st.markdown(gainer_list_html, unsafe_allow_html=True)
-    else:
-        st.info("No gainer data available.")
+        # Display loading spinner while data is computed (especially heavy on initial load)
+        with st.spinner(f"Scanning {len(SPX_MOVER_TICKERS)} tickers for {return_period} returns..."):
+            gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period)
 
-# --- Top Losers ---
-with col_losers:
-    st.markdown("#### Top 5 Losers", unsafe_allow_html=True)
-    if not loser_df.empty:
-        loser_list_html = '<div class="movers-list">'
-        for ticker, row in loser_df.iterrows():
-            return_str = f"{row['Return (%)']:.2f}%"
-            price_str = f"{row['Price ($)']:.2f}"
-            
-            loser_list_html += dedent(f"""
-                <div class="movers-item">
-                    <span class="movers-ticker" style="color: var(--red-neg);">{ticker}</span>
-                    <span class="movers-price">${price_str}</span>
-                    <span class="movers-return" style="color: var(--red-neg);">{return_str}</span>
-                </div>
-            """)
-        loser_list_html += '</div>'
-        st.markdown(loser_list_html, unsafe_allow_html=True)
+        if run_clicked:
+            st.toast("S&P 500 scan complete!", icon="✅")
+    
     else:
-        st.info("No loser data available.")
+        # Initial load or simply navigating to the page
+        gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period)
 
+    # --- Display Status and Results ---
+    
+    if 'movers_run' in st.session_state:
+        st.markdown(f"""
+            <div style="font-size: .85rem; color: var(--muted-text-new); margin-top: 10px;">
+                Last Scan Time: {st.session_state['movers_run'].strftime('%Y-%m-%d %H:%M:%S')}
+            </div>
+        """, unsafe_allow_html=True)
+
+    col_gainers, col_losers = st.columns(2)
+
+    # --- Top Gainers ---
+    with col_gainers:
+        st.markdown("#### Top 5 Gainers", unsafe_allow_html=True)
+        if not gainer_df.empty:
+            gainer_list_html = '<div class="movers-list">'
+            for ticker, row in gainer_df.iterrows():
+                return_str = f"+{row['Return (%)']:.2f}%"
+                price_str = f"{row['Price ($)']:.2f}"
+                
+                gainer_list_html += dedent(f"""
+                    <div class="movers-item">
+                        <span class="movers-ticker" style="color: var(--green-accent);">{ticker}</span>
+                        <span class="movers-price">${price_str}</span>
+                        <span class="movers-return" style="color: var(--green-accent);">{return_str}</span>
+                    </div>
+                """)
+            gainer_list_html += '</div>'
+            st.markdown(gainer_list_html, unsafe_allow_html=True)
+        else:
+            st.info("No gainer data available.")
+
+    # --- Top Losers ---
+    with col_losers:
+        st.markdown("#### Top 5 Losers", unsafe_allow_html=True)
+        if not loser_df.empty:
+            loser_list_html = '<div class="movers-list">'
+            for ticker, row in loser_df.iterrows():
+                return_str = f"{row['Return (%)']:.2f}%"
+                price_str = f"{row['Price ($)']:.2f}"
+                
+                loser_list_html += dedent(f"""
+                    <div class="movers-item">
+                        <span class="movers-ticker" style="color: var(--red-neg);">{ticker}</span>
+                        <span class="movers-price">${price_str}</span>
+                        <span class="movers-return" style="color: var(--red-neg);">{return_str}</span>
+                    </div>
+                """)
+            loser_list_html += '</div>'
+            st.markdown(loser_list_html, unsafe_allow_html=True)
+        else:
+            st.info("No loser data available.")
+
+# --------------------------------------------------------------------------------------
+# FINAL DISPLAY CALLS (BOTTOM OF PAGE)
+# --------------------------------------------------------------------------------------
+
+st.markdown(f"### Top Movers (S&P 500 Scan)")
+top_movers_fragment(return_period) # Call the fragment to display the movers section
 
 st.markdown("---")
 st.subheader("Tips")
 st.markdown(
     """
-- The **Market Summary** uses real-time or end-of-day data from `yfinance`.
-- The **Market Heatmap** uses calculated returns for the selected period, with color intensity showing return magnitude.
-- The **Strategy** pages (Slope Convexity, Mean Reversion) are accessible via the cards above.
+- The **Run S&P 500 Scan** button manually fetches the latest data for all 496 stocks and updates the movers list.
+- The **Market Summary** and **Heatmap** are still semi-cached but will use the fresh underlying data once the scan is run.
 """
 )
