@@ -38,31 +38,21 @@ DARK_PURPLE    = "#3A2A6A"
 
 # --- Market Data Configuration ---
 MAJOR_TICKERS = ["SPY", "QQQ", "IWM", "^VIX", "GLD", "SLV", "TLT"]
+# Expanded Sector/Country Tickers
 SECTOR_TICKERS = {
-    "Technology": "XLK", 
-    "Healthcare": "XLV", 
-    "Financials": "XLF", 
-    "Consumer Disc.": "XLY", 
-    "Industrials": "XLI", 
-    "Energy": "XLE",
-    "Materials": "XLB",
-    "Utilities": "XLU",
-    "Real Estate": "XLRE"
+    "Technology": "XLK", "Healthcare": "XLV", "Financials": "XLF", 
+    "Consumer Disc.": "XLY", "Industrials": "XLI", "Energy": "XLE",
+    "Materials": "XLB", "Utilities": "XLU", "Real Estate": "XLRE"
 }
 COUNTRY_TICKERS = {
-    "EAFE": "EFA", 
-    "Emerging": "EEM", 
-    "Europe": "EZU", 
-    "Japan": "EWJ", 
-    "China": "MCHI",
-    "Canada": "EWC",
-    "Brazil": "EWZ"
+    "EAFE": "EFA", "Emerging": "EEM", "Europe": "EZU", "Japan": "EWJ", "China": "MCHI",
+    "Canada": "EWC", "Brazil": "EWZ"
 }
 HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())))
 
 
 # --------------------------------------------------------------------------------------
-# --- GLOBAL HELPER FUNCTIONS (Moved to top to fix NameError) ---
+# --- GLOBAL HELPER FUNCTIONS ---
 # --------------------------------------------------------------------------------------
 
 def get_market_status():
@@ -170,18 +160,23 @@ def generate_heatmap_data(period, tickers_list):
     returns = calculate_returns(all_close_data, period)
     
     data = []
+    
+    # Reverse map for easier checking
+    all_etfs = list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())
+
+    # Build rows ensuring columns are tickers
     major_row = {"Category": "Major Indices"}
     for ticker in MAJOR_TICKERS:
         if ticker in returns: major_row[ticker] = returns[ticker]
     data.append(major_row)
     
     sector_row = {"Category": "Sector ETFs"}
-    for name, ticker in SECTOR_TICKERS.items():
+    for ticker in list(SECTOR_TICKERS.values()):
         if ticker in returns: sector_row[ticker] = returns[ticker]
     data.append(sector_row)
 
     country_row = {"Category": "Country ETFs"}
-    for name, ticker in COUNTRY_TICKERS.items():
+    for ticker in list(COUNTRY_TICKERS.values()):
         if ticker in returns: country_row[ticker] = returns[ticker]
     data.append(country_row)
     
@@ -340,26 +335,21 @@ st.markdown(
             font-size: 0.95rem; 
             font-weight: 700;
             text-align: center;
-            line-height: 1.3;
-            padding: 12px 8px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 70px;
+            line-height: 1.2;
+            padding: 8px 4px; 
         }}
         .heatmap-ticker {{
-            font-size: 1.1rem;
-            font-weight: 800;
+            font-size: 1.0rem;
+            font-weight: 900;
             display: block;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
+            /* Text color is now explicitly set to white in the map function */
         }}
         .heatmap-return {{
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             display: block;
-            font-weight: 600;
+            opacity: 0.7;
             margin-top: 2px;
+            /* Text color is now explicitly set to white in the map function */
         }}
 
         </style>
@@ -516,11 +506,11 @@ available = []
 for label, data in PAGE_MAPPING.items():
     rel_path = pages_dir / data["file"]
     if rel_path.exists():
-        available.append((label, rel_path.as_posix(), data["desc"], data["icon"], data))
+        available.append((label, rel_path.as_posix(), data["desc"], data["icon"]))
 
 if available:
     cols = st.columns(len(available))
-    for i, (label, rel_path, desc, icon, data) in enumerate(available):
+    for i, (label, rel_path, desc, icon) in enumerate(available):
         with cols[i]:
             # The HTML div container that holds the visual style
             st.markdown(
@@ -537,9 +527,8 @@ if available:
                 """,
                 unsafe_allow_html=True,
             )
-            # The st.page_link button with proper page path
-            page_name = data["file"].replace(".py", "")
-            st.page_link(f"pages/{data['file']}", label=label, icon=icon)
+            # The st.page_link button is placed directly below and stretched over the card via CSS
+            st.page_link(rel_path, label="", icon=None) 
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
@@ -561,60 +550,56 @@ heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
 
 if data_loaded and not heatmap_df.empty:
     
-    # Map back from Ticker to Display Name for sectors/countries
-    ticker_to_name = {v: k for k, v in SECTOR_TICKERS.items()}
-    ticker_to_name.update({v: k for k, v in COUNTRY_TICKERS.items()})
-
     # --- NEW COLORING FUNCTION ---
     def color_return(val):
         """Generates background color based on return value."""
         if pd.isna(val):
-            return 'background-color: rgba(255,255,255,0.03); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1);'
+            return 'background-color: transparent; border: 1px solid rgba(255,255,255,0.05);'
         
         try:
             val = float(val)
         except ValueError:
-            return 'background-color: rgba(255,255,255,0.03); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1);'
+            return 'background-color: transparent; border: 1px solid rgba(255,255,255,0.05);'
 
-        # Color scale: Green (positive) to Red (negative)
-        # 3% is the saturation point for maximum color intensity
-        max_saturation = 3.0
+        # Defines range: Green for positive, Red for negative, Yellow/Purple around zero
+        # 4.0% is the max saturation point for full opacity
+        max_saturation = 4.0
         
-        if val > 0.05:
-            # Positive returns: Green with increasing intensity
-            alpha = min(0.85, 0.2 + (val / max_saturation) * 0.65)
-            bg = f'rgba(34, 197, 94, {alpha})'  # Tailwind green-500
-            text_color = '#FFFFFF'
-        elif val < -0.05:
-            # Negative returns: Red with increasing intensity
-            alpha = min(0.85, 0.2 + (abs(val) / max_saturation) * 0.65)
-            bg = f'rgba(239, 68, 68, {alpha})'  # Tailwind red-500
-            text_color = '#FFFFFF'
+        if val > 0:
+            # Scale alpha from 0.1 (low return) to 0.9 (high return)
+            alpha = min(0.9, 0.1 + (val / max_saturation) * 0.8) 
+            bg = f'rgba(38, 208, 124, {alpha})' # Green
+        elif val < 0:
+            alpha = min(0.9, 0.1 + (abs(val) / max_saturation) * 0.8)
+            bg = f'rgba(217, 83, 79, {alpha})' # Red
         else:
-            # Near-zero returns: Neutral gray
-            bg = 'rgba(100, 116, 139, 0.3)'  # Tailwind slate-500
-            text_color = 'rgba(255, 255, 255, 0.85)'
+            # Returns near zero (0.00 to +/- 0.01) get a light purple hue
+            bg = f'rgba(138, 124, 245, 0.1)' 
             
-        return f'background-color: {bg}; color: {text_color}; border: 1px solid rgba(255,255,255,0.1); font-weight: 600;'
+        # Text color is always white for maximum readability over the colored background
+        text_color = 'var(--text)' 
+        
+        return f'background-color: {bg}; color: {text_color}; border: 1px solid rgba(255,255,255,0.05);'
+
+    def format_return_value(x):
+        """Formats the return value with a '+' sign if positive."""
+        if pd.isna(x):
+            return "N/A"
+        return f"{'+' if x > 0 else ''}{x:.2f}%"
+
 
     def format_heatmap_cell(x, ticker):
         """Formats the cell content to show Ticker and Return (HTML)."""
         if pd.isna(x):
             return ""
         
-        # Get the ticker symbol, defaulting to the column name for indices
-        symbol = ticker
+        return_str = format_return_value(x)
         
-        # Determine text color based on value for better readability
-        if abs(x) > 2.0:
-            text_color = '#FFFFFF'  # White for strong moves
-        else:
-            text_color = 'rgba(255, 255, 255, 0.95)'  # Slightly dimmed white
-        
+        # Text color is handled by the color_return map for the entire cell
         return f"""
-        <div class="heatmap-cell" style="color: {text_color};">
-            <span class="heatmap-ticker">{symbol}</span>
-            <span class="heatmap-return">{x:+.2f}%</span>
+        <div class="heatmap-cell">
+            <span class="heatmap-ticker">{ticker}</span>
+            <span class="heatmap-return">{return_str}</span>
         </div>
         """
     
@@ -624,7 +609,7 @@ if data_loaded and not heatmap_df.empty:
     styled_df = heatmap_df.style.map(color_return, subset=pd.IndexSlice[:, heatmap_df.columns.difference(['Category'])])
     
     # 2. Map the custom HTML formatting (Ticker + Return) to the values
-    for col in heatmap_df.columns:
+    for col in heatmap_df.columns.difference(['Category']):
         styled_df = styled_df.format({col: lambda x, col=col: format_heatmap_cell(x, col)})
 
     st.markdown("<div class='dataframe-container'>", unsafe_allow_html=True)
