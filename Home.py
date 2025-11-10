@@ -9,7 +9,6 @@ import pytz
 import yfinance as yf 
 import pandas as pd
 import numpy as np
-# Removed import plotly.graph_objects as go
 
 import streamlit as st
 
@@ -51,6 +50,11 @@ COUNTRY_TICKERS = {
 }
 HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())))
 
+# List of high-profile stocks for the Movers section (simulating S&P 500)
+SPX_MOVER_TICKERS = [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "JPM", "JNJ", 
+    "V", "NVDA", "PG", "UNH", "HD", "MA", "DIS", "KO", "PFE", "T", "XOM"
+]
 
 # --------------------------------------------------------------------------------------
 # --- GLOBAL HELPER FUNCTIONS ---
@@ -98,6 +102,8 @@ def get_metric_styles(change_pct):
 @st.cache_data(ttl="1h")
 def fetch_ticker_data(tickers):
     """Fetches the last 15 months of adjusted close prices for tickers."""
+    # Ensure no duplicates in the list
+    tickers = list(set(tickers)) 
     data = yf.download(tickers, period="15mo", interval="1d", progress=False, auto_adjust=True)
     if data.empty:
         return pd.DataFrame()
@@ -109,7 +115,8 @@ def fetch_live_summary(tickers):
     try:
         data = yf.Tickers(tickers).fast_info
         if isinstance(data, pd.DataFrame):
-            summary = data.T.to_dict()
+            # Transpose to get {Ticker: {key: value}} structure
+            summary = data.T.to_dict() 
         else:
             summary = {t: data.get(t, {}) for t in tickers}
         return summary
@@ -119,12 +126,13 @@ def fetch_live_summary(tickers):
 
 def calculate_returns(data, period):
     """Calculates returns for the given period (1D, 7D, 30D, 1Y, YTD)."""
-    if data.empty: return pd.Series()
+    if data.empty: return pd.Series(dtype='float64')
     
     last_price = data.iloc[-1]
     
     # Calculate reference price based on period (logic is robust)
     if period == '1D':
+        # Safely get previous close
         ref_price = data.iloc[-2] if len(data) >= 2 else data.iloc[-1]
     elif period == '7D':
         idx = max(0, len(data) - 6) 
@@ -141,14 +149,10 @@ def calculate_returns(data, period):
         if pd.notna(ytd_start_index) and ytd_start_index in data.index:
              ref_price = data.loc[ytd_start_index]
         else:
+            # If YTD start is same as current date, return 0.0
             return pd.Series(0.0, index=data.columns) 
 
-    if isinstance(last_price, (pd.Series, np.ndarray)) and isinstance(ref_price, (pd.Series, np.ndarray)):
-        returns = ((last_price - ref_price) / ref_price) * 100
-    elif isinstance(last_price, (pd.Series, np.ndarray)):
-         returns = ((last_price - ref_price) / ref_price) * 100
-    else:
-        returns = pd.Series(0.0, index=data.columns)
+    returns = ((last_price - ref_price) / ref_price) * 100
 
     return returns.fillna(0.0)
 
@@ -234,6 +238,27 @@ def get_heatmap_color_style(return_val):
         
     # Text color is always white (var(--text)) for maximum readability
     return f'background-color: {bg}; color: var(--text); border: 1px solid rgba(255,255,255,0.1);'
+
+@st.cache_data(ttl="1h")
+def get_top_movers(ticker_list, period):
+    """Fetches data, calculates returns, and returns top 5 gainers/losers."""
+    
+    all_close_data = fetch_ticker_data(ticker_list)
+    if all_close_data.empty: return pd.DataFrame(), pd.DataFrame()
+    
+    returns = calculate_returns(all_close_data, period).rename("Return (%)")
+    
+    # Get last closing price for display
+    last_prices = all_close_data.iloc[-1].rename("Price ($)")
+    
+    # Combine returns and prices
+    combined_df = pd.concat([returns, last_prices], axis=1)
+    
+    # Sort and slice
+    top_gainers = combined_df.nlargest(5, "Return (%)")
+    top_losers = combined_df.nsmallest(5, "Return (%)")
+    
+    return top_gainers, top_losers
 
 
 # --------------------------------------------------------------------------------------
@@ -410,6 +435,40 @@ st.markdown(
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }}
         
+        /* --- Top Movers List Styling --- */
+        .movers-list {{
+            background: var(--inputlight);
+            border: 1px solid var(--neutral);
+            border-radius: 12px;
+            padding: 15px;
+            height: 100%;
+        }}
+        .movers-item {{
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+            font-size: 1.05rem;
+        }}
+        .movers-item:last-child {{
+            border-bottom: none;
+        }}
+        .movers-ticker {{
+            font-weight: 800;
+            flex: 0 0 25%;
+        }}
+        .movers-price {{
+            font-weight: 500;
+            flex: 0 0 35%;
+            text-align: right;
+            padding-right: 15px;
+            color: var(--muted-text-new);
+        }}
+        .movers-return {{
+            font-weight: 700;
+            flex: 0 0 40%;
+            text-align: right;
+        }}
 
         </style>
         """
@@ -460,7 +519,7 @@ with st.sidebar:
     st.markdown("### Workspace Info")
     st.markdown(f"""
         <div style="color: var(--muted); font-size: .85rem; padding: 10px 0;">
-            <p>:small_blue_diamond: Session started <b>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b></p>
+            <p>Session started <b>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b></p>
         </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
@@ -574,7 +633,7 @@ st.markdown("### Jump to a Strategy")
 PAGE_MAPPING = {
     "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis"},
     "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading"},
-    # Removed "Options Skew (Trend)" page entry
+    # Page 3 (Options Skew) removed as requested
 }
 pages_dir = Path("pages")
 available = []
@@ -594,7 +653,6 @@ if available:
                 <div class="strategy-group-container">
                     <div class="strategy-link-card">
                         <div class="strategy-link-title">
-                            <span style="color: var(--green-accent); font-size: 1.5rem;"></span> 
                             {label}
                         </div>
                         <div class="strategy-link-desc">{desc}</div>
@@ -648,7 +706,6 @@ if data_loaded and not heatmap_df.empty:
     for item in all_tickers_data:
         ticker = item['ticker']
         ret = item['return']
-        category = item['category']
         
         box_style = get_heatmap_color_style(ret)
         return_str = f"{'+' if ret > 0 else ''}{ret:.2f}%"
@@ -667,6 +724,60 @@ if data_loaded and not heatmap_df.empty:
 else:
     st.warning("Could not load market data for the heatmap. Check connectivity or try again later.")
     
+
+st.markdown("---")
+
+# --------------------------------------------------------------------------------------
+# 📈 Top Movers Section
+# --------------------------------------------------------------------------------------
+st.markdown(f"### Top Movers ({return_period})")
+
+gainer_df, loser_df = get_top_movers(SPX_MOVER_TICKERS, return_period)
+
+col_gainers, col_losers = st.columns(2)
+
+# --- Top Gainers ---
+with col_gainers:
+    st.markdown("#### Top 5 Gainers", unsafe_allow_html=True)
+    if not gainer_df.empty:
+        gainer_list_html = '<div class="movers-list">'
+        for ticker, row in gainer_df.iterrows():
+            return_str = f"+{row['Return (%)']:.2f}%"
+            price_str = f"{row['Price ($)']:.2f}"
+            
+            gainer_list_html += dedent(f"""
+                <div class="movers-item">
+                    <span class="movers-ticker" style="color: var(--green-accent);">{ticker}</span>
+                    <span class="movers-price">${price_str}</span>
+                    <span class="movers-return" style="color: var(--green-accent);">{return_str}</span>
+                </div>
+            """)
+        gainer_list_html += '</div>'
+        st.markdown(gainer_list_html, unsafe_allow_html=True)
+    else:
+        st.info("No gainer data available.")
+
+# --- Top Losers ---
+with col_losers:
+    st.markdown("#### Top 5 Losers", unsafe_allow_html=True)
+    if not loser_df.empty:
+        loser_list_html = '<div class="movers-list">'
+        for ticker, row in loser_df.iterrows():
+            return_str = f"{row['Return (%)']:.2f}%"
+            price_str = f"{row['Price ($)']:.2f}"
+            
+            loser_list_html += dedent(f"""
+                <div class="movers-item">
+                    <span class="movers-ticker" style="color: var(--red-neg);">{ticker}</span>
+                    <span class="movers-price">${price_str}</span>
+                    <span class="movers-return" style="color: var(--red-neg);">{return_str}</span>
+                </div>
+            """)
+        loser_list_html += '</div>'
+        st.markdown(loser_list_html, unsafe_allow_html=True)
+    else:
+        st.info("No loser data available.")
+
 
 st.markdown("---")
 st.subheader("Tips")
