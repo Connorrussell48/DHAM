@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from textwrap import dedent
-from datetime import datetime
+from datetime import datetime, timedelta # Added timedelta for skew logic
 import os
 import pytz 
 import yfinance as yf 
 import pandas as pd
 import numpy as np
+import plotly.graph_objects as go # Added Plotly import
 
 import streamlit as st
 
@@ -54,6 +55,109 @@ HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(
 # --------------------------------------------------------------------------------------
 # --- GLOBAL HELPER FUNCTIONS ---
 # --------------------------------------------------------------------------------------
+
+# --- SKEW HELPER FUNCTIONS (MOVED FROM 3_Options_Skew.py) ---
+def simulate_historical_skew(current_skew, lookback_days):
+    """
+    SIMULATES historical skew data for plotting.
+    In a live app, this function would be replaced by a database fetch 
+    of previously calculated daily skew values.
+    """
+    if 'skew_history' not in st.session_state or len(st.session_state['skew_history']) == 0:
+        # Generate initial 60 days of mock data
+        dates = pd.date_range(end=datetime.now(), periods=60, freq='B')
+        
+        # Create a rough trend with noise
+        base_skew = current_skew - 5.0 
+        mock_data = base_skew + np.cumsum(np.random.normal(0, 0.5, 60))
+        
+        history_df = pd.DataFrame({
+            'Date': dates,
+            'Skew (bps)': mock_data
+        }).set_index('Date')
+        
+        st.session_state['skew_history'] = history_df.to_dict()
+    
+    # Use the session state history
+    history_df = pd.DataFrame.from_dict(st.session_state['skew_history']).sort_index()
+
+    # Calculate average skew for the user-defined lookback window
+    lookback_start = datetime.now() - timedelta(days=lookback_days * 1.5) # Use a window large enough for N trading days
+    
+    historical_avg = history_df[history_df.index >= lookback_start]['Skew (bps)'].mean()
+    historical_stdev = history_df[history_df.index >= lookback_start]['Skew (bps)'].std()
+
+    # Trim for plotting
+    plot_df = history_df.iloc[-lookback_days:]
+    
+    return historical_avg, historical_stdev, plot_df
+
+@st.cache_data(ttl="1h")
+def get_skew_and_price(ticker_symbol):
+    """
+    Fetches options chain and calculates the 30-day IV skew using 
+    the OTM Put IV minus ATM IV difference (a common skew proxy).
+    """
+    
+    ticker = yf.Ticker(ticker_symbol)
+    
+    # 1. Find the expiration date closest to 30 days out
+    today = datetime.now().date()
+    target_date = today + timedelta(days=30)
+    
+    # Check if ticker has options
+    if not ticker.options:
+        return None, "No active options chain found."
+        
+    available_dates = [datetime.strptime(d, '%Y-%m-%d').date() for d in ticker.options]
+
+    closest_date = min(available_dates, key=lambda d: abs(d - target_date))
+    closest_date_str = closest_date.strftime('%Y-%m-%d')
+    
+    # 2. Fetch the options chain
+    try:
+        chain = ticker.option_chain(closest_date_str)
+    except Exception as e:
+        return None, f"Failed to fetch options chain for {closest_date_str}: {e}"
+
+    current_price = ticker.info.get('regularMarketPrice', None)
+    if current_price is None:
+        return None, "Failed to fetch current market price."
+
+    combined_chain = pd.concat([chain.calls, chain.puts], ignore_index=True)
+    
+    combined_chain['impliedVolatility'] = pd.to_numeric(combined_chain['impliedVolatility'], errors='coerce')
+    combined_chain = combined_chain.dropna(subset=['impliedVolatility'])
+    
+    if combined_chain.empty:
+        return None, "No valid IV data in the options chain."
+
+    # 3. Find ATM (At-The-Money) strike IV (50 delta proxy)
+    atm_strike = combined_chain.iloc[(combined_chain['strike'] - current_price).abs().argsort()[:1]]
+    atm_iv = atm_strike['impliedVolatility'].mean()
+    
+    # 4. Find OTM Put strike IV (5% OTM proxy for the 25-delta put)
+    otm_put_target = current_price * 0.95
+    otm_put = combined_chain[combined_chain['optionType'] == 'put']
+    otm_put_strike = otm_put.iloc[(otm_put['strike'] - otm_put_target).abs().argsort()[:1]]
+    otm_put_iv = otm_put_strike['impliedVolatility'].mean()
+    
+    # 5. Calculate Skew
+    skew = (otm_put_iv - atm_iv) * 100 
+    
+    result = {
+        'Skew (bps)': skew,
+        'ATM IV (%)': atm_iv * 100,
+        'OTM Put IV (%)': otm_put_iv * 100,
+        'Current Price': current_price,
+        'Expiry Date': closest_date_str,
+        'ATM Strike': atm_strike['strike'].mean(),
+        'OTM Put Strike': otm_put_strike['strike'].mean(),
+    }
+    
+    return result, None
+
+# --- GENERAL HELPERS ---
 
 def get_market_status():
     """Checks the status of the US equity market (NYSE/NASDAQ)."""
@@ -487,7 +591,7 @@ st.caption("Live data summary based on US market hours (EST/EDT).")
 now, is_open, status_text, status_color = get_market_status()
 current_time_str = now.strftime('%H:%M:%S EST')
 
-# --- FIX 1: Use H4 Tag and Reduce Vertical Spacing ---
+# --- Status Display ---
 st.markdown(f"""
     <div style="margin-bottom: 5px; margin-top: -10px;">
         <h4 style="font-size: 1.15rem; font-weight: 700; margin: 0; padding: 0;">Status: <span style='color: {status_color};'>{status_text}</span></h4>
@@ -571,8 +675,9 @@ display_market_kpis(is_open, status_text, status_color)
 st.markdown("### Jump to a Strategy")
 
 PAGE_MAPPING = {
-    "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis", "icon": "🚀"},
-    "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading", "icon": "🔬"},
+    "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis"},
+    "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading"},
+    "Options Skew (Trend)": {"file": "3_Options_Skew.py", "desc": "Implied Volatility Difference Analysis"},
 }
 pages_dir = Path("pages")
 available = []
@@ -580,11 +685,11 @@ available = []
 for label, data in PAGE_MAPPING.items():
     rel_path = pages_dir / data["file"]
     if rel_path.exists():
-        available.append((label, rel_path.as_posix(), data["desc"], data["icon"]))
+        available.append((label, rel_path.as_posix(), data["desc"]))
 
 if available:
     cols = st.columns(len(available))
-    for i, (label, rel_path, desc, icon) in enumerate(available):
+    for i, (label, rel_path, desc) in enumerate(available):
         with cols[i]:
             # The HTML div container that holds the visual style
             st.markdown(
@@ -625,32 +730,23 @@ heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
 if data_loaded and not heatmap_df.empty:
     
     # --- FLATTEN DATA STRUCTURE ---
-    # Convert the wide DataFrame into a list of dictionaries for easy HTML rendering
     all_tickers_data = []
     
-    # 1. Major Indices
     major_data = heatmap_df.loc["Major Indices"].dropna()
     for ticker, ret in major_data.items():
         all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Major Indices"})
     
-    # 2. Sector ETFs
     sector_data = heatmap_df.loc["Sector ETFs"].dropna()
     for ticker, ret in sector_data.items():
         all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Sector ETFs"})
 
-    # 3. Country ETFs
     country_data = heatmap_df.loc["Country ETFs"].dropna()
     for ticker, ret in country_data.items():
         all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Country ETFs"})
-
-    # Sort data: Major first, then sectors, then countries
     
     # --- GENERATE HTML GRID ---
     
     html_content = '<div class="heatmap-grid-container">'
-    
-    # Categorical markers (Optional, for visual grouping)
-    current_category = None
     
     for item in all_tickers_data:
         ticker = item['ticker']
@@ -676,11 +772,110 @@ else:
     
 
 st.markdown("---")
+# --------------------------------------------------------------------------------------
+# 🔮 Skew Trend Plot Section (New)
+# --------------------------------------------------------------------------------------
+st.markdown("### Options Skew Trend (SPY Risk Sentiment)")
+
+# Skew Inputs
+col_skew_input_L, col_skew_input_R = st.columns([1, 4])
+
+with col_skew_input_L:
+    skew_ticker = st.selectbox("Select Skew Ticker", 
+        options=["SPY", "QQQ", "IWM"], 
+        index=0, 
+        key='skew_ticker_select',
+        help="Select index for options skew analysis."
+    )
+    skew_lookback_days = st.number_input("Skew Lookback (Days)", 
+        min_value=5, max_value=60, value=20, step=5, 
+        key='skew_lookback_input',
+        help="Trading days to plot historical trend."
+    )
+
+# Run skew calculation and simulation
+current_skew_data, error = get_skew_and_price(skew_ticker)
+
+if error:
+    st.error(f"Options Skew Data Error for {skew_ticker}: {error}")
+else:
+    current_skew = current_skew_data['Skew (bps)']
+    
+    # 1. Simulate Historical Data for Comparison
+    historical_avg, historical_stdev, skew_history_df = simulate_historical_skew(current_skew, skew_lookback_days)
+
+    # 2. Add current value to the DataFrame for plotting (as of today)
+    current_df = pd.DataFrame({'Skew (bps)': [current_skew]}, index=[datetime.now().date()])
+    plot_data = pd.concat([skew_history_df, current_df])
+    plot_data = plot_data[~plot_data.index.duplicated(keep='last')].sort_index()
+    plot_data['Average'] = historical_avg
+    
+    # 3. Calculate Skew Z-Score (used in plot title)
+    skew_diff = current_skew - historical_avg
+    skew_zscore = skew_diff / historical_stdev if historical_stdev and historical_stdev != 0 else 0
+
+    st.markdown(f"""
+        <div style="font-size: 1.0rem; color: var(--muted-text-new); margin-top: 15px;">
+            Current 30-Day Skew: <span style="font-weight: 700; color: {ACCENT_PURPLE};">{current_skew:.2f} bps</span> (Z-Score: {skew_zscore:+.2f})
+        </div>
+    """, unsafe_allow_html=True)
+
+
+    # 4. Create a Plotly figure
+    fig = go.Figure()
+
+    # Historical Skew Line
+    fig.add_trace(go.Scatter(
+        x=plot_data.index,
+        y=plot_data['Skew (bps)'],
+        mode='lines+markers',
+        name='Daily Skew',
+        line=dict(color=ACCENT_PURPLE, width=2),
+        marker=dict(size=6)
+    ))
+
+    # Historical Average Line
+    fig.add_trace(go.Scatter(
+        x=plot_data.index,
+        y=plot_data['Average'],
+        mode='lines',
+        name=f'{skew_lookback_days}D Avg',
+        line=dict(color=NEUTRAL_GRAY, dash='dash', width=1)
+    ))
+
+    # Highlight the current day's point
+    fig.add_trace(go.Scatter(
+        x=[plot_data.index[-1]],
+        y=[plot_data['Skew (bps)'].iloc[-1]],
+        mode='markers',
+        name='Current Skew',
+        marker=dict(size=10, color=ACCENT_GREEN, line=dict(width=2, color='White'))
+    ))
+
+
+    fig.update_layout(
+        title=f'{skew_ticker} Options Skew Trend ({skew_lookback_days} Day History)',
+        xaxis_title='Date',
+        yaxis_title='Skew (Basis Points)',
+        template='plotly_dark',
+        height=450,
+        margin=dict(l=20, r=20, t=50, b=20),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor=INPUT_BG_LIGHT,
+        font=dict(color=BLOOM_TEXT),
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+st.markdown("---")
 st.subheader("Tips")
 st.markdown(
     """
 - The **Market Summary** uses real-time or end-of-day data from `yfinance`.
 - The **Market Heatmap** uses calculated returns for the selected period, with color intensity showing return magnitude.
-- Global parameters are initialized here but are only visible and editable on the strategy pages.
+- The **Skew Trend** uses the 30-day option chain to track risk sentiment against its historical average.
 """
 )
