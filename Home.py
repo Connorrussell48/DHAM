@@ -337,11 +337,7 @@ st.markdown(
         }}
         
         /* --- Strategy Navigation Card: Final Polish --- */
-        .strategy-group-container {{
-            margin-bottom: 25px; 
-            position: relative; 
-            min-height: 120px; 
-        }}
+        /* This is the div that holds the visual content of the card */
         .strategy-link-card {{
             background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
             border: 1px solid var(--neutral); 
@@ -350,31 +346,15 @@ st.markdown(
             box-shadow: 0 5px 15px rgba(0,0,0,.4); 
             transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
             height: 100%;
-            pointer-events: none; 
             display: flex; 
             flex-direction: column;
             justify-content: space-between;
         }}
-        /* Change border and shadow color on hover */
-        .strategy-group-container:hover .strategy-link-card {{
+        /* Hover effect on the card itself */
+        .strategy-link-card:hover {{
             border-color: var(--purple); 
             transform: translateY(-5px); 
             box-shadow: 0 15px 40px var(--card-purple-shadow); 
-        }}
-        /* Target the actual st.page_link button and stretch it over the card */
-        .strategy-group-container button[kind="page-link"] {{
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0; 
-            cursor: pointer;
-            z-index: 10;
-        }}
-        /* Hide the label text from the page link button */
-        .strategy-group-container button[kind="page-link"] > div > p {{
-            display: none !important;
         }}
 
         /* Apply lighter grey to card description */
@@ -633,7 +613,6 @@ st.markdown("### Jump to a Strategy")
 PAGE_MAPPING = {
     "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis"},
     "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading"},
-    # Page 3 (Options Skew) removed as requested
 }
 pages_dir = Path("pages")
 available = []
@@ -647,22 +626,42 @@ if available:
     cols = st.columns(len(available))
     for i, (label, rel_path, desc) in enumerate(available):
         with cols[i]:
-            # The HTML div container that holds the visual style
-            st.markdown(
-                f"""
-                <div class="strategy-group-container">
-                    <div class="strategy-link-card">
-                        <div class="strategy-link-title">
-                            {label}
-                        </div>
-                        <div class="strategy-link-desc">{desc}</div>
-                    </div>
+            # Use st.page_link directly and wrap the custom content in the label argument
+            st.page_link(
+                rel_path, 
+                label=dedent(f"""
+                <div class="strategy-link-card">
+                    <div class="strategy-link-title">{label}</div>
+                    <div class="strategy-link-desc">{desc}</div>
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """), 
+                icon=None,
+                use_container_width=True # Ensure the link button takes the full column width
             )
-            # The st.page_link button is placed directly below and stretched over the card via CSS
-            st.page_link(rel_path, label="", icon=None) 
+            # Apply the special CSS class to the button wrapper
+            st.markdown(f"""
+            <style>
+            /* Target the specific st.page_link button we just created and ensure its label is HTML rendered */
+            [data-testid="stColumn"] > div:nth-child({i+1}) [data-testid="stPageLink"] button {{
+                padding: 0; /* Remove default button padding */
+                background: none; /* Make button background invisible */
+                border: none; /* Remove button border */
+                transition: all 0.3s;
+            }}
+            /* Ensure the HTML label content is allowed to be styled */
+            [data-testid="stColumn"] > div:nth-child({i+1}) [data-testid="stPageLink"] p {{
+                margin: 0; /* Remove default paragraph margin */
+            }}
+            /* Re-apply the hover effect to the visible card when the underlying button is hovered */
+            [data-testid="stColumn"] > div:nth-child({i+1}) [data-testid="stPageLink"] button:hover .strategy-link-card {{
+                border-color: var(--purple); 
+                transform: translateY(-5px); 
+                box-shadow: 0 15px 40px var(--card-purple-shadow); 
+            }}
+            </style>
+            """, unsafe_allow_html=True)
+
+
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
