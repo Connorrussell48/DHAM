@@ -26,7 +26,7 @@ st.set_page_config(
 # --------------------------------------------------------------------------------------
 BLOOM_BG       = "#0B0F14"    
 BLOOM_PANEL    = "#121820"    
-BLOOM_TEXT     = "#FFFFFF"    
+BLOOM_TEXT     = "#FFFFF5"    # ADJUSTED: Slightly brighter than pure white
 BLOOM_MUTED    = "rgba(255,255,255,0.45)" # Sidebar Text / Sub-text
 NEUTRAL_GRAY   = "#4A5B6E"    
 INPUT_BG       = "#2E3A46"    
@@ -280,6 +280,12 @@ st.markdown(
         /* Market Status Text */
         .text-gray-400 {{
             color: var(--muted-text-new) !important;
+        }}
+
+        /* --- Global Text Color Application --- */
+        /* Forces all primary text (st.markdown/st.header/st.subheader) to use the new BLOOM_TEXT */
+        .stMarkdown, .stText, h1, h2, h3, h4, h5, h6 {{
+            color: var(--text) !important;
         }}
 
 
