@@ -461,8 +461,16 @@ st.markdown(
             background: none !important; /* Eliminate default button background */
             line-height: normal;
             color: transparent !important; /* Hide any lingering text */
+            /* Crucial: Restore all visual elements that might have been hidden by transparent rules */
+            overflow: visible; 
+            z-index: 100;
         }}
         /* 2. Ensures the custom HTML inside the link is styled like a card */
+        [data-testid="stPageLink"] .strategy-link-card {{
+            /* Apply custom hover effect */
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
+        }}
+
         [data-testid="stPageLink"] > button:hover .strategy-link-card {{
             border-color: var(--purple); 
             transform: translateY(-5px); 
@@ -473,6 +481,11 @@ st.markdown(
             color: inherit !important;
             background: none !important;
         }}
+        /* 4. Ensure the content wrapper itself is visible */
+        [data-testid="stPageLink"] .stMarkdown {{
+            color: var(--text);
+        }}
+
 
         </style>
         """
