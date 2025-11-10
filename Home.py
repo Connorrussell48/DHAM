@@ -78,6 +78,19 @@ def get_market_status():
 
     return now, is_open, status_text, status_color
 
+def get_metric_styles(change_pct):
+    """Determines color and icon based on percentage change."""
+    if change_pct > 0.01:
+        color_token = "--green-accent"
+        icon = '↑'
+    elif change_pct < -0.01:
+        color_token = "--red-neg"
+        icon = '↓'
+    else:
+        color_token = "--purple"
+        icon = '•'
+    return f"var({color_token})", icon, f"var({color_token})"
+
 @st.cache_data(ttl="1h")
 def fetch_ticker_data(tickers):
     """Fetches the last 15 months of adjusted close prices for tickers."""
@@ -100,8 +113,7 @@ def fetch_live_summary(tickers):
             summary = {t: data.get(t, {}) for t in tickers}
             
         return summary
-    except Exception as e:
-        # st.error(f"Error fetching live summary: {e}")
+    except Exception:
         return {}
 
 
@@ -129,14 +141,46 @@ def calculate_returns(data, period):
     elif period == 'YTD':
         # Find the price on the first trading day of the current year
         current_year = data.index[-1].year
+        # Find the first valid trading day index for the current year
         ytd_start_index = data.index[data.index.year == current_year].min()
-        if pd.notna(ytd_start_index):
+        if pd.notna(ytd_start_index) and ytd_start_index in data.index:
+             # Get the price corresponding to the YTD start date
              ref_price = data.loc[ytd_start_index]
         else:
-            return pd.Series(0.0, index=data.columns) # Fallback to 0 if year start is missing
+            # If start of year data is missing, treat return as 0 (safe fallback)
+            return pd.Series(0.0, index=data.columns) 
 
-    returns = ((last_price - ref_price) / ref_price) * 100
+    # Handle Series vs Scalar in Ref Price for accurate subtraction/division
+    if isinstance(last_price, (pd.Series, np.ndarray)) and isinstance(ref_price, (pd.Series, np.ndarray)):
+        returns = ((last_price - ref_price) / ref_price) * 100
+    elif isinstance(last_price, (pd.Series, np.ndarray)):
+         # If last_price is Series but ref_price is a scalar value (e.g., from .loc), broadcast the scalar
+         returns = ((last_price - ref_price) / ref_price) * 100
+    else:
+        # Should not happen if data is a DataFrame of closes, but as a fallback:
+        returns = pd.Series(0.0, index=data.columns)
+
     return returns.fillna(0.0)
+
+def get_metric_html(title, price, change_pct, accent_color_token):
+    """Generates the HTML for a Market KPI Card."""
+    color, icon, _ = get_metric_styles(change_pct)
+    
+    # Format change text
+    change_text = f"{icon} {abs(change_pct):.2f}%"
+    
+    # Custom border and background highlight on hover
+    return dedent(f"""
+        <div class="kpi" style="border-left: 5px solid {color};"
+             onmouseover="this.style.borderColor='var(--green-accent)';"
+             onmouseout="this.style.borderColor='{color}';">
+            <div class="h">{title}</div>
+            <div class="v" style="color: {color};">
+                {price:.2f}
+            </div>
+            <div class="text-sm font-semibold" style="color: {color};">{change_text}</div>
+        </div>
+    """)
 
 # --------------------------------------------------------------------------------------
 # CSS injection
@@ -170,28 +214,35 @@ st.markdown(
           box-shadow: 4px 0 10px rgba(0,0,0,0.4);
         }}
         
-        /* Make sidebar links/expander arrows 'pop' (Use Streamlit's targetable classes) */
-        /* Targets the arrow/icon area of expanders and sidebar selections */
-        .stSelectbox>label, .stMultiSelect>label, .stRadio>label, 
-        .stFileUploader>label, .stDateInput>label, 
-        .stSidebar .stSelectbox [data-baseweb="select"] svg,
-        .stSidebar .stMultiSelect [data-baseweb="select"] svg {{
+        /* Make sidebar links/expander arrows 'pop' (Now targets the actual nav links) */
+        /* Streamlit's element selectors are usually data-testid or specific CSS structure */
+        /* Targets the text and icons of the pages in the sidebar navigation */
+        [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] svg {{
+            color: var(--text) !important;
             fill: var(--purple) !important;
+            transition: all 0.2s;
+        }}
+        [data-testid="stSidebarNav"] a:hover {{
+            color: var(--green-accent) !important;
         }}
         
         /* --- Strategy Navigation Card: Make whole box clickable visually --- */
         .strategy-group-container {{
             margin-bottom: 25px; /* Spacing between groups */
+            position: relative; /* Needed for absolute positioning of link button */
         }}
         .strategy-link-card {{
-            background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.00));
+            background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00)); /* Brighter background */
             border: 1px solid rgba(255,255,255,0.15);
             border-radius: 16px;
-            padding: 20px;
+            padding: 24px; /* Increased padding */
             box-shadow: 0 10px 30px rgba(0,0,0,.4);
             transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
             height: 100%;
-            pointer-events: none; /* Important: prevents the div from intercepting the link click below it */
+            pointer-events: none; 
+            display: flex; /* For layout consistency */
+            flex-direction: column;
+            justify-content: space-between;
         }}
         .strategy-link-card:hover {{
             border-color: var(--green-accent);
@@ -212,13 +263,14 @@ st.markdown(
 
         .strategy-link-title {{ 
             font-weight: 800; 
-            font-size: 1.25rem; 
+            font-size: 1.5rem; /* Larger title */
             letter-spacing: .5px; 
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px; /* More space for icon */
+            margin-bottom: 10px;
         }}
-        .strategy-link-desc {{ color: var(--muted); font-size: .88rem; margin-top: 4px; }}
+        .strategy-link-desc {{ color: var(--muted); font-size: 1.0rem; }} /* Larger description */
 
         /* KPI / Metric Cards (Market Summary) */
         .kpi {{
@@ -232,17 +284,15 @@ st.markdown(
         .kpi .h {{ font-size: .85rem; color: var(--muted); margin-bottom: 4px; }}
         .kpi .v {{ font-size: 1.45rem; font-weight: 800; }}
         
-        .small-muted {{ color: var(--muted); font-size: .86rem; }}
-        
-        /* Heatmap Styling (Background color based on return) */
-        .heatmap-cell {{
-            padding: 8px 6px;
-            font-weight: 700;
-            font-size: 0.9rem;
-            color: var(--text);
-            border-radius: 4px;
-            text-align: center;
+        /* Heatmap Styling */
+        .dataframe-container table {{
+            background: var(--inputlight) !important;
+            border-radius: 8px;
         }}
+        .dataframe-container th {{
+            background: var(--input) !important;
+        }}
+
         </style>
         """
     ),
@@ -312,11 +362,13 @@ st.caption("Live data summary based on US market hours (EST/EDT).")
 now, is_open, status_text, status_color = get_market_status()
 current_time_str = now.strftime('%H:%M:%S EST')
 
+# --- Market Status Header FIX ---
+# Replacing st.subheader with st.markdown to resolve the TypeError
+st.markdown(f"#### Status: <span style='color: {status_color};'>{status_text}</span>", unsafe_allow_html=True)
+st.markdown("---")
+
 def display_market_kpis(is_open, status_text, status_color):
     
-    st.subheader(f"Status: <span style='color: {status_color};'>{status_text}</span>", unsafe_allow_html=True)
-    st.markdown("---")
-
     col_spy, col_qqq, col_vix, col_time = st.columns(4)
     
     # --- Live Data Fetching ---
@@ -342,7 +394,7 @@ def display_market_kpis(is_open, status_text, status_color):
             try:
                 # Use cached function to get context data
                 close_data = fetch_ticker_data([ticker])
-                if not close_data.empty:
+                if not close_data.empty and len(close_data) >= 2:
                     close_data = close_data[ticker]
                     price = close_data.iloc[-1]
                     # Calculate true 1-Day return from cached data
@@ -354,19 +406,16 @@ def display_market_kpis(is_open, status_text, status_color):
 
     # --- SPY ---
     spy_price, spy_change_pct = get_ticker_metric("SPY")
-    spy_color, spy_icon, _ = get_metric_styles(spy_change_pct)
     with col_spy:
         st.markdown(get_metric_html("S&P 500 (SPY)", spy_price, spy_change_pct, "--green-accent"), unsafe_allow_html=True)
 
     # --- QQQ ---
     qqq_price, qqq_change_pct = get_ticker_metric("QQQ")
-    qqq_color, qqq_icon, _ = get_metric_styles(qqq_change_pct)
     with col_qqq:
         st.markdown(get_metric_html("NASDAQ 100 (QQQ)", qqq_price, qqq_change_pct, "--red-neg"), unsafe_allow_html=True)
 
     # --- VIX ---
     vix_price, vix_change_pct = get_ticker_metric("^VIX")
-    vix_color, vix_icon, _ = get_metric_styles(vix_change_pct)
     with col_vix:
         st.markdown(get_metric_html("VIX Index (^VIX)", vix_price, vix_change_pct, "--purple"), unsafe_allow_html=True)
 
@@ -516,11 +565,13 @@ if data_loaded and not heatmap_df.empty:
     # Apply the styling
     styled_df = formatted_df.style.applymap(color_return)
     
+    st.markdown("<div class='dataframe-container'>", unsafe_allow_html=True)
     st.dataframe(
         styled_df,
         use_container_width=True,
         hide_index=False,
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 else:
     st.warning("Could not load market data for the heatmap. Check connectivity or try again later.")
     
