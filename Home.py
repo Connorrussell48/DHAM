@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from textwrap import dedent
-from datetime import datetime, timedelta # Added timedelta for skew logic
+from datetime import datetime, timedelta
 import os
 import pytz 
 import yfinance as yf 
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go # Added Plotly import
+import plotly.graph_objects as go
 
 import streamlit as st
 
@@ -82,6 +82,9 @@ def simulate_historical_skew(current_skew, lookback_days):
     history_df = pd.DataFrame.from_dict(st.session_state['skew_history']).sort_index()
 
     # Calculate average skew for the user-defined lookback window
+    # Ensure the index is a common format (datetime) before slicing
+    history_df.index = pd.to_datetime(history_df.index) 
+    
     lookback_start = datetime.now() - timedelta(days=lookback_days * 1.5) # Use a window large enough for N trading days
     
     historical_avg = history_df[history_df.index >= lookback_start]['Skew (bps)'].mean()
@@ -149,7 +152,7 @@ def get_skew_and_price(ticker_symbol):
     # This line now works because 'optionType' is present:
     otm_put = combined_chain[combined_chain['optionType'] == 'put']
     otm_put_strike = otm_put.iloc[(otm_put['strike'] - otm_put_target).abs().argsort()[:1]]
-    otm_put_iv = otm_put_strike['impliedVolatility'].mean()
+    otm_put_iv = otm_put_strike['implledVolatility'].mean()
     
     # 5. Calculate Skew
     skew = (otm_put_iv - atm_iv) * 100 
@@ -813,10 +816,17 @@ else:
     # 1. Simulate Historical Data for Comparison
     historical_avg, historical_stdev, skew_history_df = simulate_historical_skew(current_skew, skew_lookback_days)
 
-    # 2. Add current value to the DataFrame for plotting (as of today)
-    current_df = pd.DataFrame({'Skew (bps)': [current_skew]}, index=[datetime.now().date()])
+    # --- FIX START: Normalize the index to ensure consistent datetime objects for sorting ---
+    current_index = pd.to_datetime(datetime.now().date()) 
+    current_df = pd.DataFrame({'Skew (bps)': [current_skew]}, index=[current_index])
+    
+    # Ensure historical data index is also datetime objects for concatenation
+    skew_history_df.index = pd.to_datetime(skew_history_df.index)
+
     plot_data = pd.concat([skew_history_df, current_df])
     plot_data = plot_data[~plot_data.index.duplicated(keep='last')].sort_index()
+    # --- FIX END ---
+    
     plot_data['Average'] = historical_avg
     
     # 3. Calculate Skew Z-Score (used in plot title)
