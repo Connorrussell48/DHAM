@@ -123,8 +123,8 @@ def get_market_status():
 
     is_open = is_weekday and (market_open <= now < market_close)
     
-    # TTL is now fixed and only used for the Market Summary KPIs
-    cache_ttl = timedelta(hours=4) # Using a fixed longer period for non-interactive data
+    # TTL is fixed for the Market Summary KPIs
+    cache_ttl = timedelta(hours=4) 
 
     if not is_weekday:
         status_text = "Market Closed (Weekend)"
@@ -214,7 +214,6 @@ def calculate_returns(data, period):
 @st.cache_data(show_spinner=False)
 def generate_heatmap_data(period, tickers_list):
     """Generates data for the market heatmap."""
-    # This data is generally stable, but we allow manual invalidation via the button logic.
     all_close_data = fetch_ticker_data(tickers_list)
     if all_close_data.empty: return pd.DataFrame(), False
     
@@ -290,14 +289,14 @@ def get_heatmap_color_style(return_val):
         
     return f'background-color: {bg}; color: var(--text); border: 1px solid rgba(255,255,255,0.1);'
 
-# Caching for Top Movers is now removed to be manually triggered/cached in the fragment
-def get_top_movers_uncached(ticker_list, period):
-    """Fetches data, calculates returns, and returns top 5 gainers/losers."""
+@st.cache_data(show_spinner=False)
+def get_top_movers_uncached(ticker_list, period, scan_time):
+    """
+    Fetches data, calculates returns, and returns top 5 gainers/losers.
+    The 'scan_time' argument is used solely to force a cache clear when the button is clicked.
+    """
     
-    # NOTE: This function's output is not cached using @st.cache_data.
-    # The data fetching inside (fetch_ticker_data) is cached, but this calculation is rerun
-    # when the fragment executes.
-    
+    # Use the unified caching function to fetch data for the full list
     all_close_data = fetch_ticker_data(ticker_list)
     
     if all_close_data.empty: return pd.DataFrame(), pd.DataFrame()
@@ -809,93 +808,97 @@ st.markdown("---")
 # --------------------------------------------------------------------------------------
 # 📈 Top Movers Section (Manually Triggered)
 # --------------------------------------------------------------------------------------
-
-# --- Manually triggered fragment ---
-@st.experimental_fragment
-def top_movers_fragment(return_period):
-    
-    # Check if the user clicked the run button (key is used to link click to fragment)
-    run_clicked = st.button("Run S&P 500 Scan", type="primary", use_container_width=True, help="Fetch and analyze the latest data for all 496 S&P 500 tickers.")
-    
-    # --- Run Logic (Initial state vs. Clicked state) ---
-    if run_clicked or 'movers_run' not in st.session_state:
-        if run_clicked:
-            # When run is clicked, clear the cache for all dependent data fetching functions
-            # to ensure fresh data is used for the entire scan.
-            fetch_ticker_data.clear()
-            get_top_movers_uncached.clear() # Clear the helper function's cache too
-            st.session_state['movers_run'] = datetime.now()
-            
-        # Display loading spinner while data is computed (especially heavy on initial load)
-        with st.spinner(f"Scanning {len(SPX_MOVER_TICKERS)} tickers for {return_period} returns..."):
-            gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period)
-
-        if run_clicked:
-            st.toast("S&P 500 scan complete!", icon="✅")
-    
-    else:
-        # Initial load or simply navigating to the page
-        gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period)
-
-    # --- Display Status and Results ---
-    
-    if 'movers_run' in st.session_state:
-        st.markdown(f"""
-            <div style="font-size: .85rem; color: var(--muted-text-new); margin-top: 10px;">
-                Last Scan Time: {st.session_state['movers_run'].strftime('%Y-%m-%d %H:%M:%S')}
-            </div>
-        """, unsafe_allow_html=True)
-
-    col_gainers, col_losers = st.columns(2)
-
-    # --- Top Gainers ---
-    with col_gainers:
-        st.markdown("#### Top 5 Gainers", unsafe_allow_html=True)
-        if not gainer_df.empty:
-            gainer_list_html = '<div class="movers-list">'
-            for ticker, row in gainer_df.iterrows():
-                return_str = f"+{row['Return (%)']:.2f}%"
-                price_str = f"{row['Price ($)']:.2f}"
-                
-                gainer_list_html += dedent(f"""
-                    <div class="movers-item">
-                        <span class="movers-ticker" style="color: var(--green-accent);">{ticker}</span>
-                        <span class="movers-price">${price_str}</span>
-                        <span class="movers-return" style="color: var(--green-accent);">{return_str}</span>
-                    </div>
-                """)
-            gainer_list_html += '</div>'
-            st.markdown(gainer_list_html, unsafe_allow_html=True)
-        else:
-            st.info("No gainer data available.")
-
-    # --- Top Losers ---
-    with col_losers:
-        st.markdown("#### Top 5 Losers", unsafe_allow_html=True)
-        if not loser_df.empty:
-            loser_list_html = '<div class="movers-list">'
-            for ticker, row in loser_df.iterrows():
-                return_str = f"{row['Return (%)']:.2f}%"
-                price_str = f"{row['Price ($)']:.2f}"
-                
-                loser_list_html += dedent(f"""
-                    <div class="movers-item">
-                        <span class="movers-ticker" style="color: var(--red-neg);">{ticker}</span>
-                        <span class="movers-price">${price_str}</span>
-                        <span class="movers-return" style="color: var(--red-neg);">{return_str}</span>
-                    </div>
-                """)
-            loser_list_html += '</div>'
-            st.markdown(loser_list_html, unsafe_allow_html=True)
-        else:
-            st.info("No loser data available.")
-
-# --------------------------------------------------------------------------------------
-# FINAL DISPLAY CALLS (BOTTOM OF PAGE)
-# --------------------------------------------------------------------------------------
-
 st.markdown(f"### Top Movers (S&P 500 Scan)")
-top_movers_fragment(return_period) # Call the fragment to display the movers section
+
+# Initialize movers_run timestamp if it doesn't exist
+if 'movers_run' not in st.session_state:
+    st.session_state['movers_run'] = datetime.min
+    # Initialize movers data to empty frames to avoid initial errors
+    st.session_state['gainer_df'] = pd.DataFrame()
+    st.session_state['loser_df'] = pd.DataFrame()
+
+
+# Place button and status in the same row
+col_btn, col_status = st.columns([1, 1.5])
+
+with col_btn:
+    # Check if the button was clicked
+    run_clicked = st.button("Run S&P 500 Scan", type="primary", use_container_width=True, 
+                            help="Fetch and analyze the latest data for all 496 S&P 500 tickers.")
+
+with col_status:
+    st.markdown(f"""
+        <div style="font-size: .85rem; color: var(--muted-text-new); margin-top: 10px; text-align: right;">
+            Last Scan Time: {st.session_state['movers_run'].strftime('%Y-%m-%d %H:%M:%S')}
+        </div>
+    """, unsafe_allow_html=True)
+
+
+# --- Run Logic ---
+if run_clicked:
+    # 1. Force clear cache and update timestamp
+    fetch_ticker_data.clear()
+    get_top_movers_uncached.clear() 
+    st.session_state['movers_run'] = datetime.now()
+    
+    # 2. Display loading spinner and perform heavy calculation
+    with st.spinner(f"Scanning {len(SPX_MOVER_TICKERS)} tickers for {return_period} returns..."):
+        gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period, st.session_state['movers_run'])
+        
+        # 3. Store results in session state
+        st.session_state['gainer_df'] = gainer_df
+        st.session_state['loser_df'] = loser_df
+
+    st.toast("S&P 500 scan complete!", icon="✅")
+    
+# Retrieve results from state for display
+gainer_df = st.session_state['gainer_df']
+loser_df = st.session_state['loser_df']
+
+# --- Display Results ---
+col_gainers, col_losers = st.columns(2)
+
+# --- Top Gainers ---
+with col_gainers:
+    st.markdown("#### Top 5 Gainers", unsafe_allow_html=True)
+    if not gainer_df.empty:
+        gainer_list_html = '<div class="movers-list">'
+        for ticker, row in gainer_df.iterrows():
+            return_str = f"+{row['Return (%)']:.2f}%"
+            price_str = f"{row['Price ($)']:.2f}"
+            
+            gainer_list_html += dedent(f"""
+                <div class="movers-item">
+                    <span class="movers-ticker" style="color: var(--green-accent);">{ticker}</span>
+                    <span class="movers-price">${price_str}</span>
+                    <span class="movers-return" style="color: var(--green-accent);">{return_str}</span>
+                </div>
+            """)
+        gainer_list_html += '</div>'
+        st.markdown(gainer_list_html, unsafe_allow_html=True)
+    else:
+        st.info("Click 'Run S&P 500 Scan' to fetch data.")
+
+# --- Top Losers ---
+with col_losers:
+    st.markdown("#### Top 5 Losers", unsafe_allow_html=True)
+    if not loser_df.empty:
+        loser_list_html = '<div class="movers-list">'
+        for ticker, row in loser_df.iterrows():
+            return_str = f"{row['Return (%)']:.2f}%"
+            price_str = f"{row['Price ($)']:.2f}"
+            
+            loser_list_html += dedent(f"""
+                <div class="movers-item">
+                    <span class="movers-ticker" style="color: var(--red-neg);">{ticker}</span>
+                    <span class="movers-price">${price_str}</span>
+                    <span class="movers-return" style="color: var(--red-neg);">{return_str}</span>
+                </div>
+            """)
+        loser_list_html += '</div>'
+        st.markdown(loser_list_html, unsafe_allow_html=True)
+    else:
+        st.info("Click 'Run S&P 500 Scan' to fetch data.")
 
 st.markdown("---")
 st.subheader("Tips")
