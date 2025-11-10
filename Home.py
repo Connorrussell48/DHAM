@@ -27,18 +27,17 @@ st.set_page_config(
 BLOOM_BG       = "#0B0F14"    
 BLOOM_PANEL    = "#121820"    
 BLOOM_TEXT     = "#FFFFFF"    
-BLOOM_MUTED    = "rgba(255,255,255,0.45)" # Lighter grey for sidebar text
+BLOOM_MUTED    = "rgba(255,255,255,0.45)" # Sidebar Text / Sub-text
 NEUTRAL_GRAY   = "#4A5B6E"    
 INPUT_BG       = "#2E3A46"    
 INPUT_BG_LIGHT = "#3A4654"    
 ACCENT_BLUE    = "#2BB3F3"    
 ACCENT_GREEN   = "#26D07C"    
-ACCENT_PURPLE  = "#8A7CF5"    # Strategy Card Hover Color
+ACCENT_PURPLE  = "#8A7CF5"    
 DARK_PURPLE    = "#3A2A6A"    
 
 # --- Market Data Configuration ---
 MAJOR_TICKERS = ["SPY", "QQQ", "IWM", "^VIX", "GLD", "SLV", "TLT"]
-# Adjusted Sector/Country Tickers for standard use
 SECTOR_TICKERS = {
     "Technology": "XLK", "Healthcare": "XLV", "Financials": "XLF", 
     "Consumer Disc.": "XLY", "Industrials": "XLI", "Energy": "XLE"
@@ -48,7 +47,10 @@ COUNTRY_TICKERS = {
 }
 HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())))
 
-# --- Helper Functions ---
+
+# --------------------------------------------------------------------------------------
+# --- GLOBAL HELPER FUNCTIONS (Moved to top to fix NameError) ---
+# --------------------------------------------------------------------------------------
 
 def get_market_status():
     """Checks the status of the US equity market (NYSE/NASDAQ)."""
@@ -85,7 +87,8 @@ def get_metric_styles(change_pct):
         color_token = "--red-neg"
         icon = '↓'
     else:
-        color_token = "--purple"
+        # Use a lighter grey for neutral performance throughout the app
+        color_token = "--muted-text-new" 
         icon = '•'
     return f"var({color_token})", icon, f"var({color_token})"
 
@@ -146,8 +149,35 @@ def calculate_returns(data, period):
 
     return returns.fillna(0.0)
 
+@st.cache_data(ttl="4h")
+def generate_heatmap_data(period, tickers_list):
+    all_close_data = fetch_ticker_data(tickers_list)
+    if all_close_data.empty: return pd.DataFrame(), False
+    
+    returns = calculate_returns(all_close_data, period)
+    
+    data = []
+    major_row = {"Category": "Major Indices"}
+    for ticker in MAJOR_TICKERS:
+        if ticker in returns: major_row[ticker] = returns[ticker]
+    data.append(major_row)
+    
+    sector_row = {"Category": "Sector ETFs"}
+    for name, ticker in SECTOR_TICKERS.items():
+        if ticker in returns: sector_row[ticker] = returns[ticker]
+    data.append(sector_row)
+
+    country_row = {"Category": "Country ETFs"}
+    for name, ticker in COUNTRY_TICKERS.items():
+        if ticker in returns: country_row[ticker] = returns[ticker]
+    data.append(country_row)
+    
+    df = pd.DataFrame(data).set_index("Category").fillna(np.nan)
+    return df, True
+
 def get_metric_html(title, price, change_pct, accent_color_token):
     """Generates the HTML for a Market KPI Card."""
+    # Using the new lighter gray for neutral elements
     color, icon, _ = get_metric_styles(change_pct)
     change_text = f"{icon} {abs(change_pct):.2f}%"
     
@@ -172,6 +202,7 @@ st.markdown(
         <style>
         :root {{
           --bg:{BLOOM_BG}; --panel:{BLOOM_PANEL}; --text:{BLOOM_TEXT}; --muted:{BLOOM_MUTED};
+          --muted-text-new: rgba(255, 255, 255, 0.75); /* Lighter grey for neutral elements */
           --neutral:{NEUTRAL_GRAY}; --input:{INPUT_BG}; --inputlight:{INPUT_BG_LIGHT};
           --blue:{ACCENT_BLUE}; --green:{ACCENT_GREEN}; --purple:{ACCENT_PURPLE};
           --green-accent: #26D07C;
@@ -190,6 +221,26 @@ st.markdown(
         header[data-testid="stHeader"] {{ background:transparent!important; height:2.5rem!important; }}
         [data-testid="stDecoration"] {{ background:transparent!important; }}
 
+        /* --- Global Text Coloring (Lighter Gray) --- */
+        
+        /* Header Subtitle */
+        div[data-testid="stHeader"] > div:last-child > div:last-child {{
+            color: var(--muted-text-new) !important;
+        }}
+        /* Fun Quote */
+        div[data-testid="stAppViewContainer"] > div > div > div > div:nth-child(2) > div {{
+            color: var(--muted-text-new) !important;
+        }}
+        /* KPI Subtitles */
+        .kpi .h {{ 
+            color: var(--muted-text-new) !important; 
+        }}
+        /* Market Status Text */
+        .text-gray-400 {{
+            color: var(--muted-text-new) !important;
+        }}
+
+
         /* --- Sidebar Enhancements --- */
         section[data-testid="stSidebar"], aside[data-testid="stSidebar"] {{
           background: var(--sidebar-bg) !important;
@@ -201,9 +252,9 @@ st.markdown(
             color: var(--muted) !important; 
         }}
         
-        /* Sidebar Navigation Arrows & Links Pop */
+        /* Sidebar Navigation Arrows & Links Pop (using muted-text-new for links) */
         [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] svg {{
-            color: var(--text) !important;
+            color: var(--muted-text-new) !important; /* Lighter Grey for links */
             fill: var(--purple) !important;
             transition: all 0.2s;
         }}
@@ -215,7 +266,7 @@ st.markdown(
         .strategy-group-container {{
             margin-bottom: 25px; 
             position: relative; 
-            min-height: 120px; /* Ensure space for the card and link to sit */
+            min-height: 120px; 
         }}
         .strategy-link-card {{
             background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
@@ -243,7 +294,7 @@ st.markdown(
             left: 0;
             width: 100%;
             height: 100%;
-            opacity: 0; /* Make it invisible */
+            opacity: 0; 
             cursor: pointer;
             z-index: 10;
         }}
@@ -251,6 +302,9 @@ st.markdown(
         .strategy-group-container button[kind="page-link"] > div > p {{
             display: none !important;
         }}
+
+        /* Apply lighter grey to card description */
+        .strategy-link-desc {{ color: var(--muted-text-new); font-size: 1.0rem; }} 
 
         .strategy-link-title {{ 
             font-weight: 800; 
@@ -261,35 +315,20 @@ st.markdown(
             gap: 15px; 
             margin-bottom: 10px;
         }}
-        .strategy-link-desc {{ color: var(--muted); font-size: 1.0rem; }} 
-
-        /* KPI / Metric Cards (Market Summary) */
-        .kpi {{
-          background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
-          border: 1px solid rgba(255,255,255,0.10);
-          border-radius: 14px;
-          padding: 12px 14px;
-          text-align: left;
-          transition: border-color 0.2s;
-        }}
-        .kpi .h {{ font-size: .85rem; color: var(--muted); margin-bottom: 4px; }}
-        .kpi .v {{ font-size: 1.45rem; font-weight: 800; }}
         
         /* --- Heatmap Styling --- */
         
-        /* Ensures row index/category is visible */
         [data-testid="stDataFrame"] .row_heading.level0 > div {{
             color: var(--text) !important;
             font-weight: 600;
         }}
         
-        /* Cell content styling (ticker + return) */
         .heatmap-cell {{
             font-size: 0.95rem; 
             font-weight: 700;
             text-align: center;
             line-height: 1.2;
-            padding: 8px 4px; /* Reduced padding */
+            padding: 8px 4px; 
         }}
         .heatmap-ticker {{
             font-size: 1.0rem;
@@ -351,7 +390,6 @@ if "lookback" not in st.session_state:
 # --------------------------------------------------------------------------------------
 with st.sidebar:
     st.markdown("### Workspace Info")
-    # Using the new BLOOM_MUTED color defined in the CSS
     st.markdown(f"""
         <div style="color: var(--muted); font-size: .85rem; padding: 10px 0;">
             <p>:small_blue_diamond: Session started <b>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b></p>
@@ -436,7 +474,7 @@ def display_market_kpis(is_open, status_text, status_color):
             <div class="kpi" style="border-left: 5px solid {status_color};">
                 <div class="h">Current Time</div>
                 <div class="v" style="color: {status_color};">{current_time_str}</div>
-                <div class="text-sm font-semibold text-gray-400">Market Status</div>
+                <div class="text-sm font-semibold" style="color: var(--muted-text-new);">Market Status</div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -475,14 +513,12 @@ if available:
                             {label}
                         </div>
                         <div class="strategy-link-desc">{desc}</div>
-                        <!-- Path/File name removed to make the card cleaner -->
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
             # The st.page_link button is placed directly below and stretched over the card via CSS
-            # The label is now an empty string to remove the "Open" text that was visible
             st.page_link(rel_path, label="", icon=None) 
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
@@ -500,8 +536,6 @@ return_period = st.selectbox(
     index=0, 
     key='return_period_toggle'
 )
-
-# @st.cache_data is reused from above
 
 heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
 
@@ -523,11 +557,11 @@ if data_loaded and not heatmap_df.empty:
             return 'background-color: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,0.05);'
 
         # Defines range: Green for positive, Red for negative, Yellow/Purple around zero
-        # 4.0% is the max saturation point
+        # 4.0% is the max saturation point for full opacity
         max_saturation = 4.0
         
         if val > 0:
-            # Scale alpha from 0.1 to 0.9 based on value up to max_saturation
+            # Scale alpha from 0.1 (low return) to 0.9 (high return)
             alpha = min(0.9, 0.1 + (val / max_saturation) * 0.8) 
             bg = f'rgba(38, 208, 124, {alpha})' # Green
             text_color = 'var(--text)'
@@ -536,8 +570,9 @@ if data_loaded and not heatmap_df.empty:
             bg = f'rgba(217, 83, 79, {alpha})' # Red
             text_color = 'var(--text)'
         else:
-            bg = f'rgba(138, 124, 245, 0.1)' # Light Purple/Yellow for low movement
-            text_color = 'var(--muted)'
+            # Returns near zero (0.00 to +/- 0.01) get a light purple hue
+            bg = f'rgba(138, 124, 245, 0.1)' 
+            text_color = 'var(--muted-text-new)'
             
         return f'background-color: {bg}; color: {text_color}; border: 1px solid rgba(255,255,255,0.05);'
 
@@ -547,7 +582,7 @@ if data_loaded and not heatmap_df.empty:
             return ""
         
         # Get the ticker symbol, defaulting to the column name for indices
-        symbol = ticker_to_name.get(ticker, ticker)
+        symbol = ticker
         
         return f"""
         <div class="heatmap-cell">
@@ -556,7 +591,7 @@ if data_loaded and not heatmap_df.empty:
         </div>
         """
     
-    # --- New Styling Application ---
+    # --- Styling Application ---
     
     # 1. Map color styling to the numeric values
     styled_df = heatmap_df.style.map(color_return, subset=pd.IndexSlice[:, heatmap_df.columns.difference(['Category'])])
