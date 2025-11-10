@@ -38,6 +38,7 @@ DARK_PURPLE    = "#3A2A6A"
 
 # --- Market Data Configuration ---
 MAJOR_TICKERS = ["SPY", "QQQ", "IWM", "^VIX", "GLD", "SLV", "TLT"]
+# Adjusted Sector/Country Tickers for standard use
 SECTOR_TICKERS = {
     "Technology": "XLK", "Healthcare": "XLV", "Financials": "XLF", 
     "Consumer Disc.": "XLY", "Industrials": "XLI", "Energy": "XLE"
@@ -214,6 +215,7 @@ st.markdown(
         .strategy-group-container {{
             margin-bottom: 25px; 
             position: relative; 
+            min-height: 120px; /* Ensure space for the card and link to sit */
         }}
         .strategy-link-card {{
             background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
@@ -241,9 +243,13 @@ st.markdown(
             left: 0;
             width: 100%;
             height: 100%;
-            opacity: 0;
+            opacity: 0; /* Make it invisible */
             cursor: pointer;
             z-index: 10;
+        }}
+        /* Hide the label text from the page link button */
+        .strategy-group-container button[kind="page-link"] > div > p {{
+            display: none !important;
         }}
 
         .strategy-link-title {{ 
@@ -269,9 +275,33 @@ st.markdown(
         .kpi .h {{ font-size: .85rem; color: var(--muted); margin-bottom: 4px; }}
         .kpi .v {{ font-size: 1.45rem; font-weight: 800; }}
         
-        /* Heatmap Styling (Ensures index text is white) */
+        /* --- Heatmap Styling --- */
+        
+        /* Ensures row index/category is visible */
         [data-testid="stDataFrame"] .row_heading.level0 > div {{
             color: var(--text) !important;
+            font-weight: 600;
+        }}
+        
+        /* Cell content styling (ticker + return) */
+        .heatmap-cell {{
+            font-size: 0.95rem; 
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.2;
+            padding: 8px 4px; /* Reduced padding */
+        }}
+        .heatmap-ticker {{
+            font-size: 1.0rem;
+            font-weight: 900;
+            display: block;
+            opacity: 0.9;
+        }}
+        .heatmap-return {{
+            font-size: 0.75rem;
+            display: block;
+            opacity: 0.7;
+            margin-top: 2px;
         }}
 
         </style>
@@ -445,14 +475,15 @@ if available:
                             {label}
                         </div>
                         <div class="strategy-link-desc">{desc}</div>
-                        <div class="small-muted font-mono" style="margin:.25rem 0 .6rem 0;">Path: <code>{rel_path}</code></div>
+                        <!-- Path/File name removed to make the card cleaner -->
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
             # The st.page_link button is placed directly below and stretched over the card via CSS
-            st.page_link(rel_path, label="Open", icon=None) 
+            # The label is now an empty string to remove the "Open" text that was visible
+            st.page_link(rel_path, label="", icon=None) 
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
@@ -470,71 +501,69 @@ return_period = st.selectbox(
     key='return_period_toggle'
 )
 
-@st.cache_data(ttl="4h")
-def generate_heatmap_data(period, tickers_list):
-    all_close_data = fetch_ticker_data(tickers_list)
-    if all_close_data.empty: return pd.DataFrame(), False
-    
-    returns = calculate_returns(all_close_data, period)
-    
-    data = []
-    major_row = {"Category": "Major Indices"}
-    for ticker in MAJOR_TICKERS:
-        if ticker in returns: major_row[ticker] = returns[ticker]
-    data.append(major_row)
-    
-    sector_row = {"Category": "Sector ETFs"}
-    for name, ticker in SECTOR_TICKERS.items():
-        if ticker in returns: sector_row[name] = returns[ticker]
-    data.append(sector_row)
-
-    country_row = {"Category": "Country ETFs"}
-    for name, ticker in COUNTRY_TICKERS.items():
-        if ticker in returns: country_row[name] = returns[ticker]
-    data.append(country_row)
-    
-    df = pd.DataFrame(data).set_index("Category").fillna(np.nan)
-    return df, True
+# @st.cache_data is reused from above
 
 heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
 
 if data_loaded and not heatmap_df.empty:
     
+    # Map back from Ticker to Display Name for sectors/countries
+    ticker_to_name = {v: k for k, v in SECTOR_TICKERS.items()}
+    ticker_to_name.update({v: k for k, v in COUNTRY_TICKERS.items()})
+
+    # --- NEW COLORING FUNCTION ---
     def color_return(val):
         """Generates background color based on return value."""
         if pd.isna(val):
-            return 'background-color: transparent; color: var(--muted);'
+            return 'background-color: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,0.05);'
         
         try:
             val = float(val)
         except ValueError:
-            return 'background-color: transparent; color: var(--muted);'
+            return 'background-color: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,0.05);'
 
-        # Color gradient logic
-        if val > 2.0: 
-            bg = f'rgba(38, 208, 124, {min(0.8, 0.4 + (val - 2.0) * 0.1)})'
-            color = 'var(--text)'
-        elif val > 0.0: 
-            bg = f'rgba(38, 208, 124, {min(0.4, 0.1 + val * 0.1)})'
-            color = 'var(--text)'
-        elif val < -2.0: 
-            bg = f'rgba(217, 83, 79, {min(0.8, 0.4 + abs(val) * 0.1)})'
-            color = 'var(--text)'
-        elif val < 0.0: 
-            bg = f'rgba(217, 83, 79, {min(0.4, 0.1 + abs(val) * 0.1)})'
-            color = 'var(--text)'
-        else:
-            bg = f'rgba(138, 124, 245, 0.1)' 
-            color = 'var(--muted)'
-            
-        return f'background-color: {bg}; color: {color}; border: 1px solid rgba(255,255,255,0.05);'
-
-    def format_return(x):
-        return f"{x:.2f}%" if pd.notna(x) else "N/A"
+        # Defines range: Green for positive, Red for negative, Yellow/Purple around zero
+        # 4.0% is the max saturation point
+        max_saturation = 4.0
         
-    # Apply styling only to the numeric columns
+        if val > 0:
+            # Scale alpha from 0.1 to 0.9 based on value up to max_saturation
+            alpha = min(0.9, 0.1 + (val / max_saturation) * 0.8) 
+            bg = f'rgba(38, 208, 124, {alpha})' # Green
+            text_color = 'var(--text)'
+        elif val < 0:
+            alpha = min(0.9, 0.1 + (abs(val) / max_saturation) * 0.8)
+            bg = f'rgba(217, 83, 79, {alpha})' # Red
+            text_color = 'var(--text)'
+        else:
+            bg = f'rgba(138, 124, 245, 0.1)' # Light Purple/Yellow for low movement
+            text_color = 'var(--muted)'
+            
+        return f'background-color: {bg}; color: {text_color}; border: 1px solid rgba(255,255,255,0.05);'
+
+    def format_heatmap_cell(x, ticker):
+        """Formats the cell content to show Ticker and Return (HTML)."""
+        if pd.isna(x):
+            return ""
+        
+        # Get the ticker symbol, defaulting to the column name for indices
+        symbol = ticker_to_name.get(ticker, ticker)
+        
+        return f"""
+        <div class="heatmap-cell">
+            <span class="heatmap-ticker">{symbol}</span>
+            <span class="heatmap-return">{x:.2f}%</span>
+        </div>
+        """
+    
+    # --- New Styling Application ---
+    
+    # 1. Map color styling to the numeric values
     styled_df = heatmap_df.style.map(color_return, subset=pd.IndexSlice[:, heatmap_df.columns.difference(['Category'])])
-    styled_df = styled_df.format(formatter=format_return)
+    
+    # 2. Map the custom HTML formatting (Ticker + Return) to the values
+    for col in heatmap_df.columns:
+        styled_df = styled_df.format({col: lambda x, col=col: format_heatmap_cell(x, col)})
 
     st.markdown("<div class='dataframe-container'>", unsafe_allow_html=True)
     st.dataframe(
@@ -552,7 +581,7 @@ st.subheader("Tips")
 st.markdown(
     """
 - The **Market Summary** uses real-time or end-of-day data from `yfinance`.
-- The **Market Heatmap** uses calculated returns for the selected period.
+- The **Market Heatmap** uses calculated returns for the selected period, with color intensity showing return magnitude.
 - Global parameters are initialized here but are only visible and editable on the strategy pages.
 """
 )
