@@ -179,14 +179,23 @@ def generate_heatmap_data(period, tickers_list):
     return df, True
 
 def get_metric_html(title, price, change_pct, accent_color_token):
-    """Generates the HTML for a Market KPI Card."""
+    """Generates the HTML for a Market KPI Card with full border/outer bounds."""
     color, icon, _ = get_metric_styles(change_pct)
     change_text = f"{icon} {abs(change_pct):.2f}%"
     
+    # Using inline styles to define the outer boundary, background, and accent left border
     return dedent(f"""
-        <div class="kpi" style="border-left: 5px solid {color};"
+        <div class="kpi" style="
+             background: var(--inputlight); 
+             border: 1px solid var(--neutral); 
+             border-left: 5px solid {color};
+             padding: 10px 14px; /* Combined padding */
+             border-radius: 10px;
+             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+             transition: all 0.2s;
+        "
              onmouseover="this.style.borderColor='var(--green-accent)';"
-             onmouseout="this.style.borderColor='{color}';">
+             onmouseout="this.style.borderColor='var(--neutral)';">
             <div class="h">{title}</div>
             <div class="v" style="color: {color};">
                 {price:.2f}
@@ -472,8 +481,14 @@ st.caption("Live data summary based on US market hours (EST/EDT).")
 now, is_open, status_text, status_color = get_market_status()
 current_time_str = now.strftime('%H:%M:%S EST')
 
-st.markdown(f"#### Status: <span style='color: {status_color};'>{status_text}</span>", unsafe_allow_html=True)
-st.markdown("---")
+# --- FIX 1: Reduce Vertical Spacing ---
+st.markdown(f"""
+    <div style="margin-bottom: 5px; margin-top: -10px;">
+        #### Status: <span style='color: {status_color};'>{status_text}</span>
+    </div>
+    <div style="border-top: 1px solid var(--neutral); margin-bottom: 20px;"></div>
+""", unsafe_allow_html=True)
+
 
 def display_market_kpis(is_open, status_text, status_color):
     
@@ -523,7 +538,17 @@ def display_market_kpis(is_open, status_text, status_color):
     # --- Time ---
     with col_time:
         st.markdown(f"""
-            <div class="kpi" style="border-left: 5px solid {status_color};">
+            <div class="kpi" style="
+                 background: var(--inputlight); 
+                 border: 1px solid var(--neutral); 
+                 border-left: 5px solid {status_color};
+                 padding: 10px 14px;
+                 border-radius: 10px;
+                 box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                 transition: all 0.2s;
+            "
+             onmouseover="this.style.borderColor='var(--green-accent)';"
+             onmouseout="this.style.borderColor='var(--neutral)';">
                 <div class="h">Current Time</div>
                 <div class="v" style="color: {status_color};">{current_time_str}</div>
                 <div class="text-sm font-semibold" style="color: var(--muted-text-new);">Market Status</div>
