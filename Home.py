@@ -451,20 +451,27 @@ st.markdown(
         }}
 
         /* --- Strategy Link Fix CSS --- */
-        /* Targets the st.page_link button container */
-        [data-testid="stPageLink"] button {{
+        /* 1. Targets the st.page_link button container (the default Streamlit element) */
+        [data-testid="stPageLink"] > button {{
+            /* Hide ALL default button visuals */
             width: 100%;
             text-align: left;
-            padding: 0;
-            border: none;
-            background: none;
-            line-height: normal; /* Fixes text spacing */
+            padding: 0 !important; /* Eliminate default button padding */
+            border: none !important; /* Eliminate default button border */
+            background: none !important; /* Eliminate default button background */
+            line-height: normal;
+            color: transparent !important; /* Hide any lingering text */
         }}
-        /* Ensures the custom HTML inside the link is styled like a card */
-        [data-testid="stPageLink"] button:hover .strategy-link-card {{
+        /* 2. Ensures the custom HTML inside the link is styled like a card */
+        [data-testid="stPageLink"] > button:hover .strategy-link-card {{
             border-color: var(--purple); 
             transform: translateY(-5px); 
             box-shadow: 0 15px 40px var(--card-purple-shadow); 
+        }}
+        /* 3. Ensure content is visible */
+        [data-testid="stPageLink"] > button * {{
+            color: inherit !important;
+            background: none !important;
         }}
 
         </style>
@@ -661,8 +668,6 @@ if available:
                 icon=None,
                 use_container_width=True
             )
-            # We don't need any complex inline CSS here because the global CSS targets 
-            # the link buttons and the .strategy-link-card class directly.
             
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
