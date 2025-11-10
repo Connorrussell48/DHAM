@@ -481,10 +481,10 @@ st.caption("Live data summary based on US market hours (EST/EDT).")
 now, is_open, status_text, status_color = get_market_status()
 current_time_str = now.strftime('%H:%M:%S EST')
 
-# --- FIX 1: Reduce Vertical Spacing ---
+# --- FIX 1: Use H4 Tag and Reduce Vertical Spacing ---
 st.markdown(f"""
     <div style="margin-bottom: 5px; margin-top: -10px;">
-        #### Status: <span style='color: {status_color};'>{status_text}</span>
+        <h4 style="font-size: 1.15rem; font-weight: 700; margin: 0; padding: 0;">Status: <span style='color: {status_color};'>{status_text}</span></h4>
     </div>
     <div style="border-top: 1px solid var(--neutral); margin-bottom: 20px;"></div>
 """, unsafe_allow_html=True)
