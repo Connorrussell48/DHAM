@@ -351,6 +351,7 @@ st.markdown(
             justify-content: space-between;
         }}
         /* Hover effect on the card itself */
+        /* Note: This class is applied via the Streamlit button's CSS hook */
         .strategy-link-card:hover {{
             border-color: var(--purple); 
             transform: translateY(-5px); 
@@ -448,6 +449,23 @@ st.markdown(
             font-weight: 700;
             flex: 0 0 40%;
             text-align: right;
+        }}
+
+        /* --- Strategy Link Fix CSS --- */
+        /* Targets the st.page_link button container */
+        [data-testid="stPageLink"] button {{
+            width: 100%;
+            text-align: left;
+            padding: 0;
+            border: none;
+            background: none;
+            line-height: normal; /* Fixes text spacing */
+        }}
+        /* Ensures the custom HTML inside the link is styled like a card */
+        [data-testid="stPageLink"] button:hover .strategy-link-card {{
+            border-color: var(--purple); 
+            transform: translateY(-5px); 
+            box-shadow: 0 15px 40px var(--card-purple-shadow); 
         }}
 
         </style>
@@ -617,6 +635,15 @@ PAGE_MAPPING = {
 pages_dir = Path("pages")
 available = []
 
+# --- Custom HTML rendering function for the card content ---
+def get_card_html(label, desc):
+    return dedent(f"""
+        <div class="strategy-link-card">
+            <div class="strategy-link-title">{label}</div>
+            <div class="strategy-link-desc">{desc}</div>
+        </div>
+    """)
+
 for label, data in PAGE_MAPPING.items():
     rel_path = pages_dir / data["file"]
     if rel_path.exists():
@@ -626,42 +653,17 @@ if available:
     cols = st.columns(len(available))
     for i, (label, rel_path, desc) in enumerate(available):
         with cols[i]:
-            # Use st.page_link directly and wrap the custom content in the label argument
+            # Use st.page_link with the custom HTML content as the label
             st.page_link(
                 rel_path, 
-                label=dedent(f"""
-                <div class="strategy-link-card">
-                    <div class="strategy-link-title">{label}</div>
-                    <div class="strategy-link-desc">{desc}</div>
-                </div>
-                """), 
+                label=get_card_html(label, desc), # Use the function to get the HTML content
                 icon=None,
-                use_container_width=True # Ensure the link button takes the full column width
+                use_container_width=True
             )
-            # Apply the special CSS class to the button wrapper
-            st.markdown(f"""
-            <style>
-            /* Target the specific st.page_link button we just created and ensure its label is HTML rendered */
-            [data-testid="stColumn"] > div:nth-child({i+1}) [data-testid="stPageLink"] button {{
-                padding: 0; /* Remove default button padding */
-                background: none; /* Make button background invisible */
-                border: none; /* Remove button border */
-                transition: all 0.3s;
-            }}
-            /* Ensure the HTML label content is allowed to be styled */
-            [data-testid="stColumn"] > div:nth-child({i+1}) [data-testid="stPageLink"] p {{
-                margin: 0; /* Remove default paragraph margin */
-            }}
-            /* Re-apply the hover effect to the visible card when the underlying button is hovered */
-            [data-testid="stColumn"] > div:nth-child({i+1}) [data-testid="stPageLink"] button:hover .strategy-link-card {{
-                border-color: var(--purple); 
-                transform: translateY(-5px); 
-                box-shadow: 0 15px 40px var(--card-purple-shadow); 
-            }}
-            </style>
-            """, unsafe_allow_html=True)
-
-
+            # This HTML block is no longer needed because the main CSS is global:
+            # st.markdown(f"""...""", unsafe_allow_html=True)
+            # However, we must ensure the button styles are minimal (done globally in CSS now)
+            
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
