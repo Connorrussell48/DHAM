@@ -90,7 +90,6 @@ def get_metric_styles(change_pct):
         color_token = "--red-neg"
         icon = '↓'
     else:
-        # Use a lighter grey for neutral performance throughout the app
         color_token = "--muted-text-new" 
         icon = '•'
     return f"var({color_token})", icon, f"var({color_token})"
@@ -161,10 +160,6 @@ def generate_heatmap_data(period, tickers_list):
     
     data = []
     
-    # Reverse map for easier checking
-    all_etfs = list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())
-
-    # Build rows ensuring columns are tickers
     major_row = {"Category": "Major Indices"}
     for ticker in MAJOR_TICKERS:
         if ticker in returns: major_row[ticker] = returns[ticker]
@@ -185,7 +180,6 @@ def generate_heatmap_data(period, tickers_list):
 
 def get_metric_html(title, price, change_pct, accent_color_token):
     """Generates the HTML for a Market KPI Card."""
-    # Using the new lighter gray for neutral elements
     color, icon, _ = get_metric_styles(change_pct)
     change_text = f"{icon} {abs(change_pct):.2f}%"
     
@@ -200,6 +194,37 @@ def get_metric_html(title, price, change_pct, accent_color_token):
             <div class="text-sm font-semibold" style="color: {color};">{change_text}</div>
         </div>
     """)
+
+# --- New Function for Heatmap Box Styling ---
+def get_heatmap_color_style(return_val):
+    """Calculates the CSS style string for a single heatmap box based on return value."""
+    if pd.isna(return_val):
+        # Placeholder style for missing data
+        return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
+    
+    try:
+        val = float(return_val)
+    except ValueError:
+        return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
+
+    # Max saturation point (4.0% move means maximum color intensity/opacity)
+    max_saturation = 4.0
+    
+    if val > 0:
+        # Green: Scale alpha from 0.1 (low return) to 0.9 (high return)
+        alpha = min(0.9, 0.1 + (val / max_saturation) * 0.8) 
+        bg = f'rgba(38, 208, 124, {alpha})' 
+    elif val < 0:
+        # Red: Scale alpha from 0.1 (low return) to 0.9 (high return)
+        alpha = min(0.9, 0.1 + (abs(val) / max_saturation) * 0.8)
+        bg = f'rgba(217, 83, 79, {alpha})' 
+    else:
+        # Returns near zero get a light purple hue
+        bg = f'rgba(138, 124, 245, 0.1)' 
+        
+    # Text color is always white (var(--text)) for maximum readability
+    return f'background-color: {bg}; color: var(--text); border: 1px solid rgba(255,255,255,0.1);'
+
 
 # --------------------------------------------------------------------------------------
 # CSS injection
@@ -324,33 +349,51 @@ st.markdown(
             margin-bottom: 10px;
         }}
         
-        /* --- Heatmap Styling --- */
-        
-        [data-testid="stDataFrame"] .row_heading.level0 > div {{
-            color: var(--text) !important;
-            font-weight: 600;
+        /* --- Heatmap Grid Layout --- */
+        .heatmap-grid-container {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 15px;
+            background: var(--inputlight);
+            border-radius: 12px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
         }}
-        
-        .heatmap-cell {{
-            font-size: 0.95rem; 
+        .heatmap-box {{
+            flex-grow: 1; 
+            flex-basis: 120px; /* Minimum width before wrapping */
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+            padding: 8px;
             font-weight: 700;
-            text-align: center;
-            line-height: 1.2;
-            padding: 8px 4px; 
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            cursor: default; /* Not clickable */
         }}
-        .heatmap-ticker {{
-            font-size: 1.0rem;
+        .heatmap-box-ticker {{
+            font-size: 1.1rem;
             font-weight: 900;
-            display: block;
-            /* Text color is now explicitly set to white in the map function */
+            line-height: 1.2;
+            margin-bottom: 2px;
+            color: var(--text); /* Always white */
         }}
-        .heatmap-return {{
-            font-size: 0.75rem;
-            display: block;
-            opacity: 0.7;
-            margin-top: 2px;
-            /* Text color is now explicitly set to white in the map function */
+        .heatmap-box-return {{
+            font-size: 0.85rem;
+            line-height: 1.0;
+            opacity: 0.8;
+            color: var(--text); /* Always white */
         }}
+        /* Hover effect for boxes */
+        .heatmap-box:hover {{
+            transform: scale(1.03);
+            opacity: 0.95;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }}
+        
 
         </style>
         """
@@ -550,75 +593,58 @@ heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
 
 if data_loaded and not heatmap_df.empty:
     
-    # --- NEW COLORING FUNCTION ---
-    def color_return(val):
-        """Generates background color based on return value."""
-        if pd.isna(val):
-            return 'background-color: transparent; border: 1px solid rgba(255,255,255,0.05);'
-        
-        try:
-            val = float(val)
-        except ValueError:
-            return 'background-color: transparent; border: 1px solid rgba(255,255,255,0.05);'
+    # --- FLATTEN DATA STRUCTURE ---
+    # Convert the wide DataFrame into a list of dictionaries for easy HTML rendering
+    all_tickers_data = []
+    
+    # 1. Major Indices
+    major_data = heatmap_df.loc["Major Indices"].dropna()
+    for ticker, ret in major_data.items():
+        all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Major Indices"})
+    
+    # 2. Sector ETFs
+    sector_data = heatmap_df.loc["Sector ETFs"].dropna()
+    for ticker, ret in sector_data.items():
+        all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Sector ETFs"})
 
-        # Defines range: Green for positive, Red for negative, Yellow/Purple around zero
-        # 4.0% is the max saturation point for full opacity
-        max_saturation = 4.0
-        
-        if val > 0:
-            # Scale alpha from 0.1 (low return) to 0.9 (high return)
-            alpha = min(0.9, 0.1 + (val / max_saturation) * 0.8) 
-            bg = f'rgba(38, 208, 124, {alpha})' # Green
-        elif val < 0:
-            alpha = min(0.9, 0.1 + (abs(val) / max_saturation) * 0.8)
-            bg = f'rgba(217, 83, 79, {alpha})' # Red
-        else:
-            # Returns near zero (0.00 to +/- 0.01) get a light purple hue
-            bg = f'rgba(138, 124, 245, 0.1)' 
-            
-        # Text color is always white for maximum readability over the colored background
-        text_color = 'var(--text)' 
-        
-        return f'background-color: {bg}; color: {text_color}; border: 1px solid rgba(255,255,255,0.05);'
+    # 3. Country ETFs
+    country_data = heatmap_df.loc["Country ETFs"].dropna()
+    for ticker, ret in country_data.items():
+        all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Country ETFs"})
 
-    def format_return_value(x):
-        """Formats the return value with a '+' sign if positive."""
-        if pd.isna(x):
-            return "N/A"
-        return f"{'+' if x > 0 else ''}{x:.2f}%"
-
-
-    def format_heatmap_cell(x, ticker):
-        """Formats the cell content to show Ticker and Return (HTML)."""
-        if pd.isna(x):
-            return ""
+    # Sort data: Major first, then sectors, then countries
+    
+    # --- GENERATE HTML GRID ---
+    
+    html_content = '<div class="heatmap-grid-container">'
+    
+    # Categorical markers (Optional, for visual grouping)
+    current_category = None
+    
+    for item in all_tickers_data:
+        ticker = item['ticker']
+        ret = item['return']
+        category = item['category']
         
-        return_str = format_return_value(x)
+        # Add a category marker if switching category (optional, kept simple for initial deployment)
+        # if category != current_category:
+        #     html_content += f'<div class="w-full text-center text-sm mt-4 mb-2 text-gray-400 border-b border-gray-700/50">{category}</div>'
+        #     current_category = category
         
-        # Text color is handled by the color_return map for the entire cell
-        return f"""
-        <div class="heatmap-cell">
-            <span class="heatmap-ticker">{ticker}</span>
-            <span class="heatmap-return">{return_str}</span>
+        box_style = get_heatmap_color_style(ret)
+        return_str = f"{'+' if ret > 0 else ''}{ret:.2f}%"
+        
+        html_content += dedent(f"""
+        <div class="heatmap-box" style="{box_style}">
+            <span class="heatmap-box-ticker">{ticker}</span>
+            <span class="heatmap-box-return">{return_str}</span>
         </div>
-        """
-    
-    # --- Styling Application ---
-    
-    # 1. Map color styling to the numeric values
-    styled_df = heatmap_df.style.map(color_return, subset=pd.IndexSlice[:, heatmap_df.columns.difference(['Category'])])
-    
-    # 2. Map the custom HTML formatting (Ticker + Return) to the values
-    for col in heatmap_df.columns.difference(['Category']):
-        styled_df = styled_df.format({col: lambda x, col=col: format_heatmap_cell(x, col)})
+        """)
 
-    st.markdown("<div class='dataframe-container'>", unsafe_allow_html=True)
-    st.dataframe(
-        styled_df,
-        use_container_width=True,
-        hide_index=False,
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    html_content += '</div>'
+    
+    st.markdown(html_content, unsafe_allow_html=True)
+    
 else:
     st.warning("Could not load market data for the heatmap. Check connectivity or try again later.")
     
