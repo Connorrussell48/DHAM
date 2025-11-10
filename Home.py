@@ -18,19 +18,19 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------------------------------------
-# Theme / CSS (Retaining your existing style and gradient)
+# Theme / CSS (Enhanced for Professional & Dynamic Look)
 # --------------------------------------------------------------------------------------
-BLOOM_BG       = "#0B0F14"
-BLOOM_PANEL    = "#121820"
-BLOOM_TEXT     = "#FFFFFF"
-BLOOM_MUTED    = "rgba(255,255,255,0.70)"
-NEUTRAL_GRAY   = "#4A5B6E"
-INPUT_BG       = "#2E3A46"
-INPUT_BG_LIGHT = "#3A4654"
-ACCENT_BLUE    = "#2BB3F3"
-ACCENT_GREEN   = "#26D07C"
-ACCENT_PURPLE  = "#8A7CF5"
-DARK_PURPLE    = "#3A2A6A"
+BLOOM_BG       = "#0B0F14"    # Primary Background: Deep Black/Navy
+BLOOM_PANEL    = "#121820"    # Component Background: Dark Panel
+BLOOM_TEXT     = "#FFFFFF"    # Primary Text
+BLOOM_MUTED    = "rgba(255,255,255,0.70)" # Muted Text
+NEUTRAL_GRAY   = "#4A5B6E"    # Borders/Separators
+INPUT_BG       = "#2E3A46"    # Dark Gray Input (Sidebar)
+INPUT_BG_LIGHT = "#3A4654"    # Lighter Input/Container (Main)
+ACCENT_BLUE    = "#2BB3F3"    # Secondary Accent (Flashes)
+ACCENT_GREEN   = "#26D07C"    # Bullish (Vibrant Teal)
+ACCENT_PURPLE  = "#8A7CF5"    # Tertiary Accent (Vibrant Purple)
+DARK_PURPLE    = "#3A2A6A"    # Gradient End Point
 
 st.markdown(
     dedent(
@@ -41,12 +41,13 @@ st.markdown(
           --neutral:{NEUTRAL_GRAY}; --input:{INPUT_BG}; --inputlight:{INPUT_BG_LIGHT};
           --blue:{ACCENT_BLUE}; --green:{ACCENT_GREEN}; --purple:{ACCENT_PURPLE};
           --green-accent: #26D07C;
-          --red-neg: #D9534F;
+          --red-neg: #D9534F; /* Softened Red for contrast */
         }}
         html, body {{
           height:100%;
-          background: radial-gradient(1200px 600px at 15% -10%, rgba(43,179,243,0.12), transparent 60%),
-                      radial-gradient(1200px 600px at 85% 110%, rgba(138,124,245,0.12), transparent 60%),
+          /* Enhanced Radial Gradient for Depth */
+          background: radial-gradient(1200px 600px at 15% -10%, rgba(43,179,243,0.15), transparent 60%),
+                      radial-gradient(1200px 600px at 85% 110%, rgba(138,124,245,0.15), transparent 60%),
                       linear-gradient(135deg, var(--bg) 0%, {DARK_PURPLE} 100%) fixed !important;
         }}
         .stApp {{ background:transparent!important; color:var(--text); }}
@@ -54,42 +55,56 @@ st.markdown(
         header[data-testid="stHeader"] {{ background:transparent!important; height:2.5rem!important; }}
         [data-testid="stDecoration"] {{ background:transparent!important; }}
 
-        /* Strategy Navigation Card (New Styling) */
+        /* Strategy Navigation Card: More pronounced hover */
         .strategy-link-card {{
-            background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
-            border: 1px solid rgba(255,255,255,0.10);
+            background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.00));
+            border: 1px solid rgba(255,255,255,0.15);
             border-radius: 16px;
             padding: 20px;
-            box-shadow: 0 8px 24px rgba(0,0,0,.3);
-            transition: all 0.3s;
+            box-shadow: 0 10px 30px rgba(0,0,0,.4);
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Smoother transition */
         }}
         .strategy-link-card:hover {{
             border-color: var(--green-accent);
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(38, 208, 124, 0.2);
+            transform: translateY(-5px); /* Lift higher on hover */
+            box-shadow: 0 15px 40px rgba(38, 208, 124, 0.3);
         }}
-        .strategy-link-title {{ font-weight: 700; font-size: 1.15rem; letter-spacing: .2px; }}
+        .strategy-link-title {{ 
+            font-weight: 800; 
+            font-size: 1.25rem; 
+            letter-spacing: .5px; 
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
         .strategy-link-desc {{ color: var(--muted); font-size: .88rem; margin-top: 4px; }}
 
-
-        /* General Card/Input Styles (from original Home.py) */
-        .card {{
-          background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.00));
-          border: 1px solid rgba(255,255,255,0.10);
-          border-radius: 16px;
-          padding: 16px 16px 14px 16px;
-          box-shadow: 0 8px 24px rgba(0,0,0,.25);
-        }}
-        .card-title {{ font-weight: 700; font-size: 1.02rem; letter-spacing: .2px; }}
+        /* KPI / Metric Cards (Market Summary) */
         .kpi {{
-          background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.00));
+          background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
           border: 1px solid rgba(255,255,255,0.10);
           border-radius: 14px;
           padding: 12px 14px;
           text-align: left;
+          transition: border-color 0.2s;
         }}
-        .kpi .h {{ font-size: .78rem; color: var(--muted); margin-bottom: 4px; }}
-        .kpi .v {{ font-size: 1.25rem; font-weight: 800; }}
+        .kpi .h {{ font-size: .85rem; color: var(--muted); margin-bottom: 4px; }}
+        .kpi .v {{ font-size: 1.45rem; font-weight: 800; }}
+        
+        /* Quick Action Button Styling (Modern, contained look) */
+        div[data-testid="stAppViewContainer"] .stButton>button {{
+          background: var(--inputlight)!important; 
+          color: var(--text)!important;
+          border: 1px solid var(--neutral)!important; 
+          border-radius: 8px!important; 
+          box-shadow: 0 2px 4px rgba(0,0,0,.2);
+          transition: background 0.2s;
+        }}
+        div[data-testid="stAppViewContainer"] .stButton>button:hover {{
+            background: rgba(138,124,245,0.2) !important; /* Subtle purple hover */
+            border-color: var(--purple)!important;
+        }}
+
         .small-muted {{ color: var(--muted); font-size: .86rem; }}
         .pill {{
           display:inline-block; padding: 4px 8px; border-radius: 999px; font-size: .78rem;
@@ -140,7 +155,7 @@ if "lookback" not in st.session_state:
 
 
 # --------------------------------------------------------------------------------------
-# Sidebar: Global controls (The content that was on the main page is now here)
+# Sidebar: Global controls (No changes here, only in main body)
 # --------------------------------------------------------------------------------------
 with st.sidebar:
     st.subheader("Global Settings")
@@ -197,7 +212,6 @@ with st.sidebar:
 
     st.markdown("---")
     st.caption("Info & Status")
-    # New KPI section in the sidebar for compactness
     data_dir = Path("data")
     data_dir.mkdir(exist_ok=True)
     count_files = sum(1 for item in os.listdir(data_dir) if os.path.isfile(data_dir / item))
@@ -217,12 +231,12 @@ with st.sidebar:
 
 
 # --------------------------------------------------------------------------------------
-# 🌎 Market Summary Section (New Focus)
+# 🌎 Market Summary Section (Dynamic Styling Applied)
 # --------------------------------------------------------------------------------------
 st.markdown("### 🌎 Today's Market Summary")
 st.caption("High-level overview of key indices and current session status.")
 
-# Hardcoded/Mock Market Data for Visual Example
+# Hardcoded/Mock Market Data
 SPY_PRICE = 505.21
 SPY_CHANGE_PCT = 1.25
 QQQ_PRICE = 435.00
@@ -230,67 +244,55 @@ QQQ_CHANGE_PCT = -0.15
 VIX_PRICE = 12.50
 VIX_CHANGE_PCT = 0.00
 
-# Define colors and icons based on change
-def get_metric_styles(change_pct):
+# Define colors and icons based on change (using HTML span styles)
+def get_metric_html(title, price, change_pct, accent_color_token):
     if change_pct > 0.01:
-        color = ACCENT_GREEN
+        # Use ACCENT_GREEN with a solid color border
+        color = "var(--green-accent)"
         icon = '↑'
-        css_class = 'text-green-400'
+        css_class = 'style="color: var(--green-accent);"'
     elif change_pct < -0.01:
-        color = "#D9534F" # Muted Red
+        # Use ACCENT_RED with a solid color border
+        color = "var(--red-neg)"
         icon = '↓'
-        css_class = 'text-red-400'
+        css_class = 'style="color: var(--red-neg);"'
     else:
-        color = NEUTRAL_GRAY
+        # Use PURPLE for neutral/time/VIX, with solid purple border
+        color = f"var({accent_color_token})" if accent_color_token else "var(--neutral)"
         icon = '•'
-        css_class = 'text-yellow-400'
-    return color, icon, css_class
+        css_class = 'style="color: var(--muted);"'
+
+    # Format change text
+    change_text = f"{icon} {abs(change_pct):.2f}%"
+    
+    # Custom border and background highlight on hover
+    return dedent(f"""
+        <div class="kpi" style="border-left: 5px solid {color};"
+             onmouseover="this.style.borderColor='var(--green-accent)';"
+             onmouseout="this.style.borderColor='{color}';">
+            <div class="h">{title}</div>
+            <div class="v" style="color: {color};">
+                {price:.2f}
+            </div>
+            <div class="text-sm font-semibold" {css_class}>{change_text}</div>
+        </div>
+    """)
 
 # Row of 4 KPI Cards for Market Summary
 col_spy, col_qqq, col_vix, col_time = st.columns(4)
 
 with col_spy:
-    spy_color, spy_icon, spy_class = get_metric_styles(SPY_CHANGE_PCT)
-    st.markdown(f"""
-        <div class="kpi" style="border-left: 5px solid {spy_color};">
-            <div class="h">S&P 500 (SPY)</div>
-            <div class="v" style="color: {spy_color};">
-                {SPY_PRICE:.2f}
-            </div>
-            <div class="text-sm font-semibold {spy_class}">{spy_icon} {SPY_CHANGE_PCT:.2f}%</div>
-        </div>
-    """, unsafe_allow_html=True)
-
+    st.markdown(get_metric_html("S&P 500 (SPY)", SPY_PRICE, SPY_CHANGE_PCT, "--green-accent"), unsafe_allow_html=True)
 with col_qqq:
-    qqq_color, qqq_icon, qqq_class = get_metric_styles(QQQ_CHANGE_PCT)
-    st.markdown(f"""
-        <div class="kpi" style="border-left: 5px solid {qqq_color};">
-            <div class="h">NASDAQ 100 (QQQ)</div>
-            <div class="v" style="color: {qqq_color};">
-                {QQQ_PRICE:.2f}
-            </div>
-            <div class="text-sm font-semibold {qqq_class}">{qqq_icon} {QQQ_CHANGE_PCT:.2f}%</div>
-        </div>
-    """, unsafe_allow_html=True)
-
+    st.markdown(get_metric_html("NASDAQ 100 (QQQ)", QQQ_PRICE, QQQ_CHANGE_PCT, "--red-neg"), unsafe_allow_html=True)
 with col_vix:
-    vix_color, vix_icon, vix_class = get_metric_styles(VIX_CHANGE_PCT)
-    st.markdown(f"""
-        <div class="kpi" style="border-left: 5px solid {vix_color};">
-            <div class="h">VIX Index (^VIX)</div>
-            <div class="v" style="color: {vix_color};">
-                {VIX_PRICE:.2f}
-            </div>
-            <div class="text-sm font-semibold {vix_class}">{vix_icon} {VIX_CHANGE_PCT:.2f}%</div>
-        </div>
-    """, unsafe_allow_html=True)
-
+    st.markdown(get_metric_html("VIX Index (^VIX)", VIX_PRICE, VIX_CHANGE_PCT, "--purple"), unsafe_allow_html=True)
 with col_time:
     current_time = datetime.now().strftime('%H:%M:%S EST')
     st.markdown(f"""
-        <div class="kpi" style="border-left: 5px solid {ACCENT_PURPLE};">
+        <div class="kpi" style="border-left: 5px solid var(--purple);">
             <div class="h">Current Time</div>
-            <div class="v" style="color: {ACCENT_PURPLE};">{current_time}</div>
+            <div class="v" style="color: var(--purple);">{current_time}</div>
             <div class="text-sm font-semibold text-gray-400">Status: Open</div>
         </div>
     """, unsafe_allow_html=True)
@@ -298,14 +300,13 @@ with col_time:
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# Page navigation (New Design: Dedicated Section)
+# Page navigation (Enhanced Card Design)
 # --------------------------------------------------------------------------------------
 st.subheader("🧭 Jump to a Strategy")
 
-# Map labels to file paths (using the same logic as before)
 PAGE_MAPPING = {
-    "📈 Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Sentiment Scanning"},
-    "📉 Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading"},
+    "📈 Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Sentiment Scanning", "icon": "🚀"},
+    "📉 Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading", "icon": "🔬"},
 }
 pages_dir = Path("pages")
 available = []
@@ -313,19 +314,20 @@ available = []
 for label, data in PAGE_MAPPING.items():
     rel_path = pages_dir / data["file"]
     if rel_path.exists():
-        available.append((label, rel_path.as_posix(), data["desc"]))
+        available.append((label, rel_path.as_posix(), data["desc"], data["icon"]))
 
-# Render as new Strategy Link Cards (Layout 1: Strategy Nav in the wider column)
 if available:
-    # Use a wide column layout for the navigation cards
     cols = st.columns(len(available))
-    for i, (label, rel_path, desc) in enumerate(available):
+    for i, (label, rel_path, desc, icon) in enumerate(available):
         with cols[i]:
-            # Use custom HTML for the styled card structure
+            # Use custom HTML for the styled card structure with embedded icon
             st.markdown(
                 f"""
                 <div class="strategy-link-card">
-                  <div class="strategy-link-title">{label}</div>
+                  <div class="strategy-link-title">
+                    <span style="color: var(--green-accent); font-size: 1.5rem;">{icon}</span> 
+                    {label}
+                  </div>
                   <div class="strategy-link-desc">{desc}</div>
                   <div class="small-muted font-mono" style="margin:.25rem 0 .6rem 0;">Path: <code>{rel_path}</code></div>
                   <div style="margin-top:.6rem;"> </div>
@@ -333,7 +335,6 @@ if available:
                 """,
                 unsafe_allow_html=True,
             )
-            # Use the Streamlit page link function to actually make it clickable
             st.page_link(rel_path, label="Open", icon=None)
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
@@ -341,26 +342,27 @@ else:
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# Utilities: Quick Actions & Session Snapshot (Retained from original)
+# Utilities: Quick Actions & Session Snapshot (Container border refinement)
 # --------------------------------------------------------------------------------------
 left, right = st.columns([1.4, 1])
 
 with left:
     st.markdown("### ⚡ Quick Actions")
+    # Using st.container(border=True) which inherits the enhanced card styles
     with st.container(border=True):
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("➕ Add VIX & VIX9D"):
+            if st.button("➕ Add VIX & VIX9D", use_container_width=True):
                 cur = set(st.session_state["tickers"])
                 cur.update({"^VIX", "^VIX9D"})
                 st.session_state["tickers"] = sorted(cur)
                 st.success("Added ^VIX and ^VIX9D to tickers.")
         with col2:
-            if st.button("🧹 Clean Tickers"):
+            if st.button("🧹 Clean Tickers", use_container_width=True):
                 st.session_state["tickers"] = sorted({t.strip().upper() for t in st.session_state["tickers"] if t.strip()})
                 st.success("Deduplicated & normalized tickers.")
         with col3:
-            if st.button("🗑️ Reset to SPY/AAPL/MSFT"):
+            if st.button("🗑️ Reset to SPY/AAPL/MSFT", use_container_width=True):
                 st.session_state["tickers"] = ["SPY", "AAPL", "MSFT"]
                 st.session_state["ma_window"] = 200
                 st.session_state["lookback"] = 200
