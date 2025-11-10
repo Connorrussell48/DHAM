@@ -55,20 +55,59 @@ HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(
 # We'll use a representative, extended list for demonstration purposes, as fetching 
 # 500 tickers from yfinance frequently is unstable.
 def get_spx_tickers():
-    # This simulates a list of major S&P components for a wider scan
+    # --- IMPLEMENTING USER'S PROVIDED LIST ---
     return [
-        "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "META", "TSLA", "NVDA", "JPM", "JNJ", 
-        "V", "PG", "UNH", "HD", "MA", "DIS", "KO", "PFE", "T", "XOM", "WMT", "BRK-B", 
-        "JNJ", "LLY", "ABBV", "BAC", "PEP", "ADBE", "CSCO", "CMCSA", "NFLX", "AVGO", 
-        "COST", "ORCL", "ACN", "NKE", "CRM", "INTC", "QCOM", "TXN", "MS", "GS", "MMM", 
-        "MMM", "CAT", "DE", "RTX", "BA", "GE", "LMT", "GD", "NOC", "HON", "ECL", "SHW",
-        "DOW", "APD", "DD", "EOG", "CVX", "COP", "SLB", "OXY", "KMI", "WFC", "C", "AXP",
-        "SPG", "PLD", "EQIX", "AMT", "CCI", "DLR", "WY", "BXP", "PSA", "EXR", "MAA",
-        # Adding some random placeholders to reach a larger simulated list size
-        "AAL", "UAL", "DAL", "LUV", "RCL", "CCL", "NCLH", "MGM", "LVS", "WYNN", "PENN",
-        "GM", "F", "TM", "HMC", "STLA", "RIVN", "LCID", "NKLA", "WKHS", "QS", "MP",
-        "MRNA", "BMY", "GILD", "AMGN", "BIIB", "REGN", "VRTX", "ISRG", "SYK", "DHR",
-        "MMM", "BA", "CAT", "DE", "RTX", "GD", "NOC", "LMT", "HON", "GE", "UTX", "PGR"
+        'MMM', 'AOS', 'ABT', 'ABBV', 'ACN', 'ADBE', 'AMD', 'AES', 'AFL', 'A',
+        'APD', 'ABNB', 'AKAM', 'ALB', 'ARE', 'ALGN', 'ALLE', 'LNT', 'ALL', 'GOOGL',
+        'GOOG', 'MO', 'AMZN', 'AMCR', 'AEE', 'AEP', 'AXP', 'AIG', 'AMT', 'AWK',
+        'AMP', 'AME', 'AMGN', 'APH', 'ADI', 'AON', 'APA', 'APO', 'AAPL', 'AMAT',
+        'APTV', 'ACGL', 'ADM', 'ANET', 'AJG', 'AIZ', 'T', 'ATO', 'ADSK', 'ADP',
+        'AZO', 'AVB', 'AVY', 'AXON', 'BKR', 'BALL', 'BAC', 'BAX', 'BDX',
+        'BBY', 'TECH', 'BIIB', 'BLK', 'BX', 'BK', 'BA', 'BKNG', 'BSX', 'BMY',
+        'AVGO', 'BR', 'BRO', 'BLDR', 'BG', 'BXP', 'CHRW', 'CDNS', 'CZR',
+        'CPT', 'CPB', 'COF', 'CAH', 'KMX', 'CCL', 'CARR', 'CAT', 'CBOE', 'CBRE',
+        'CDW', 'COR', 'CNC', 'CNP', 'CF', 'CRL', 'SCHW', 'CHTR', 'CVX', 'CMG',
+        'CB', 'CHD', 'CI', 'CINF', 'CTAS', 'CSCO', 'C', 'CFG', 'CLX', 'CME',
+        'CMS', 'KO', 'CTSH', 'COIN', 'CL', 'CMCSA', 'CAG', 'COP', 'ED', 'STZ',
+        'CEG', 'COO', 'CPRT', 'GLW', 'CPAY', 'CTVA', 'CSGP', 'COST', 'CTRA', 'CRWD',
+        'CCI', 'CSX', 'CMI', 'CVS', 'DHR', 'DRI', 'DDOG', 'DVA', 'DAY', 'DECK',
+        'DE', 'DELL', 'DAL', 'DVN', 'DXCM', 'FANG', 'DLR', 'DG', 'DLTR', 'D',
+        'DPZ', 'DASH', 'DOV', 'DOW', 'DHI', 'DTE', 'DUK', 'DD', 'EMN', 'ETN',
+        'EBAY', 'ECL', 'EIX', 'EW', 'EA', 'ELV', 'EMR', 'ENPH', 'ETR', 'EOG',
+        'EPAM', 'EQT', 'EFX', 'EQIX', 'EQR', 'ERIE', 'ESS', 'EL', 'EG', 'EVRG',
+        'ES', 'EXC', 'EXE', 'EXPE', 'EXPD', 'EXR', 'XOM', 'FFIV', 'FDS', 'FICO',
+        'FAST', 'FRT', 'FDX', 'FIS', 'FITB', 'FSLR', 'FE', 'FI', 'F', 'FTNT',
+        'FTV', 'FOXA', 'FOX', 'BEN', 'FCX', 'GRMN', 'IT', 'GE', 'GEHC', 'GEV',
+        'GEN', 'GNRC', 'GD', 'GIS', 'GM', 'GPC', 'GILD', 'GPN', 'GL', 'GDDY',
+        'GS', 'HAL', 'HIG', 'HAS', 'HCA', 'DOC', 'HSIC', 'HSY', 'HPE', 'HLT',
+        'HOLX', 'HD', 'HON', 'HRL', 'HST', 'HWM', 'HPQ', 'HUBB', 'HUM', 'HBAN',
+        'HII', 'IBM', 'IEX', 'IDXX', 'ITW', 'INCY', 'IR', 'PODD', 'INTC', 'IBKR',
+        'ICE', 'IFF', 'IP', 'IPG', 'INTU', 'ISRG', 'IVZ', 'INVH', 'IQV', 'IRM',
+        'JBHT', 'JBL', 'JKHY', 'J', 'JNJ', 'JCI', 'JPM', 'K', 'KVUE', 'KDP',
+        'KEY', 'KEYS', 'KMB', 'KIM', 'KMI', 'KKR', 'KLAC', 'KHC', 'KR', 'LHX',
+        'LH', 'LRCX', 'LW', 'LVS', 'LDOS', 'LEN', 'LII', 'LLY', 'LIN', 'LYV',
+        'LKQ', 'LMT', 'L', 'LOW', 'LULU', 'LYB', 'MTB', 'MPC', 'MKTX', 'MAR',
+        'MMC', 'MLM', 'MAS', 'MA', 'MTCH', 'MKC', 'MCD', 'MCK', 'MDT', 'MRK',
+        'META', 'MET', 'MTD', 'MGM', 'MCHP', 'MU', 'MSFT', 'MAA', 'MRNA', 'MHK',
+        'MOH', 'TAP', 'MDLZ', 'MPWR', 'MNST', 'MCO', 'MS', 'MOS', 'MSI', 'MSCI',
+        'NDAQ', 'NTAP', 'NFLX', 'NEM', 'NWSA', 'NWS', 'NEE', 'NKE', 'NI', 'NDSN',
+        'NSC', 'NTRS', 'NOC', 'NCLH', 'NRG', 'NUE', 'NVDA', 'NVR', 'NXPI', 'ORLY',
+        'OXY', 'ODFL', 'OMC', 'ON', 'OKE', 'ORCL', 'OTIS', 'PCAR', 'PKG', 'PLTR',
+        'PANW', 'PSKY', 'PH', 'PAYX', 'PAYC', 'PYPL', 'PNR', 'PEP', 'PFE', 'PCG',
+        'PM', 'PSX', 'PNW', 'PNC', 'POOL', 'PPG', 'PPL', 'PFG', 'PG', 'PGR',
+        'PLD', 'PRU', 'PEG', 'PTC', 'PSA', 'PHM', 'PWR', 'QCOM', 'DGX', 'RL',
+        'RJF', 'RTX', 'O', 'REG', 'REGN', 'RF', 'RSG', 'RMD', 'RVTY', 'ROK',
+        'ROL', 'ROP', 'ROST', 'RCL', 'SPGI', 'CRM', 'SBAC', 'SLB', 'STX', 'SRE',
+        'NOW', 'SHW', 'SPG', 'SWKS', 'SJM', 'SW', 'SNA', 'SOLV', 'SO', 'LUV',
+        'SWK', 'SBUX', 'STT', 'STLD', 'STE', 'SYK', 'SMCI', 'SYF', 'SNPS', 'SYY',
+        'TMUS', 'TROW', 'TTWO', 'TPR', 'TRGP', 'TGT', 'TEL', 'TDY', 'TER', 'TSLA',
+        'TXN', 'TPL', 'TXT', 'TMO', 'TJX', 'TKO', 'TTD', 'TSCO', 'TT', 'TDG',
+        'TRV', 'TRMB', 'TFC', 'TYL', 'TSN', 'USB', 'UBER', 'UDR', 'ULTA', 'UNP',
+        'UAL', 'UPS', 'URI', 'UNH', 'UHS', 'VLO', 'VTR', 'VLTO', 'VRSN', 'VRSK',
+        'VZ', 'VRTX', 'VTRS', 'VICI', 'V', 'VST', 'VMC', 'WRB', 'GWW', 'WAB',
+        'WMT', 'DIS', 'WBD', 'WM', 'WAT', 'WEC', 'WFC', 'WELL', 'WST', 'WDC',
+        'WY', 'WSM', 'WMB', 'WTW', 'WDAY', 'WYNN', 'XEL', 'XYL', 'YUM', 'ZBRA',
+        'ZBH', 'ZTS', 'HIMS'
     ]
 
 SPX_MOVER_TICKERS = get_spx_tickers()
@@ -612,24 +651,24 @@ def display_market_kpis(is_open, status_text, status_color):
         market_data = {} 
         
     def get_ticker_metric(ticker):
-        if is_open and ticker in market_data:
-            data = market_data[ticker]
-            price = data.get('lastPrice', 0.0)
-            change_pct = data.get('regularMarketChangePercent', 0.0)
-        else:
-            price = 0.0
-            change_pct = 0.0
-            
-            try:
-                close_data = fetch_ticker_data([ticker])
-                if not close_data.empty and len(close_data) >= 2:
-                    close_data = close_data[ticker]
-                    price = close_data.iloc[-1]
-                    change_pct = ((close_data.iloc[-1] - close_data.iloc[-2]) / close_data.iloc[-2]) * 100
-            except Exception:
-                pass 
+            if is_open and ticker in market_data:
+                data = market_data[ticker]
+                price = data.get('lastPrice', 0.0)
+                change_pct = data.get('regularMarketChangePercent', 0.0)
+            else:
+                price = 0.0
+                change_pct = 0.0
+                
+                try:
+                    close_data = fetch_ticker_data([ticker])
+                    if not close_data.empty and len(close_data) >= 2:
+                        close_data = close_data[ticker]
+                        price = close_data.iloc[-1]
+                        change_pct = ((close_data.iloc[-1] - close_data.iloc[-2]) / close_data.iloc[-2]) * 100
+                except Exception:
+                    pass 
 
-        return price, change_pct
+            return price, change_pct
 
     # --- SPY ---
     spy_price, spy_change_pct = get_ticker_metric("SPY")
