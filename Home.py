@@ -637,6 +637,7 @@ available = []
 
 # --- Custom HTML rendering function for the card content ---
 def get_card_html(label, desc):
+    """Generates the clean card HTML structure for display inside the link."""
     return dedent(f"""
         <div class="strategy-link-card">
             <div class="strategy-link-title">{label}</div>
@@ -653,16 +654,16 @@ if available:
     cols = st.columns(len(available))
     for i, (label, rel_path, desc) in enumerate(available):
         with cols[i]:
-            # Use st.page_link with the custom HTML content as the label
+            # Use st.page_link with the custom HTML content as the label.
+            # Streamlit handles the button placement and makes the link work.
             st.page_link(
                 rel_path, 
-                label=get_card_html(label, desc), # Use the function to get the HTML content
+                label=get_card_html(label, desc), # THIS IS THE VISUAL CARD CONTENT
                 icon=None,
                 use_container_width=True
             )
-            # This HTML block is no longer needed because the main CSS is global:
-            # st.markdown(f"""...""", unsafe_allow_html=True)
-            # However, we must ensure the button styles are minimal (done globally in CSS now)
+            # We don't need any complex inline CSS here because the global CSS targets 
+            # the link buttons and the .strategy-link-card class directly.
             
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
