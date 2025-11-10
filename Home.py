@@ -82,7 +82,7 @@ def get_market_status():
     return now, is_open, status_text, status_color
 
 def get_metric_styles(change_pct):
-    """Determines color and icon based on percentage change."""
+    """Determines color and icon based on percentage percentage change."""
     if change_pct > 0.01:
         color_token = "--green-accent"
         icon = '↑'
@@ -398,7 +398,7 @@ st.markdown(
         </style>
         """
     ),
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
 # --------------------------------------------------------------------------------------
@@ -416,7 +416,7 @@ st.markdown(
       <div style="margin-left:auto;font-size:.95rem;color:rgba(255,255,255,.70);font-weight:500;">Multi‑Strategy Workspace</div>
     </div>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
 # Fun one-liner
@@ -426,7 +426,7 @@ st.markdown(
       "You're either a smart-fella or fart smella" – Confucius
     </div>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
 # Initialize Session State (Hidden from user, but required for app state persistence)
@@ -466,7 +466,7 @@ with st.sidebar:
 # --------------------------------------------------------------------------------------
 # 🌎 Dynamic Market Summary Section
 # --------------------------------------------------------------------------------------
-st.markdown("### 🌎 Today's Market Summary")
+st.markdown("### Today's Market Summary")
 st.caption("Live data summary based on US market hours (EST/EDT).")
 
 now, is_open, status_text, status_color = get_market_status()
@@ -537,11 +537,11 @@ display_market_kpis(is_open, status_text, status_color)
 # --------------------------------------------------------------------------------------
 # Page navigation (Final Polish)
 # --------------------------------------------------------------------------------------
-st.markdown("### 🧭 Jump to a Strategy")
+st.markdown("### Jump to a Strategy")
 
 PAGE_MAPPING = {
-    "📈 Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis", "icon": "🚀"},
-    "📉 Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading", "icon": "🔬"},
+    "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis", "icon": "🚀"},
+    "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading", "icon": "🔬"},
 }
 pages_dir = Path("pages")
 available = []
@@ -561,7 +561,7 @@ if available:
                 <div class="strategy-group-container">
                     <div class="strategy-link-card">
                         <div class="strategy-link-title">
-                            <span style="color: var(--green-accent); font-size: 1.5rem;">{icon}</span> 
+                            <span style="color: var(--green-accent); font-size: 1.5rem;"></span> 
                             {label}
                         </div>
                         <div class="strategy-link-desc">{desc}</div>
@@ -580,7 +580,7 @@ st.markdown("---")
 # --------------------------------------------------------------------------------------
 # ♨️ Market Heatmap Section
 # --------------------------------------------------------------------------------------
-st.markdown("### ♨️ Market Return Heatmap")
+st.markdown("### Market Return Heatmap")
 
 return_period = st.selectbox(
     "Select Return Period", 
@@ -625,11 +625,6 @@ if data_loaded and not heatmap_df.empty:
         ticker = item['ticker']
         ret = item['return']
         category = item['category']
-        
-        # Add a category marker if switching category (optional, kept simple for initial deployment)
-        # if category != current_category:
-        #     html_content += f'<div class="w-full text-center text-sm mt-4 mb-2 text-gray-400 border-b border-gray-700/50">{category}</div>'
-        #     current_category = category
         
         box_style = get_heatmap_color_style(ret)
         return_str = f"{'+' if ret > 0 else ''}{ret:.2f}%"
