@@ -16,7 +16,7 @@ import streamlit as st
 # Page setup
 # --------------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="D-HAM",
+    page_title="D-HAM", # CHANGED: Updated page title
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -546,7 +546,7 @@ st.markdown(
         <polyline points="5,15 9,11 12,13 17,7 19,9" stroke="#26D07C" stroke-width="2" fill="none" />
         <circle cx="19" cy="9" r="1.8" fill="#26D07C"/>
       </svg>
-      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">Desk Hub</div>
+      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">D-HAM</div><!-- CHANGED: Title updated to D-HAM -->
       <div style="margin-left:auto;font-size:.95rem;color:rgba(255,255,255,.70);font-weight:500;">Multi‑Strategy Workspace</div>
     </div>
     """,
