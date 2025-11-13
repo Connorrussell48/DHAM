@@ -16,7 +16,7 @@ import streamlit as st
 # Page setup
 # --------------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Desk Hub",
+    page_title="D-HAM",
     layout="wide",
     initial_sidebar_state="expanded",
 )
