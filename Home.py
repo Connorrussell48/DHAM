@@ -168,9 +168,9 @@ def fetch_ticker_data(tickers):
         return pd.DataFrame()
     return data['Close']
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl="60s", show_spinner=False)
 def fetch_live_summary(tickers):
-    """Fetches key metrics for market summary (Run frequently)."""
+    """Fetches key metrics for market summary (Run frequently). TTL=60s for auto-refresh."""
     try:
         data = yf.Tickers(tickers).fast_info
         if isinstance(data, pd.DataFrame):
@@ -239,32 +239,6 @@ def generate_heatmap_data(period, tickers_list):
     df = pd.DataFrame(data).set_index("Category").fillna(np.nan)
     return df, True
 
-def get_metric_html(title, price, change_pct, accent_color_token):
-    """Generates the HTML for a Market KPI Card."""
-    color, icon, _ = get_metric_styles(change_pct)
-    change_text = f"{icon} {abs(change_pct):.2f}%"
-    
-    return dedent(f"""
-        <div class="kpi" style="
-             background: var(--inputlight); 
-             border: 1px solid var(--neutral); 
-             border-left: 5px solid {color};
-             padding: 10px 14px; /* Combined padding */
-             border-radius: 10px;
-             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-             transition: all 0.2s;
-        "
-             onmouseover="this.style.borderColor='var(--green-accent)';"
-             onmouseout="this.style.borderColor='var(--neutral)';">
-            <div class="h">{title}</div>
-            <div class="v" style="color: {color};">
-                {price:.2f}
-            </div>
-            <div class="text-sm font-semibold" style="color: {color};">{change_text}</div>
-        </div>
-    """)
-
-# --- New Function for Heatmap Box Styling ---
 def get_heatmap_color_style(return_val):
     """Calculates the CSS style string for a single heatmap box based on return value."""
     if pd.isna(return_val):
@@ -615,12 +589,7 @@ def display_market_kpis(is_open, status_text, status_color):
     col_spy, col_qqq, col_vix, col_time = st.columns(4)
     
     tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
-    if is_open:
-        # Use the non-cached version for live pricing for the main KPIs
-        market_data = fetch_live_summary(tickers_to_fetch)
-    else:
-        # If market is closed, rely on the cached data to get EOD/Previous close
-        market_data = fetch_live_summary(tickers_to_fetch) 
+    market_data = fetch_live_summary(tickers_to_fetch) 
         
     def get_ticker_metric(ticker):
             # Try to get live data if available (even when closed, yfinance might have delayed data)
@@ -695,13 +664,19 @@ pages_dir = Path("pages")
 available = []
 
 # --- Custom HTML rendering function for the card content ---
-def get_card_html(label, file_path, desc):
+def get_card_html(label, rel_path, desc):
     """
     Generates the clean card HTML structure, including the internal link.
+    FIX: Replaced deprecated st.runtime.legacy_caching.get_url with manual path
     """
-    # Use the file path directly in the href attribute
-    url_path = f"/{file_path}"
-    
+    # Use the file path directly in the href attribute, which Streamlit translates to the app URL
+    # Example: "pages/1_Slope_Convexity.py" -> "/1_Slope_Convexity" in the URL
+    # We must use the file name without 'pages/' and without the '.py' extension
+    # And convert spaces to underscores for robust linking in CSS
+    page_name = rel_path.split('/')[-1].replace('.py', '') 
+    url_path = f"/{page_name.replace('_', ' ').replace('-', ' ')}" # Streamlit uses spaces/dashes in URL
+
+    # Re-using the robust external link URL for the "Go to Page" button
     return dedent(f"""
         <div class="strategy-link-card">
             <div>
@@ -724,7 +699,6 @@ if available:
     for i, (label, rel_path, desc) in enumerate(available):
         with cols[i]:
             # Render the entire styled card with the working link inside
-            # The rel_path is the string "pages/1_Slope_Convexity.py"
             st.markdown(get_card_html(label, rel_path, desc), unsafe_allow_html=True)
             
 else:
