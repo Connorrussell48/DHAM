@@ -358,6 +358,12 @@ st.markdown(
         .text-gray-400 {{
             color: var(--muted-text-new) !important;
         }}
+        
+        /* --- SelectBox/Input Labels (FIX: Set to White) --- */
+        div[data-testid="stAppViewContainer"] label {{
+            color: var(--text) !important;
+            font-weight: 600; /* Added for better visibility */
+        }}
 
         /* --- Global Text Color Application --- */
         /* Forces all primary text (st.markdown/st.header/st.subheader) to use the new BLOOM_TEXT */
@@ -378,9 +384,7 @@ st.markdown(
         }}
         
         /* Sidebar Navigation Arrows & Links Pop (using muted-text-new for links) */
-        [data-testid="stSidebarNav"] span, 
-        [data-testid="stSidebarNav"] a, 
-        [data-testid="stSidebarNav"] svg {{
+        [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] svg {{
             color: var(--text) !important; /* Forces the text to be bright white */
             fill: var(--text) !important;
             transition: all 0.2s;
