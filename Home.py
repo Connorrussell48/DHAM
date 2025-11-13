@@ -695,13 +695,12 @@ pages_dir = Path("pages")
 available = []
 
 # --- Custom HTML rendering function for the card content ---
-def get_card_html(label, rel_path, desc):
+def get_card_html(label, file_path, desc):
     """
     Generates the clean card HTML structure, including the internal link.
-    This replaces the fragile CSS overlay trick with a solid link button inside.
     """
-    # Use st.page_link to generate the actual URL, then embed it in a custom link style.
-    url = st.runtime.legacy_caching.get_url(rel_path)
+    # Use the file path directly in the href attribute
+    url_path = f"/{file_path}"
     
     return dedent(f"""
         <div class="strategy-link-card">
@@ -709,7 +708,7 @@ def get_card_html(label, rel_path, desc):
                 <div class="strategy-link-title">{label}</div>
                 <div class="strategy-link-desc">{desc}</div>
             </div>
-            <a href="{url}" target="_self" class="goto-page-button">
+            <a href="{url_path}" target="_self" class="goto-page-button">
                 Go to Page ➡️
             </a>
         </div>
@@ -725,6 +724,7 @@ if available:
     for i, (label, rel_path, desc) in enumerate(available):
         with cols[i]:
             # Render the entire styled card with the working link inside
+            # The rel_path is the string "pages/1_Slope_Convexity.py"
             st.markdown(get_card_html(label, rel_path, desc), unsafe_allow_html=True)
             
 else:
