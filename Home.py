@@ -157,7 +157,7 @@ def get_metric_styles(change_pct):
         icon = '•'
     return f"var({color_token})", icon, f"var({color_token})"
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl='1h', show_spinner=False) # Heatmap data now updates every 1h automatically
 def fetch_ticker_data(tickers):
     """Fetches the last 15 months of adjusted close prices for tickers."""
     tickers = list(set(tickers)) 
@@ -170,7 +170,7 @@ def fetch_ticker_data(tickers):
 
 @st.cache_data(ttl=timedelta(seconds=5), show_spinner=False)
 def fetch_live_summary(tickers):
-    """Fetches key metrics for market summary (Run frequently)."""
+    """Fetches key metrics for market summary (Run frequently, 5s TTL)."""
     try:
         data = yf.Tickers(tickers).fast_info
         if isinstance(data, pd.DataFrame):
@@ -214,7 +214,8 @@ def calculate_returns(data, period):
 @st.cache_data(show_spinner=False)
 def generate_heatmap_data(period, tickers_list):
     """Generates data for the market heatmap."""
-    all_close_data = fetch_ticker_data(tickers_list)
+    # Heatmap relies on data fetched via fetch_ticker_data, which now has a 1h TTL
+    all_close_data = fetch_ticker_data(tickers_list) 
     if all_close_data.empty: return pd.DataFrame(), False
     
     returns = calculate_returns(all_close_data, period)
@@ -297,7 +298,8 @@ def get_top_movers_uncached(ticker_list, period, scan_time):
     """
     
     # Use the unified caching function to fetch data for the full list
-    all_close_data = fetch_ticker_data(ticker_list)
+    # NOTE: This uses the fetch_ticker_data with the 1h TTL/manual clear behavior
+    all_close_data = fetch_ticker_data(ticker_list) 
     
     if all_close_data.empty: return pd.DataFrame(), pd.DataFrame()
     
@@ -357,12 +359,6 @@ st.markdown(
         /* Market Status Text */
         .text-gray-400 {{
             color: var(--muted-text-new) !important;
-        }}
-        
-        /* --- SelectBox/Input Labels (FIX: Set to White) --- */
-        div[data-testid="stAppViewContainer"] label {{
-            color: var(--text) !important;
-            font-weight: 600; /* Added for better visibility */
         }}
 
         /* --- Global Text Color Application --- */
@@ -706,7 +702,7 @@ def get_card_html(label, rel_path, desc):
     Generates the clean card HTML structure, including the internal link.
     This replaces the fragile CSS overlay trick with a solid link button inside.
     """
-    # Use st.runtime.legacy_caching.get_url to get the stable URL
+    # Use st.page_link to generate the actual URL, then embed it in a custom link style.
     try:
         url = st.runtime.legacy_caching.get_url(rel_path)
     except AttributeError:
