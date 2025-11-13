@@ -298,7 +298,6 @@ def get_top_movers_uncached(ticker_list, period, scan_time):
     """
     
     # Use the unified caching function to fetch data for the full list
-    # NOTE: This uses the fetch_ticker_data with the 1h TTL/manual clear behavior
     all_close_data = fetch_ticker_data(ticker_list) 
     
     if all_close_data.empty: return pd.DataFrame(), pd.DataFrame()
@@ -360,6 +359,13 @@ st.markdown(
         .text-gray-400 {{
             color: var(--muted-text-new) !important;
         }}
+        
+        /* --- SelectBox/Input Labels (FIX: Set to White) --- */
+        div[data-testid="stAppViewContainer"] label {{
+            color: var(--text) !important;
+            font-weight: 600; /* Added for better visibility */
+        }}
+
 
         /* --- Global Text Color Application --- */
         /* Forces all primary text (st.markdown/st.header/st.subheader) to use the new BLOOM_TEXT */
@@ -617,12 +623,9 @@ def display_market_kpis(is_open, status_text, status_color):
     col_spy, col_qqq, col_vix, col_time = st.columns(4)
     
     tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
-    if is_open:
-        # Use the non-cached version for live pricing for the main KPIs
-        market_data = fetch_live_summary(tickers_to_fetch)
-    else:
-        # If market is closed, rely on the cached data to get EOD/Previous close
-        market_data = fetch_live_summary(tickers_to_fetch) 
+    
+    # Use the 5s TTL fetch for the live market data
+    market_data = fetch_live_summary(tickers_to_fetch) 
         
     def get_ticker_metric(ticker):
             # Try to get live data if available (even when closed, yfinance might have delayed data)
@@ -634,6 +637,7 @@ def display_market_kpis(is_open, status_text, status_color):
                 price = 0.0
                 change_pct = 0.0
                 
+                # Fallback to cached EOD data if live feed fails
                 try:
                     close_data = fetch_ticker_data([ticker])
                     if not close_data.empty and len(close_data) >= 2:
@@ -684,11 +688,8 @@ def display_market_kpis(is_open, status_text, status_color):
 display_market_kpis(is_open, status_text, status_color)
 
 # --- Automatic Refresh Logic (The safe hack) ---
-# We use a hidden text input to trigger a periodic re-run.
+# We use a hidden text input and JS to trigger a periodic re-run to refresh the 5s cache.
 if is_open:
-    # A unique key based on time ensures that the component actually changes.
-    refresh_key = datetime.now().strftime("%Y%m%d%H%M%S") 
-    
     # This input is hidden using CSS to force the app to re-run every 5 seconds.
     st.markdown(
         f"""
@@ -698,17 +699,20 @@ if is_open:
         """, unsafe_allow_html=True
     )
     
-    # This input value is changed every 5 seconds via JavaScript, forcing a page re-run.
-    st.text_input("", value=refresh_key, key='refresh_trigger', label_visibility="collapsed")
+    # Generate a unique key every time the page loads to prevent Streamlit warnings
+    refresh_key = f'refresh_trigger_{datetime.now().strftime("%H%M%S")}'
+    st.text_input("", value=refresh_key, key=refresh_key, label_visibility="collapsed")
     
+    # This JavaScript changes the hidden input's value every 5 seconds, forcing a Streamlit re-run.
     st.components.v1.html(
         f"""
         <script>
             function setRefreshValue() {{
-                const input = window.parent.document.querySelector('input[aria-label="refresh_trigger"]');
+                // Find the input element created by st.text_input using its attribute name
+                const input = window.parent.document.querySelector('input[aria-label="{refresh_key}"]');
                 if (input) {{
                     const now = new Date();
-                    // Set the value to the current time string, effectively triggering change
+                    // Set the value to a new timestamp string to trigger change
                     input.value = now.getTime(); 
                     // Dispatch change event to ensure Streamlit registers the input change
                     input.dispatchEvent(new Event('change', {{ bubbles: true }}));
@@ -739,7 +743,10 @@ def get_card_html(label, rel_path, desc):
     """
     Generates the clean card HTML structure, including the internal link.
     """
-    url = st.runtime.legacy_caching.get_url(rel_path)
+    # FIXED: Hardcode relative URL based on Streamlit's multi-page structure
+    # Example: "pages/1_Slope_Convexity.py" -> "/1_Slope_Convexity"
+    page_name = rel_path.replace('pages/', '').replace('.py', '')
+    url = f"/{page_name}"
     
     return dedent(f"""
         <div class="strategy-link-card">
