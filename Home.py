@@ -9,7 +9,6 @@ import pytz
 import yfinance as yf 
 import pandas as pd
 import numpy as np
-import time # Import for the 5-second sleep/rerun
 
 import streamlit as st
 
@@ -140,12 +139,6 @@ def get_market_status():
         status_text = "Regular Session Open"
         status_color = ACCENT_GREEN
 
-    # Set cache TTL: 5 seconds if open, 4 hours if closed.
-    if is_open:
-        cache_ttl = timedelta(seconds=5)
-    else:
-        cache_ttl = timedelta(hours=4)
-
     return now, is_open, status_text, status_color, cache_ttl
 
 # --- IMPORTANT: Caching functions now run with no TTL to be manually invalidated ---
@@ -175,12 +168,7 @@ def fetch_ticker_data(tickers):
         return pd.DataFrame()
     return data['Close']
 
-def get_live_summary_ttl():
-    """Helper to dynamically get the TTL based on market status."""
-    return get_market_status()[4]
-
-# Use the helper function to set the TTL for live summary fetches
-@st.cache_data(ttl=get_live_summary_ttl(), show_spinner=False)
+@st.cache_data(ttl=timedelta(seconds=5), show_spinner=False)
 def fetch_live_summary(tickers):
     """Fetches key metrics for market summary (Run frequently)."""
     try:
@@ -389,18 +377,17 @@ st.markdown(
             color: var(--muted) !important; 
         }}
         
-        /* Sidebar Navigation Links (forced white) */
-        [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] span, [data-testid="stSidebarNav"] svg {{
-            color: var(--text) !important; 
+        /* Sidebar Navigation Arrows & Links Pop (forced white) */
+        /* Targets the entire link span and SVG icon within the nav */
+        [data-testid="stSidebarNav"] span, 
+        [data-testid="stSidebarNav"] a, 
+        [data-testid="stSidebarNav"] svg {{
+            color: var(--text) !important; /* Forces the text to be bright white */
             fill: var(--text) !important;
             transition: all 0.2s;
         }}
         [data-testid="stSidebarNav"] a:hover {{
             color: var(--green-accent) !important;
-        }}
-        [data-testid="stSidebarNav"] a:hover span, [data-testid="stSidebarNav"] a:hover svg {{
-             color: var(--green-accent) !important;
-             fill: var(--green-accent) !important;
         }}
         
         /* --- Strategy Navigation Card: Final Restoration --- */
@@ -614,7 +601,7 @@ with st.sidebar:
 st.markdown("### Today's Market Summary")
 st.caption("Live data summary based on US market hours (EST/EDT).")
 
-now, is_open, status_text, status_color, cache_ttl = get_market_status()
+now, is_open, status_text, status_color, _ = get_market_status()
 current_time_str = now.strftime('%H:%M:%S EST')
 
 # --- Status Display ---
@@ -631,8 +618,12 @@ def display_market_kpis(is_open, status_text, status_color):
     col_spy, col_qqq, col_vix, col_time = st.columns(4)
     
     tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
-    # Get the data using the dynamically TTL-set cached function
-    market_data = fetch_live_summary(tickers_to_fetch) 
+    if is_open:
+        # Use the non-cached version for live pricing for the main KPIs
+        market_data = fetch_live_summary(tickers_to_fetch)
+    else:
+        # If market is closed, rely on the cached data to get EOD/Previous close
+        market_data = fetch_live_summary(tickers_to_fetch) 
         
     def get_ticker_metric(ticker):
             # Try to get live data if available (even when closed, yfinance might have delayed data)
@@ -690,14 +681,8 @@ def display_market_kpis(is_open, status_text, status_color):
             </div>
         """, unsafe_allow_html=True)
 
-# Display the summary and handle the 5-second rerun
+# Display the summary
 display_market_kpis(is_open, status_text, status_color)
-
-# Add the 5-second auto-refresh logic
-if is_open:
-    # Use st.rerun to force update every 5 seconds when the market is open
-    time.sleep(5)
-    st.rerun()
 
 
 # --------------------------------------------------------------------------------------
@@ -715,15 +700,14 @@ available = []
 # --- Custom HTML rendering function for the card content ---
 def get_card_html(label, rel_path, desc):
     """
-    Generates the clean card HTML structure, including the internal link.
+    Generates the clean card HTML structure, including the internal link button.
     """
-    # Use st.runtime.get_instance().get_url to get the stable URL
+    # Use st.runtime.legacy_caching.get_url to get the stable URL
     try:
-        url = st.runtime.get_instance().get_url(rel_path)
+        url = st.runtime.legacy_caching.get_url(rel_path)
     except AttributeError:
-        # Fallback for compatibility (will cause errors on older versions, but ensures newer versions work)
+        # Fallback using a relative path, which should still work for basic navigation
         url = f"/{rel_path.replace('pages/', '').replace('.py', '')}" 
-
     
     return dedent(f"""
         <div class="strategy-link-card">
