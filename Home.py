@@ -9,6 +9,7 @@ import pytz
 import yfinance as yf 
 import pandas as pd
 import numpy as np
+import time # Import for the 5-second sleep/rerun
 
 import streamlit as st
 
@@ -109,7 +110,7 @@ def get_spx_tickers():
 SPX_MOVER_TICKERS = get_spx_tickers()
 
 # --------------------------------------------------------------------------------------
-# --- GLOBAL HELPER FUNCTIONS (Moved to top to prevent NameError) ---
+# --- GLOBAL HELPER FUNCTIONS ---
 # --------------------------------------------------------------------------------------
 
 def get_market_status():
@@ -139,7 +140,15 @@ def get_market_status():
         status_text = "Regular Session Open"
         status_color = ACCENT_GREEN
 
+    # Set cache TTL: 5 seconds if open, 4 hours if closed.
+    if is_open:
+        cache_ttl = timedelta(seconds=5)
+    else:
+        cache_ttl = timedelta(hours=4)
+
     return now, is_open, status_text, status_color, cache_ttl
+
+# --- IMPORTANT: Caching functions now run with no TTL to be manually invalidated ---
 
 @st.cache_data(show_spinner=False)
 def get_metric_styles(change_pct):
@@ -166,9 +175,14 @@ def fetch_ticker_data(tickers):
         return pd.DataFrame()
     return data['Close']
 
-@st.cache_data(ttl="60s", show_spinner=False)
+def get_live_summary_ttl():
+    """Helper to dynamically get the TTL based on market status."""
+    return get_market_status()[4]
+
+# Use the helper function to set the TTL for live summary fetches
+@st.cache_data(ttl=get_live_summary_ttl(), show_spinner=False)
 def fetch_live_summary(tickers):
-    """Fetches key metrics for market summary (Run frequently). TTL=60s for auto-refresh."""
+    """Fetches key metrics for market summary (Run frequently)."""
     try:
         data = yf.Tickers(tickers).fast_info
         if isinstance(data, pd.DataFrame):
@@ -178,6 +192,7 @@ def fetch_live_summary(tickers):
         return summary
     except Exception:
         return {}
+
 
 def calculate_returns(data, period):
     """Calculates returns for the given period (1D, 7D, 30D, 1Y, YTD)."""
@@ -237,7 +252,7 @@ def generate_heatmap_data(period, tickers_list):
     return df, True
 
 def get_metric_html(title, price, change_pct, accent_color_token):
-    """Generates the HTML for a Market KPI Card. (Moved up to prevent NameError)"""
+    """Generates the HTML for a Market KPI Card."""
     color, icon, _ = get_metric_styles(change_pct)
     change_text = f"{icon} {abs(change_pct):.2f}%"
     
@@ -260,7 +275,6 @@ def get_metric_html(title, price, change_pct, accent_color_token):
             <div class="text-sm font-semibold" style="color: {color};">{change_text}</div>
         </div>
     """)
-
 
 # --- New Function for Heatmap Box Styling ---
 def get_heatmap_color_style(return_val):
@@ -375,21 +389,18 @@ st.markdown(
             color: var(--muted) !important; 
         }}
         
-        /* Sidebar Navigation Links (forced bright white) */
-        [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] span {{
+        /* Sidebar Navigation Links (forced white) */
+        [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] span, [data-testid="stSidebarNav"] svg {{
             color: var(--text) !important; 
-        }}
-        [data-testid="stSidebarNav"] svg {{
             fill: var(--text) !important;
-        }}
-        
-        /* Sidebar Navigation Arrows & Links Pop (using muted-text-new for links) */
-        [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] svg {{
-            fill: var(--purple) !important;
             transition: all 0.2s;
         }}
         [data-testid="stSidebarNav"] a:hover {{
             color: var(--green-accent) !important;
+        }}
+        [data-testid="stSidebarNav"] a:hover span, [data-testid="stSidebarNav"] a:hover svg {{
+             color: var(--green-accent) !important;
+             fill: var(--green-accent) !important;
         }}
         
         /* --- Strategy Navigation Card: Final Restoration --- */
@@ -603,7 +614,7 @@ with st.sidebar:
 st.markdown("### Today's Market Summary")
 st.caption("Live data summary based on US market hours (EST/EDT).")
 
-now, is_open, status_text, status_color, _ = get_market_status()
+now, is_open, status_text, status_color, cache_ttl = get_market_status()
 current_time_str = now.strftime('%H:%M:%S EST')
 
 # --- Status Display ---
@@ -620,12 +631,8 @@ def display_market_kpis(is_open, status_text, status_color):
     col_spy, col_qqq, col_vix, col_time = st.columns(4)
     
     tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
-    if is_open:
-        # Use the auto-refresh cached version for live pricing
-        market_data = fetch_live_summary(tickers_to_fetch)
-    else:
-        # If market is closed, rely on the cached data to get EOD/Previous close
-        market_data = fetch_live_summary(tickers_to_fetch) 
+    # Get the data using the dynamically TTL-set cached function
+    market_data = fetch_live_summary(tickers_to_fetch) 
         
     def get_ticker_metric(ticker):
             # Try to get live data if available (even when closed, yfinance might have delayed data)
@@ -683,8 +690,14 @@ def display_market_kpis(is_open, status_text, status_color):
             </div>
         """, unsafe_allow_html=True)
 
-# Display the summary
+# Display the summary and handle the 5-second rerun
 display_market_kpis(is_open, status_text, status_color)
+
+# Add the 5-second auto-refresh logic
+if is_open:
+    # Use st.rerun to force update every 5 seconds when the market is open
+    time.sleep(5)
+    st.rerun()
 
 
 # --------------------------------------------------------------------------------------
@@ -704,9 +717,13 @@ def get_card_html(label, rel_path, desc):
     """
     Generates the clean card HTML structure, including the internal link.
     """
-    # FIX: Use the file name to construct the URL manually, which is more stable than internal Streamlit APIs.
-    page_name = rel_path.split('/')[-1].replace('.py', '')
-    url_path = f"/{page_name}"
+    # Use st.runtime.get_instance().get_url to get the stable URL
+    try:
+        url = st.runtime.get_instance().get_url(rel_path)
+    except AttributeError:
+        # Fallback for compatibility (will cause errors on older versions, but ensures newer versions work)
+        url = f"/{rel_path.replace('pages/', '').replace('.py', '')}" 
+
     
     return dedent(f"""
         <div class="strategy-link-card">
@@ -714,7 +731,7 @@ def get_card_html(label, rel_path, desc):
                 <div class="strategy-link-title">{label}</div>
                 <div class="strategy-link-desc">{desc}</div>
             </div>
-            <a href="{url_path}" target="_self" class="goto-page-button">
+            <a href="{url}" target="_self" class="goto-page-button">
                 Go to Page ➡️
             </a>
         </div>
