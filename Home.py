@@ -1,6 +1,7 @@
-# home.py - Final Design Polish for Market Hub
+# home.py - D-HAM Multi-Strategy Workspace with Auto-Updates
 from __future__ import annotations
 import json
+import time  # ADDED for auto-update functionality
 from pathlib import Path
 from textwrap import dedent
 from datetime import datetime, timedelta
@@ -16,7 +17,7 @@ import streamlit as st
 # Page setup
 # --------------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="D-HAM", # CHANGED: Updated page title
+    page_title="D-HAM",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -26,8 +27,8 @@ st.set_page_config(
 # --------------------------------------------------------------------------------------
 BLOOM_BG       = "#0B0F14"    
 BLOOM_PANEL    = "#121820"    
-BLOOM_TEXT     = "#FFFFF5"    # ADJUSTED: Slightly brighter than pure white
-BLOOM_MUTED    = "rgba(255,255,255,0.45)" # Sidebar Text / Sub-text
+BLOOM_TEXT     = "#FFFFF5"
+BLOOM_MUTED    = "rgba(255,255,255,0.45)"
 NEUTRAL_GRAY   = "#4A5B6E"    
 INPUT_BG       = "#2E3A46"    
 INPUT_BG_LIGHT = "#3A4654"    
@@ -38,7 +39,6 @@ DARK_PURPLE    = "#3A2A6A"
 
 # --- Market Data Configuration ---
 MAJOR_TICKERS = ["SPY", "QQQ", "IWM", "^VIX", "GLD", "SLV", "TLT"]
-# Expanded Sector/Country Tickers
 SECTOR_TICKERS = {
     "Technology": "XLK", "Healthcare": "XLV", "Financials": "XLF", 
     "Consumer Disc.": "XLY", "Industrials": "XLI", "Energy": "XLE",
@@ -50,7 +50,6 @@ COUNTRY_TICKERS = {
 }
 HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())))
 
-# List of all S&P 500 tickers for the Movers section
 def get_spx_tickers():
     return [
         'MMM', 'AOS', 'ABT', 'ABBV', 'ACN', 'ADBE', 'AMD', 'AES', 'AFL', 'A',
@@ -123,7 +122,6 @@ def get_market_status():
 
     is_open = is_weekday and (market_open <= now < market_close)
     
-    # TTL is fixed for the Market Summary KPIs
     cache_ttl = timedelta(hours=4) 
 
     if not is_weekday:
@@ -131,7 +129,7 @@ def get_market_status():
         status_color = ACCENT_PURPLE
     elif now >= market_close:
         status_text = "Market Closed (After Hours)"
-        status_color = "#D9534F" # Red
+        status_color = "#D9534F"
     elif now < market_open:
         status_text = "Market Closed (Pre-Market)"
         status_color = ACCENT_BLUE
@@ -141,11 +139,9 @@ def get_market_status():
 
     return now, is_open, status_text, status_color, cache_ttl
 
-# --- IMPORTANT: Caching functions now run with no TTL to be manually invalidated ---
-
 @st.cache_data(show_spinner=False)
 def get_metric_styles(change_pct):
-    """Determines color and icon based on percentage percentage change."""
+    """Determines color and icon based on percentage change."""
     if change_pct > 0.01:
         color_token = "--green-accent"
         icon = '↑'
@@ -157,7 +153,7 @@ def get_metric_styles(change_pct):
         icon = '•'
     return f"var({color_token})", icon, f"var({color_token})"
 
-@st.cache_data(ttl='1h', show_spinner=False) # Heatmap data now updates every 1h automatically
+@st.cache_data(ttl='1h', show_spinner=False)
 def fetch_ticker_data(tickers):
     """Fetches the last 15 months of adjusted close prices for tickers."""
     tickers = list(set(tickers)) 
@@ -170,7 +166,7 @@ def fetch_ticker_data(tickers):
 
 @st.cache_data(ttl=timedelta(seconds=5), show_spinner=False)
 def fetch_live_summary(tickers):
-    """Fetches key metrics for market summary (Run frequently, 5s TTL)."""
+    """Fetches key metrics for market summary (5s TTL)."""
     try:
         data = yf.Tickers(tickers).fast_info
         if isinstance(data, pd.DataFrame):
@@ -181,9 +177,8 @@ def fetch_live_summary(tickers):
     except Exception:
         return {}
 
-
 def calculate_returns(data, period):
-    """Calculates returns for the given period (1D, 7D, 30D, 1Y, YTD)."""
+    """Calculates returns for the given period."""
     if data.empty: return pd.Series(dtype='float64')
     
     last_price = data.iloc[-1]
@@ -208,13 +203,11 @@ def calculate_returns(data, period):
             return pd.Series(0.0, index=data.columns) 
 
     returns = ((last_price - ref_price) / ref_price) * 100
-
     return returns.fillna(0.0)
 
 @st.cache_data(show_spinner=False)
 def generate_heatmap_data(period, tickers_list):
     """Generates data for the market heatmap."""
-    # Heatmap relies on data fetched via fetch_ticker_data, which now has a 1h TTL
     all_close_data = fetch_ticker_data(tickers_list) 
     if all_close_data.empty: return pd.DataFrame(), False
     
@@ -250,24 +243,18 @@ def get_metric_html(title, price, change_pct, accent_color_token):
              background: var(--inputlight); 
              border: 1px solid var(--neutral); 
              border-left: 5px solid {color};
-             padding: 10px 14px; /* Combined padding */
+             padding: 10px 14px;
              border-radius: 10px;
              box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-             transition: all 0.2s;
-        "
-             onmouseover="this.style.borderColor='var(--green-accent)';"
-             onmouseout="this.style.borderColor='var(--neutral)';">
+             transition: all 0.2s;">
             <div class="h">{title}</div>
-            <div class="v" style="color: {color};">
-                {price:.2f}
-            </div>
+            <div class="v" style="color: {color};">{price:.2f}</div>
             <div class="text-sm font-semibold" style="color: {color};">{change_text}</div>
         </div>
     """)
 
-# --- New Function for Heatmap Box Styling ---
 def get_heatmap_color_style(return_val):
-    """Calculates the CSS style string for a single heatmap box based on return value."""
+    """Calculates the CSS style string for a heatmap box."""
     if pd.isna(return_val):
         return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
     
@@ -276,7 +263,6 @@ def get_heatmap_color_style(return_val):
     except ValueError:
         return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
 
-    # Max saturation point (4.0% move means maximum color intensity/opacity)
     max_saturation = 4.0
     
     if val > 0:
@@ -292,12 +278,7 @@ def get_heatmap_color_style(return_val):
 
 @st.cache_data(show_spinner=False)
 def get_top_movers_uncached(ticker_list, period, scan_time):
-    """
-    Fetches data, calculates returns, and returns top 5 gainers/losers.
-    The 'scan_time' argument is used solely to force a cache clear when the button is clicked.
-    """
-    
-    # Use the unified caching function to fetch data for the full list
+    """Fetches data, calculates returns, and returns top 5 gainers/losers."""
     all_close_data = fetch_ticker_data(ticker_list) 
     
     if all_close_data.empty: return pd.DataFrame(), pd.DataFrame()
@@ -312,6 +293,113 @@ def get_top_movers_uncached(ticker_list, period, scan_time):
     
     return top_gainers, top_losers
 
+# --------------------------------------------------------------------------------------
+# NEW: Container Rendering Functions for Auto-Update
+# --------------------------------------------------------------------------------------
+
+def render_market_kpis_in_container(container, is_open, status_text, status_color):
+    """Renders market KPIs in the provided container - enables targeted updates."""
+    with container:
+        col_spy, col_qqq, col_vix, col_time = st.columns(4)
+        
+        tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
+        market_data = fetch_live_summary(tickers_to_fetch)
+        
+        def get_ticker_metric(ticker):
+            if ticker in market_data:
+                data = market_data[ticker]
+                price = data.get('lastPrice', 0.0)
+                change_pct = data.get('regularMarketChangePercent', 0.0)
+            else:
+                price = 0.0
+                change_pct = 0.0
+                try:
+                    close_data = fetch_ticker_data([ticker])
+                    if not close_data.empty and len(close_data) >= 2:
+                        close_data = close_data[ticker]
+                        price = close_data.iloc[-1]
+                        change_pct = ((close_data.iloc[-1] - close_data.iloc[-2]) / close_data.iloc[-2]) * 100
+                except Exception:
+                    pass
+            return price, change_pct
+
+        # SPY
+        spy_price, spy_change_pct = get_ticker_metric("SPY")
+        with col_spy:
+            st.markdown(get_metric_html("S&P 500 (SPY)", spy_price, spy_change_pct, "--green-accent"), 
+                       unsafe_allow_html=True)
+
+        # QQQ
+        qqq_price, qqq_change_pct = get_ticker_metric("QQQ")
+        with col_qqq:
+            st.markdown(get_metric_html("NASDAQ 100 (QQQ)", qqq_price, qqq_change_pct, "--red-neg"), 
+                       unsafe_allow_html=True)
+
+        # VIX
+        vix_price, vix_change_pct = get_ticker_metric("^VIX")
+        with col_vix:
+            st.markdown(get_metric_html("VIX Index (^VIX)", vix_price, vix_change_pct, "--purple"), 
+                       unsafe_allow_html=True)
+
+        # Time
+        now = datetime.now(pytz.timezone('America/New_York'))
+        current_time_str = now.strftime('%H:%M:%S EST')
+        
+        with col_time:
+            st.markdown(f"""
+                <div class="kpi" style="
+                     background: var(--inputlight); 
+                     border: 1px solid var(--neutral); 
+                     border-left: 5px solid {status_color};
+                     padding: 10px 14px;
+                     border-radius: 10px;
+                     box-shadow: 0 2px 5px rgba(0,0,0,0.3);">
+                    <div class="h">Current Time</div>
+                    <div class="v" style="color: {status_color};">{current_time_str}</div>
+                    <div class="text-sm font-semibold" style="color: var(--muted-text-new);">Market Status</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+
+def render_heatmap_in_container(container, return_period):
+    """Renders heatmap in the provided container."""
+    with container:
+        heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
+        
+        if data_loaded and not heatmap_df.empty:
+            all_tickers_data = []
+            
+            major_data = heatmap_df.loc["Major Indices"].dropna()
+            for ticker, ret in major_data.items():
+                all_tickers_data.append({"ticker": ticker, "return": ret})
+            
+            sector_data = heatmap_df.loc["Sector ETFs"].dropna()
+            for ticker, ret in sector_data.items():
+                all_tickers_data.append({"ticker": ticker, "return": ret})
+
+            country_data = heatmap_df.loc["Country ETFs"].dropna()
+            for ticker, ret in country_data.items():
+                all_tickers_data.append({"ticker": ticker, "return": ret})
+            
+            html_content = '<div class="heatmap-grid-container">'
+            
+            for item in all_tickers_data:
+                ticker = item['ticker']
+                ret = item['return']
+                box_style = get_heatmap_color_style(ret)
+                return_str = f"{'+' if ret > 0 else ''}{ret:.2f}%"
+                
+                html_content += f"""
+                <div class="heatmap-box" style="{box_style}">
+                    <span class="heatmap-box-ticker">{ticker}</span>
+                    <span class="heatmap-box-return">{return_str}</span>
+                </div>
+                """
+            
+            html_content += '</div>'
+            st.markdown(html_content, unsafe_allow_html=True)
+        else:
+            st.warning("Could not load market data for the heatmap.")
 
 # --------------------------------------------------------------------------------------
 # CSS injection
@@ -322,7 +410,7 @@ st.markdown(
         <style>
         :root {{
           --bg:{BLOOM_BG}; --panel:{BLOOM_PANEL}; --text:{BLOOM_TEXT}; --muted:{BLOOM_MUTED};
-          --muted-text-new: rgba(255, 255, 255, 0.75); /* Lighter grey for neutral elements */
+          --muted-text-new: rgba(255, 255, 255, 0.75);
           --neutral:{NEUTRAL_GRAY}; --input:{INPUT_BG}; --inputlight:{INPUT_BG_LIGHT};
           --blue:{ACCENT_BLUE}; --green:{ACCENT_GREEN}; --purple:{ACCENT_PURPLE};
           --green-accent: #26D07C;
@@ -341,53 +429,39 @@ st.markdown(
         header[data-testid="stHeader"] {{ background:transparent!important; height:2.5rem!important; }}
         [data-testid="stDecoration"] {{ background:transparent!important; }}
 
-        /* --- Global Text Coloring (Lighter Gray) --- */
-        
-        /* Header Subtitle */
         div[data-testid="stHeader"] > div:last-child > div:last-child {{
             color: var(--muted-text-new) !important;
         }}
-        /* Fun Quote */
         div[data-testid="stAppViewContainer"] > div > div > div > div:nth-child(2) > div {{
             color: var(--muted-text-new) !important;
         }}
-        /* KPI Subtitles */
         .kpi .h {{ 
             color: var(--muted-text-new) !important; 
         }}
-        /* Market Status Text */
         .text-gray-400 {{
             color: var(--muted-text-new) !important;
         }}
         
-        /* --- SelectBox/Input Labels (FIX: Set to White) --- */
         div[data-testid="stAppViewContainer"] label {{
             color: var(--text) !important;
-            font-weight: 600; /* Added for better visibility */
+            font-weight: 600;
         }}
 
-
-        /* --- Global Text Color Application --- */
-        /* Forces all primary text (st.markdown/st.header/st.subheader) to use the new BLOOM_TEXT */
         .stMarkdown, .stText, h1, h2, h3, h4, h5, h6 {{
             color: var(--text) !important;
         }}
 
-
-        /* --- Sidebar Enhancements --- */
         section[data-testid="stSidebar"], aside[data-testid="stSidebar"] {{
           background: var(--sidebar-bg) !important;
           box-shadow: 4px 0 10px rgba(0,0,0,0.4);
         }}
         
-        /* Sidebar Text: Lighter Grey */
         [data-testid="stSidebar"] .stMarkdown > div {{
             color: var(--muted) !important; 
         }}
         
-        /* Sidebar Navigation Arrows & Links Pop (using muted-text-new for links) */
         [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] svg {{
-            color: var(--text) !important; /* Forces the text to be bright white */
+            color: var(--text) !important;
             fill: var(--text) !important;
             transition: all 0.2s;
         }}
@@ -395,7 +469,6 @@ st.markdown(
             color: var(--green-accent) !important;
         }}
         
-        /* --- Strategy Navigation Card: Final Restoration --- */
         .strategy-link-card {{
             background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
             border: 1px solid var(--neutral); 
@@ -408,7 +481,6 @@ st.markdown(
             flex-direction: column;
             justify-content: space-between;
         }}
-        /* Added for the requested glow effect */
         .strategy-link-card:hover {{
             border-color: var(--purple); 
             transform: translateY(-5px); 
@@ -416,7 +488,6 @@ st.markdown(
             cursor: pointer;
         }}
 
-        /* Apply lighter grey to card description */
         .strategy-link-desc {{ color: var(--muted-text-new); font-size: 1.0rem; }} 
 
         .strategy-link-title {{ 
@@ -429,7 +500,6 @@ st.markdown(
             margin-bottom: 10px;
         }}
 
-        /* Link button style inside the card */
         .goto-page-button {{
             margin-top: 15px;
             background: var(--input) !important;
@@ -441,7 +511,7 @@ st.markdown(
             text-decoration: none;
             font-weight: 600;
             transition: background 0.2s;
-            display: block; /* Make it fill the width */
+            display: block;
         }}
 
         .goto-page-button:hover {{
@@ -450,7 +520,6 @@ st.markdown(
             color: var(--purple) !important;
         }}
 
-        /* --- Heatmap Grid Layout --- */
         .heatmap-grid-container {{
             display: flex;
             flex-wrap: wrap;
@@ -462,7 +531,7 @@ st.markdown(
         }}
         .heatmap-box {{
             flex-grow: 1; 
-            flex-basis: 120px; /* Minimum width before wrapping */
+            flex-basis: 120px;
             min-height: 80px;
             display: flex;
             flex-direction: column;
@@ -473,29 +542,27 @@ st.markdown(
             font-weight: 700;
             transition: all 0.3s;
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            cursor: default; /* Not clickable */
+            cursor: default;
         }}
         .heatmap-box-ticker {{
             font-size: 1.1rem;
             font-weight: 900;
             line-height: 1.2;
             margin-bottom: 2px;
-            color: var(--text); /* Always white */
+            color: var(--text);
         }}
         .heatmap-box-return {{
             font-size: 0.85rem;
             line-height: 1.0;
             opacity: 0.8;
-            color: var(--text); /* Always white */
+            color: var(--text);
         }}
-        /* Hover effect for boxes */
         .heatmap-box:hover {{
             transform: scale(1.03);
             opacity: 0.95;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }}
         
-        /* --- Top Movers List Styling --- */
         .movers-list {{
             background: var(--inputlight);
             border: 1px solid var(--neutral);
@@ -529,8 +596,6 @@ st.markdown(
             flex: 0 0 40%;
             text-align: right;
         }}
-
-
         </style>
         """
     ),
@@ -548,14 +613,13 @@ st.markdown(
         <polyline points="5,15 9,11 12,13 17,7 19,9" stroke="#26D07C" stroke-width="2" fill="none" />
         <circle cx="19" cy="9" r="1.8" fill="#26D07C"/>
       </svg>
-      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">D-HAM</div><!-- CHANGED: Title updated to D-HAM -->
+      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">D-HAM</div>
       <div style="margin-left:auto;font-size:.95rem;color:rgba(255,255,255,.70);font-weight:500;">Multi‑Strategy Workspace</div>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# Fun one-liner
 st.markdown(
     """
     <div style="text-align:center; font-size:1.05rem; font-style:italic; color:rgba(255,255,255,0.80); margin:-4px 0 18px 0;">
@@ -565,7 +629,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Initialize Session State (Hidden from user, but required for app state persistence)
+# Initialize Session State
 if "tickers" not in st.session_state:
     st.session_state["tickers"] = ["SPY", "AAPL", "MSFT"]
 if "ma_window" not in st.session_state:
@@ -574,7 +638,7 @@ if "lookback" not in st.session_state:
     st.session_state["lookback"] = 200
 
 # --------------------------------------------------------------------------------------
-# Sidebar: Cleaned up (Minimal info, lighter text)
+# Sidebar
 # --------------------------------------------------------------------------------------
 with st.sidebar:
     st.markdown("### Workspace Info")
@@ -599,135 +663,54 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
 
-
 # --------------------------------------------------------------------------------------
-# 🌎 Dynamic Market Summary Section
+# 🌎 Dynamic Market Summary Section (AUTO-UPDATING)
 # --------------------------------------------------------------------------------------
 st.markdown("### Today's Market Summary")
 st.caption("Live data summary based on US market hours (EST/EDT).")
 
 now, is_open, status_text, status_color, _ = get_market_status()
-current_time_str = now.strftime('%H:%M:%S EST')
 
-# --- Status Display ---
 st.markdown(f"""
     <div style="margin-bottom: 5px; margin-top: -10px;">
-        <h4 style="font-size: 1.15rem; font-weight: 700; margin: 0; padding: 0;">Status: <span style='color: {status_color};'>{status_text}</span></h4>
+        <h4 style="font-size: 1.15rem; font-weight: 700; margin: 0; padding: 0;">
+            Status: <span style='color: {status_color};'>{status_text}</span>
+        </h4>
     </div>
     <div style="border-top: 1px solid var(--neutral); margin-bottom: 20px;"></div>
 """, unsafe_allow_html=True)
 
+# Initialize session state for tracking updates
+if 'market_last_update' not in st.session_state:
+    st.session_state.market_last_update = time.time()
 
-def display_market_kpis(is_open, status_text, status_color):
-    
-    col_spy, col_qqq, col_vix, col_time = st.columns(4)
-    
-    tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
-    
-    # Use the 5s TTL fetch for the live market data
-    market_data = fetch_live_summary(tickers_to_fetch) 
-        
-    def get_ticker_metric(ticker):
-            # Try to get live data if available (even when closed, yfinance might have delayed data)
-            if ticker in market_data:
-                data = market_data[ticker]
-                price = data.get('lastPrice', 0.0)
-                change_pct = data.get('regularMarketChangePercent', 0.0)
-            else:
-                price = 0.0
-                change_pct = 0.0
-                
-                # Fallback to cached EOD data if live feed fails
-                try:
-                    close_data = fetch_ticker_data([ticker])
-                    if not close_data.empty and len(close_data) >= 2:
-                        close_data = close_data[ticker]
-                        price = close_data.iloc[-1]
-                        change_pct = ((close_data.iloc[-1] - close_data.iloc[-2]) / close_data.iloc[-2]) * 100
-                except Exception:
-                    pass 
+# Create empty container for market KPIs
+market_kpi_container = st.empty()
 
-            return price, change_pct
+# Initial render
+render_market_kpis_in_container(market_kpi_container, is_open, status_text, status_color)
 
-    # --- SPY ---
-    spy_price, spy_change_pct = get_ticker_metric("SPY")
-    with col_spy:
-        st.markdown(get_metric_html("S&P 500 (SPY)", spy_price, spy_change_pct, "--green-accent"), unsafe_allow_html=True)
-
-    # --- QQQ ---
-    qqq_price, qqq_change_pct = get_ticker_metric("QQQ")
-    with col_qqq:
-        st.markdown(get_metric_html("NASDAQ 100 (QQQ)", qqq_price, qqq_change_pct, "--red-neg"), unsafe_allow_html=True)
-
-    # --- VIX ---
-    vix_price, vix_change_pct = get_ticker_metric("^VIX")
-    with col_vix:
-        st.markdown(get_metric_html("VIX Index (^VIX)", vix_price, vix_change_pct, "--purple"), unsafe_allow_html=True)
-
-    # --- Time ---
-    with col_time:
-        st.markdown(f"""
-            <div class="kpi" style="
-                 background: var(--inputlight); 
-                 border: 1px solid var(--neutral); 
-                 border-left: 5px solid {status_color};
-                 padding: 10px 14px;
-                 border-radius: 10px;
-                 box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-                 transition: all 0.2s;
-            "
-             onmouseover="this.style.borderColor='var(--green-accent)';"
-             onmouseout="this.style.borderColor='var(--neutral)';">
-                <div class="h">Current Time</div>
-                <div class="v" style="color: {status_color};">{current_time_str}</div>
-                <div class="text-sm font-semibold" style="color: var(--muted-text-new);">Market Status</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-# Display the summary
-display_market_kpis(is_open, status_text, status_color)
-
-# --- Automatic Refresh Logic (The safe hack) ---
-# We use a hidden text input and JS to trigger a periodic re-run to refresh the 5s cache.
+# Auto-update mechanism (only during market hours)
 if is_open:
-    # This input is hidden using CSS to force the app to re-run every 5 seconds.
-    st.markdown(
-        f"""
-        <style>
-            #refresh-input {{ visibility: hidden; position: fixed; top: -100px; }}
-        </style>
-        """, unsafe_allow_html=True
-    )
+    current_time = time.time()
+    time_since_update = current_time - st.session_state.market_last_update
     
-    # Generate a unique key every time the page loads to prevent Streamlit warnings
-    refresh_key = f'refresh_trigger_{datetime.now().strftime("%H%M%S")}'
-    st.text_input("", value=refresh_key, key=refresh_key, label_visibility="collapsed")
+    # Update every 5 seconds
+    if time_since_update >= 5:
+        st.session_state.market_last_update = current_time
+        # Clear only the live data cache
+        fetch_live_summary.clear()
+        # Re-render the container with fresh data
+        render_market_kpis_in_container(market_kpi_container, is_open, status_text, status_color)
     
-    # This JavaScript changes the hidden input's value every 5 seconds, forcing a Streamlit re-run.
-    st.components.v1.html(
-        f"""
-        <script>
-            function setRefreshValue() {{
-                // Find the input element created by st.text_input using its attribute name
-                const input = window.parent.document.querySelector('input[aria-label="{refresh_key}"]');
-                if (input) {{
-                    const now = new Date();
-                    // Set the value to a new timestamp string to trigger change
-                    input.value = now.getTime(); 
-                    // Dispatch change event to ensure Streamlit registers the input change
-                    input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
-            }}
-            // Run every 5000 milliseconds (5 seconds)
-            setInterval(setRefreshValue, 5000); 
-        </script>
-        """,
-        height=0, width=0
-    )
+    # Use st.rerun() with a delay to create auto-refresh
+    time.sleep(5)
+    st.rerun()
 
+st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# Page navigation (Final Polish)
+# Page navigation
 # --------------------------------------------------------------------------------------
 st.markdown("### Jump to a Strategy")
 
@@ -738,13 +721,8 @@ PAGE_MAPPING = {
 pages_dir = Path("pages")
 available = []
 
-# --- Custom HTML rendering function for the card content ---
 def get_card_html(label, rel_path, desc):
-    """
-    Generates the clean card HTML structure, including the internal link.
-    """
-    # FIXED: Hardcode relative URL based on Streamlit's multi-page structure
-    # Example: "pages/1_Slope_Convexity.py" -> "/1_Slope_Convexity"
+    """Generates the clean card HTML structure."""
     page_name = rel_path.replace('pages/', '').replace('.py', '')
     url = f"/{page_name}"
     
@@ -769,16 +747,14 @@ if available:
     cols = st.columns(len(available))
     for i, (label, rel_path, desc) in enumerate(available):
         with cols[i]:
-            # Render the entire styled card with the working link inside
             st.markdown(get_card_html(label, rel_path, desc), unsafe_allow_html=True)
-            
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# ♨️ Market Heatmap Section
+# ♨️ Market Heatmap Section (AUTO-UPDATING)
 # --------------------------------------------------------------------------------------
 st.markdown("### Market Return Heatmap")
 
@@ -789,53 +765,29 @@ return_period = st.selectbox(
     key='return_period_toggle'
 )
 
-# NOTE: Heatmap generation is still cached, but it relies on data fetched via a function 
-# that is now manually invalidated by the Movers button.
+# Initialize session state for heatmap updates
+if 'heatmap_last_update' not in st.session_state:
+    st.session_state.heatmap_last_update = time.time()
 
-heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
+# Create empty container for heatmap
+heatmap_container = st.empty()
 
-if data_loaded and not heatmap_df.empty:
-    
-    # --- FLATTEN DATA STRUCTURE ---
-    all_tickers_data = []
-    
-    major_data = heatmap_df.loc["Major Indices"].dropna()
-    for ticker, ret in major_data.items():
-        all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Major Indices"})
-    
-    sector_data = heatmap_df.loc["Sector ETFs"].dropna()
-    for ticker, ret in sector_data.items():
-        all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Sector ETFs"})
+# Initial render
+render_heatmap_in_container(heatmap_container, return_period)
 
-    country_data = heatmap_df.loc["Country ETFs"].dropna()
-    for ticker, ret in country_data.items():
-        all_tickers_data.append({"ticker": ticker, "return": ret, "category": "Country ETFs"})
+# Auto-update heatmap every 1 hour during market hours
+if is_open:
+    current_time = time.time()
+    time_since_heatmap_update = current_time - st.session_state.heatmap_last_update
     
-    # --- GENERATE HTML GRID ---
-    
-    html_content = '<div class="heatmap-grid-container">'
-    
-    for item in all_tickers_data:
-        ticker = item['ticker']
-        ret = item['return']
-        
-        box_style = get_heatmap_color_style(ret)
-        return_str = f"{'+' if ret > 0 else ''}{ret:.2f}%"
-        
-        html_content += dedent(f"""
-        <div class="heatmap-box" style="{box_style}">
-            <span class="heatmap-box-ticker">{ticker}</span>
-            <span class="heatmap-box-return">{return_str}</span>
-        </div>
-        """)
-
-    html_content += '</div>'
-    
-    st.markdown(html_content, unsafe_allow_html=True)
-    
-else:
-    st.warning("Could not load market data for the heatmap. Check connectivity or try again later.")
-    
+    # Update every hour (3600 seconds)
+    if time_since_heatmap_update >= 3600:
+        st.session_state.heatmap_last_update = current_time
+        # Clear heatmap-related caches
+        fetch_ticker_data.clear()
+        generate_heatmap_data.clear()
+        # Re-render with fresh data
+        render_heatmap_in_container(heatmap_container, return_period)
 
 st.markdown("---")
 
@@ -844,21 +796,16 @@ st.markdown("---")
 # --------------------------------------------------------------------------------------
 st.markdown(f"### Top Movers (S&P 500 Scan)")
 
-# Initialize movers_run timestamp if it doesn't exist
 if 'movers_run' not in st.session_state:
     st.session_state['movers_run'] = datetime.min
-    # Initialize movers data to empty frames to avoid initial errors
     st.session_state['gainer_df'] = pd.DataFrame()
     st.session_state['loser_df'] = pd.DataFrame()
 
-
-# Place button and status in the same row
 col_btn, col_status = st.columns([1, 1.5])
 
 with col_btn:
-    # Check if the button was clicked
     run_clicked = st.button("Run S&P 500 Scan", type="primary", use_container_width=True, 
-                            help="Fetch and analyze the latest data for all 496 S&P 500 tickers.")
+                            help="Fetch and analyze the latest data for all S&P 500 tickers.")
 
 with col_status:
     st.markdown(f"""
@@ -867,32 +814,24 @@ with col_status:
         </div>
     """, unsafe_allow_html=True)
 
-
-# --- Run Logic ---
 if run_clicked:
-    # 1. Force clear cache and update timestamp
     fetch_ticker_data.clear()
     get_top_movers_uncached.clear() 
     st.session_state['movers_run'] = datetime.now()
     
-    # 2. Display loading spinner and perform heavy calculation
     with st.spinner(f"Scanning {len(SPX_MOVER_TICKERS)} tickers for {return_period} returns..."):
         gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period, st.session_state['movers_run'])
         
-        # 3. Store results in session state
         st.session_state['gainer_df'] = gainer_df
         st.session_state['loser_df'] = loser_df
 
     st.toast("S&P 500 scan complete!", icon="✅")
     
-# Retrieve results from state for display
 gainer_df = st.session_state['gainer_df']
 loser_df = st.session_state['loser_df']
 
-# --- Display Results ---
 col_gainers, col_losers = st.columns(2)
 
-# --- Top Gainers ---
 with col_gainers:
     st.markdown("#### Top 5 Gainers", unsafe_allow_html=True)
     if not gainer_df.empty:
@@ -913,7 +852,6 @@ with col_gainers:
     else:
         st.info("Click 'Run S&P 500 Scan' to fetch data.")
 
-# --- Top Losers ---
 with col_losers:
     st.markdown("#### Top 5 Losers", unsafe_allow_html=True)
     if not loser_df.empty:
