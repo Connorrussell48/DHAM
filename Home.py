@@ -109,7 +109,7 @@ def get_spx_tickers():
 SPX_MOVER_TICKERS = get_spx_tickers()
 
 # --------------------------------------------------------------------------------------
-# --- GLOBAL HELPER FUNCTIONS ---
+# --- GLOBAL HELPER FUNCTIONS (Moved to top to prevent NameError) ---
 # --------------------------------------------------------------------------------------
 
 def get_market_status():
@@ -140,8 +140,6 @@ def get_market_status():
         status_color = ACCENT_GREEN
 
     return now, is_open, status_text, status_color, cache_ttl
-
-# --- IMPORTANT: Caching functions now run with no TTL to be manually invalidated ---
 
 @st.cache_data(show_spinner=False)
 def get_metric_styles(change_pct):
@@ -180,7 +178,6 @@ def fetch_live_summary(tickers):
         return summary
     except Exception:
         return {}
-
 
 def calculate_returns(data, period):
     """Calculates returns for the given period (1D, 7D, 30D, 1Y, YTD)."""
@@ -239,6 +236,33 @@ def generate_heatmap_data(period, tickers_list):
     df = pd.DataFrame(data).set_index("Category").fillna(np.nan)
     return df, True
 
+def get_metric_html(title, price, change_pct, accent_color_token):
+    """Generates the HTML for a Market KPI Card. (Moved up to prevent NameError)"""
+    color, icon, _ = get_metric_styles(change_pct)
+    change_text = f"{icon} {abs(change_pct):.2f}%"
+    
+    return dedent(f"""
+        <div class="kpi" style="
+             background: var(--inputlight); 
+             border: 1px solid var(--neutral); 
+             border-left: 5px solid {color};
+             padding: 10px 14px; /* Combined padding */
+             border-radius: 10px;
+             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+             transition: all 0.2s;
+        "
+             onmouseover="this.style.borderColor='var(--green-accent)';"
+             onmouseout="this.style.borderColor='var(--neutral)';">
+            <div class="h">{title}</div>
+            <div class="v" style="color: {color};">
+                {price:.2f}
+            </div>
+            <div class="text-sm font-semibold" style="color: {color};">{change_text}</div>
+        </div>
+    """)
+
+
+# --- New Function for Heatmap Box Styling ---
 def get_heatmap_color_style(return_val):
     """Calculates the CSS style string for a single heatmap box based on return value."""
     if pd.isna(return_val):
@@ -351,9 +375,16 @@ st.markdown(
             color: var(--muted) !important; 
         }}
         
+        /* Sidebar Navigation Links (forced bright white) */
+        [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] span {{
+            color: var(--text) !important; 
+        }}
+        [data-testid="stSidebarNav"] svg {{
+            fill: var(--text) !important;
+        }}
+        
         /* Sidebar Navigation Arrows & Links Pop (using muted-text-new for links) */
         [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] svg {{
-            color: var(--muted-text-new) !important; /* Lighter Grey for links */
             fill: var(--purple) !important;
             transition: all 0.2s;
         }}
@@ -589,7 +620,12 @@ def display_market_kpis(is_open, status_text, status_color):
     col_spy, col_qqq, col_vix, col_time = st.columns(4)
     
     tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
-    market_data = fetch_live_summary(tickers_to_fetch) 
+    if is_open:
+        # Use the auto-refresh cached version for live pricing
+        market_data = fetch_live_summary(tickers_to_fetch)
+    else:
+        # If market is closed, rely on the cached data to get EOD/Previous close
+        market_data = fetch_live_summary(tickers_to_fetch) 
         
     def get_ticker_metric(ticker):
             # Try to get live data if available (even when closed, yfinance might have delayed data)
@@ -667,16 +703,11 @@ available = []
 def get_card_html(label, rel_path, desc):
     """
     Generates the clean card HTML structure, including the internal link.
-    FIX: Replaced deprecated st.runtime.legacy_caching.get_url with manual path
     """
-    # Use the file path directly in the href attribute, which Streamlit translates to the app URL
-    # Example: "pages/1_Slope_Convexity.py" -> "/1_Slope_Convexity" in the URL
-    # We must use the file name without 'pages/' and without the '.py' extension
-    # And convert spaces to underscores for robust linking in CSS
-    page_name = rel_path.split('/')[-1].replace('.py', '') 
-    url_path = f"/{page_name.replace('_', ' ').replace('-', ' ')}" # Streamlit uses spaces/dashes in URL
-
-    # Re-using the robust external link URL for the "Go to Page" button
+    # FIX: Use the file name to construct the URL manually, which is more stable than internal Streamlit APIs.
+    page_name = rel_path.split('/')[-1].replace('.py', '')
+    url_path = f"/{page_name}"
+    
     return dedent(f"""
         <div class="strategy-link-card">
             <div>
