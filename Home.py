@@ -381,7 +381,8 @@ def render_heatmap_in_container(container, return_period):
             for ticker, ret in country_data.items():
                 all_tickers_data.append({"ticker": ticker, "return": ret})
             
-            html_content = '<div class="heatmap-grid-container">'
+            # Build HTML as a list then join
+            html_parts = ['<div class="heatmap-grid-container">']
             
             for item in all_tickers_data:
                 ticker = item['ticker']
@@ -389,14 +390,14 @@ def render_heatmap_in_container(container, return_period):
                 box_style = get_heatmap_color_style(ret)
                 return_str = f"{'+' if ret > 0 else ''}{ret:.2f}%"
                 
-                html_content += f"""
-                <div class="heatmap-box" style="{box_style}">
-                    <span class="heatmap-box-ticker">{ticker}</span>
-                    <span class="heatmap-box-return">{return_str}</span>
-                </div>
-                """
+                html_parts.append(f'<div class="heatmap-box" style="{box_style}">')
+                html_parts.append(f'<span class="heatmap-box-ticker">{ticker}</span>')
+                html_parts.append(f'<span class="heatmap-box-return">{return_str}</span>')
+                html_parts.append('</div>')
             
-            html_content += '</div>'
+            html_parts.append('</div>')
+            html_content = ''.join(html_parts)
+            
             st.markdown(html_content, unsafe_allow_html=True)
         else:
             st.warning("Could not load market data for the heatmap.")
