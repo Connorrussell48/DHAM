@@ -683,6 +683,44 @@ def display_market_kpis(is_open, status_text, status_color):
 # Display the summary
 display_market_kpis(is_open, status_text, status_color)
 
+# --- Automatic Refresh Logic (The safe hack) ---
+# We use a hidden text input to trigger a periodic re-run.
+if is_open:
+    # A unique key based on time ensures that the component actually changes.
+    refresh_key = datetime.now().strftime("%Y%m%d%H%M%S") 
+    
+    # This input is hidden using CSS to force the app to re-run every 5 seconds.
+    st.markdown(
+        f"""
+        <style>
+            #refresh-input {{ visibility: hidden; position: fixed; top: -100px; }}
+        </style>
+        """, unsafe_allow_html=True
+    )
+    
+    # This input value is changed every 5 seconds via JavaScript, forcing a page re-run.
+    st.text_input("", value=refresh_key, key='refresh_trigger', label_visibility="collapsed")
+    
+    st.components.v1.html(
+        f"""
+        <script>
+            function setRefreshValue() {{
+                const input = window.parent.document.querySelector('input[aria-label="refresh_trigger"]');
+                if (input) {{
+                    const now = new Date();
+                    // Set the value to the current time string, effectively triggering change
+                    input.value = now.getTime(); 
+                    // Dispatch change event to ensure Streamlit registers the input change
+                    input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+            }}
+            // Run every 5000 milliseconds (5 seconds)
+            setInterval(setRefreshValue, 5000); 
+        </script>
+        """,
+        height=0, width=0
+    )
+
 
 # --------------------------------------------------------------------------------------
 # Page navigation (Final Polish)
@@ -700,14 +738,8 @@ available = []
 def get_card_html(label, rel_path, desc):
     """
     Generates the clean card HTML structure, including the internal link.
-    This replaces the fragile CSS overlay trick with a solid link button inside.
     """
-    # Use st.page_link to generate the actual URL, then embed it in a custom link style.
-    try:
-        url = st.runtime.legacy_caching.get_url(rel_path)
-    except AttributeError:
-        # Fallback using a relative path, which should still work for basic navigation
-        url = f"/{rel_path.replace('pages/', '').replace('.py', '')}" 
+    url = st.runtime.legacy_caching.get_url(rel_path)
     
     return dedent(f"""
         <div class="strategy-link-card">
