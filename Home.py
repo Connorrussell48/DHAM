@@ -377,8 +377,7 @@ st.markdown(
             color: var(--muted) !important; 
         }}
         
-        /* Sidebar Navigation Arrows & Links Pop (forced white) */
-        /* Targets the entire link span and SVG icon within the nav */
+        /* Sidebar Navigation Arrows & Links Pop (using muted-text-new for links) */
         [data-testid="stSidebarNav"] span, 
         [data-testid="stSidebarNav"] a, 
         [data-testid="stSidebarNav"] svg {{
@@ -700,7 +699,8 @@ available = []
 # --- Custom HTML rendering function for the card content ---
 def get_card_html(label, rel_path, desc):
     """
-    Generates the clean card HTML structure, including the internal link button.
+    Generates the clean card HTML structure, including the internal link.
+    This replaces the fragile CSS overlay trick with a solid link button inside.
     """
     # Use st.runtime.legacy_caching.get_url to get the stable URL
     try:
@@ -894,12 +894,3 @@ with col_losers:
         st.markdown(loser_list_html, unsafe_allow_html=True)
     else:
         st.info("Click 'Run S&P 500 Scan' to fetch data.")
-
-st.markdown("---")
-st.subheader("Tips")
-st.markdown(
-    """
-- The **Run S&P 500 Scan** button manually fetches the latest data for all 496 stocks and updates the movers list.
-- The **Market Summary** and **Heatmap** are still semi-cached but will use the fresh underlying data once the scan is run.
-"""
-)
