@@ -748,7 +748,7 @@ st.markdown("### Page Navigation")
 PAGE_MAPPING = {
     "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis"},
     "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading"},
-    "Macro Data": {"file": "3_Current_Data.py", "desc": "Economic Indicators & Market Data"},
+    "Macro Data": {"file": "3_Macro_Data.py", "desc": "Economic Indicators & Market Data"},
 }
 pages_dir = Path("pages")
 available = []
