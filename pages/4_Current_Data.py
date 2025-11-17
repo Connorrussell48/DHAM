@@ -116,6 +116,9 @@ def create_indicator_chart(df, title, color):
     
     fig = go.Figure()
     
+    # Check if this is ICSA data (jobless claims) - it's in thousands, not percentages
+    is_icsa = "Claims" in title or "ICSA" in title
+    
     fig.add_trace(go.Scatter(
         x=df_filtered.index,
         y=df_filtered.iloc[:, 0],
@@ -124,7 +127,7 @@ def create_indicator_chart(df, title, color):
         line=dict(color=ACCENT_PURPLE, width=2),
         fill='tozeroy',
         fillcolor=f'rgba(138, 124, 245, 0.1)',
-        hovertemplate='%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
+        hovertemplate='%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>' if is_icsa else '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
     ))
     
     fig.update_layout(
@@ -136,12 +139,12 @@ def create_indicator_chart(df, title, color):
             showgrid=True,
         ),
         yaxis=dict(
-            title="Rate (%)",
+            title="Thousands of Claims" if is_icsa else "Rate (%)",
             gridcolor=NEUTRAL_GRAY,
             color=BLOOM_TEXT,
             showgrid=True,
-            ticksuffix="%",
-            tickformat=".2f",
+            ticksuffix="" if is_icsa else "%",
+            tickformat=",.0f" if is_icsa else ".2f",
         ),
         plot_bgcolor=BLOOM_PANEL,
         paper_bgcolor=BLOOM_BG,
@@ -342,6 +345,7 @@ with st.sidebar:
             <p style="margin-top: 15px;"><strong>Employment Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
                 <li><strong>Unemployment Rate</strong> - Official unemployment rate</li>
+                <li><strong>Initial Claims</strong> - Weekly jobless claims (leading indicator)</li>
                 <li><strong>LFPR</strong> - Labor Force Participation Rate</li>
             </ul>
             <p style="margin-top: 10px; font-size: 0.75rem; font-style: italic;">
@@ -586,6 +590,56 @@ with unrate_col1:
                 unrate_mom_chart = create_change_chart(unrate_data, "Unemployment Rate Month-over-Month Change", 'MoM')
                 if unrate_mom_chart:
                     st.plotly_chart(unrate_mom_chart, use_container_width=True)
+
+st.markdown("---")
+
+# Initial Jobless Claims Section
+st.markdown("### Initial Jobless Claims")
+
+icsa_col1, icsa_col2 = st.columns([3, 1])
+
+with icsa_col2:
+    # Initial Claims are released every Thursday for the prior week
+    now = datetime.now()
+    
+    # Find next Thursday
+    days_until_thursday = (3 - now.weekday()) % 7
+    if days_until_thursday == 0 and now.hour >= 8:  # If it's Thursday after 8:30 AM ET
+        days_until_thursday = 7
+    
+    next_thursday = now + timedelta(days=days_until_thursday)
+    next_release_str = next_thursday.strftime("%B %d, %Y")
+    
+    st.markdown(f"""
+    <div class="release-info">
+        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_thursday} days away</p>
+        <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released weekly on Thursdays</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with icsa_col1:
+    with st.spinner("Fetching Initial Jobless Claims from FRED..."):
+        icsa_data = fetch_fred_data("ICSA", "ICSA")
+        if not icsa_data.empty:
+            # Create tabs for Absolute, YoY, and MoM
+            tab1, tab2, tab3 = st.tabs(["Absolute Claims", "Year-over-Year %", "Week-over-Week %"])
+            
+            with tab1:
+                icsa_chart = create_indicator_chart(icsa_data, "Initial Jobless Claims (Thousands)", ACCENT_PURPLE)
+                if icsa_chart:
+                    st.plotly_chart(icsa_chart, use_container_width=True)
+            
+            with tab2:
+                icsa_yoy_chart = create_change_chart(icsa_data, "Initial Jobless Claims Year-over-Year Change", 'YoY')
+                if icsa_yoy_chart:
+                    st.plotly_chart(icsa_yoy_chart, use_container_width=True)
+            
+            with tab3:
+                icsa_wow_chart = create_change_chart(icsa_data, "Initial Jobless Claims Week-over-Week Change", 'MoM')
+                if icsa_wow_chart:
+                    st.plotly_chart(icsa_wow_chart, use_container_width=True)
 
 st.markdown("---")
 
