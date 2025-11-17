@@ -7,7 +7,14 @@ from datetime import datetime, timedelta
 import pytz
 from textwrap import dedent
 import plotly.graph_objects as go
-from fredapi import Fred
+
+# Try to import fredapi, but make it optional
+try:
+    from fredapi import Fred
+    FRED_AVAILABLE = True
+except ImportError:
+    FRED_AVAILABLE = False
+    st.warning("⚠️ fredapi library not installed. Please add 'fredapi' to requirements.txt")
 
 # --------------------------------------------------------------------------------------
 # Page setup
@@ -37,7 +44,7 @@ DARK_PURPLE    = "#3A2A6A"
 # FRED API Configuration
 # --------------------------------------------------------------------------------------
 # Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
-FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4"  # Replace with your actual API key
+FRED_API_KEY = "your_fred_api_key_here"  # Replace with your actual API key
 
 # --------------------------------------------------------------------------------------
 # Data Release Schedules (Approximate - these are typical release patterns)
@@ -86,6 +93,9 @@ def get_next_release_date(indicator_name):
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_fred_data(series_id, series_name):
     """Fetch data from FRED API."""
+    if not FRED_AVAILABLE:
+        return pd.DataFrame()
+    
     try:
         fred = Fred(api_key=FRED_API_KEY)
         data = fred.get_series(series_id)
@@ -135,6 +145,64 @@ def create_indicator_chart(df, title, color):
         font=dict(color=BLOOM_TEXT),
         hovermode='x unified',
         height=400,
+    )
+    
+    return fig
+
+def create_change_chart(df, title, color, change_type='YoY'):
+    """Create a chart showing YoY or MoM percentage changes."""
+    if df.empty:
+        return None
+    
+    # Calculate percentage changes
+    if change_type == 'YoY':
+        # Year-over-year: compare to 12 months ago
+        pct_change = df.pct_change(periods=12) * 100
+        y_label = "Year-over-Year Change (%)"
+    else:  # MoM
+        # Month-over-month: compare to previous month
+        pct_change = df.pct_change(periods=1) * 100
+        y_label = "Month-over-Month Change (%)"
+    
+    # Get last 5 years of data
+    five_years_ago = datetime.now() - timedelta(days=5*365)
+    pct_filtered = pct_change[pct_change.index >= five_years_ago]
+    
+    # Create colors based on positive/negative values
+    colors = [ACCENT_GREEN if val > 0 else '#D9534F' for val in pct_filtered.iloc[:, 0]]
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        x=pct_filtered.index,
+        y=pct_filtered.iloc[:, 0],
+        name=title,
+        marker=dict(color=colors),
+    ))
+    
+    # Add zero line
+    fig.add_hline(y=0, line_dash="dash", line_color=NEUTRAL_GRAY, line_width=1)
+    
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=18, color=BLOOM_TEXT)),
+        xaxis=dict(
+            title="Date",
+            gridcolor=NEUTRAL_GRAY,
+            color=BLOOM_TEXT,
+            showgrid=True,
+        ),
+        yaxis=dict(
+            title=y_label,
+            gridcolor=NEUTRAL_GRAY,
+            color=BLOOM_TEXT,
+            showgrid=True,
+        ),
+        plot_bgcolor=BLOOM_PANEL,
+        paper_bgcolor=BLOOM_BG,
+        font=dict(color=BLOOM_TEXT),
+        hovermode='x unified',
+        height=400,
+        showlegend=False,
     )
     
     return fig
@@ -263,12 +331,15 @@ with st.sidebar:
     st.markdown("""
         <div style="color: var(--muted); font-size: .85rem;">
             <ul style="list-style: none; padding-left: 0;">
-                <li>📊 CPI - Consumer Price Index</li>
-                <li>📈 PPI - Producer Price Index</li>
-                <li>📉 PCE - Personal Consumption Expenditures</li>
-                <li>💼 Unemployment Rate</li>
+                <li>📊 <strong>CPI</strong> - Consumer Price Index for All Urban Consumers (CPI-U)</li>
+                <li>📈 <strong>PPI</strong> - Producer Price Index for All Commodities</li>
+                <li>📉 <strong>PCE</strong> - Personal Consumption Expenditures</li>
+                <li>💼 <strong>Unemployment Rate</strong></li>
             </ul>
-            <p style="margin-top: 10px; font-size: 0.75rem;">Data provided by Federal Reserve Economic Data (FRED)</p>
+            <p style="margin-top: 10px; font-size: 0.75rem; font-style: italic;">
+                CPI-U covers ~93% of US population including urban wage earners, professionals, and retirees.
+            </p>
+            <p style="margin-top: 5px; font-size: 0.75rem;">Data provided by Federal Reserve Economic Data (FRED)</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -279,7 +350,52 @@ st.markdown("### 📊 Key Economic Indicators")
 st.caption("Data from Federal Reserve Economic Data (FRED) - Updated monthly")
 
 # Check if API key is configured
-if FRED_API_KEY == "your_fred_api_key_here":
+if not FRED_AVAILABLE:
+    st.error("""
+    ❌ **FRED API Library Not Installed**
+    
+    To use this page, you need to:
+    1. Add `fredapi` to your `requirements.txt` file
+    2. Redeploy your Streamlit app
+    
+    **Add this line to requirements.txt:**
+    ```
+    fredapi>=0.5.1
+    ```
+    
+    For now, showing the page layout with release dates only.
+    """)
+    
+    # Show demo layout
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.markdown("#### 📊 Consumer Price Index (CPI)")
+        next_date, days = get_next_release_date("CPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <strong>Next Release:</strong> {next_date}<br>
+            <strong>Days Until Release:</strong> {days} days
+        </div>
+        """, unsafe_allow_html=True)
+        st.info("Install fredapi library to view actual CPI data")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.markdown("#### 📈 Producer Price Index (PPI)")
+        next_date, days = get_next_release_date("PPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <strong>Next Release:</strong> {next_date}<br>
+            <strong>Days Until Release:</strong> {days} days
+        </div>
+        """, unsafe_allow_html=True)
+        st.info("Install fredapi library to view actual PPI data")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+elif FRED_API_KEY == "your_fred_api_key_here":
     st.warning("""
     ⚠️ **FRED API Key Required**
     
@@ -325,28 +441,8 @@ else:
     
     # CPI Section
     st.markdown("### 📊 Consumer Price Index (CPI)")
-    cpi_col1, cpi_col2 = st.columns([3, 1])
     
-    with cpi_col1:
-        with st.spinner("Fetching CPI data from FRED..."):
-            cpi_data = fetch_fred_data("CPIAUCSL", "CPI")
-            if not cpi_data.empty:
-                cpi_chart = create_indicator_chart(cpi_data, "Consumer Price Index (CPI-U)", ACCENT_GREEN)
-                if cpi_chart:
-                    st.plotly_chart(cpi_chart, use_container_width=True)
-                    
-                    # Show latest value
-                    latest_cpi = cpi_data.iloc[-1, 0]
-                    latest_date = cpi_data.index[-1].strftime("%B %Y")
-                    prev_cpi = cpi_data.iloc[-2, 0]
-                    yoy_change = ((latest_cpi - cpi_data.iloc[-13, 0]) / cpi_data.iloc[-13, 0]) * 100
-                    mom_change = ((latest_cpi - prev_cpi) / prev_cpi) * 100
-                    
-                    st.markdown(f"""
-                    **Latest Value ({latest_date}):** {latest_cpi:.2f}  
-                    **Month-over-Month:** {mom_change:+.2f}%  
-                    **Year-over-Year:** {yoy_change:+.2f}%
-                    """)
+    cpi_col1, cpi_col2 = st.columns([3, 1])
     
     with cpi_col2:
         next_date, days = get_next_release_date("CPI")
@@ -358,32 +454,47 @@ else:
         </div>
         """, unsafe_allow_html=True)
     
+    with cpi_col1:
+        with st.spinner("Fetching CPI data from FRED..."):
+            cpi_data = fetch_fred_data("CPIAUCSL", "CPI")
+            if not cpi_data.empty:
+                # Create tabs for different views
+                tab1, tab2, tab3 = st.tabs(["📈 Index Level", "📊 Year-over-Year %", "📉 Month-over-Month %"])
+                
+                with tab1:
+                    cpi_chart = create_indicator_chart(cpi_data, "Consumer Price Index - All Urban Consumers", ACCENT_GREEN)
+                    if cpi_chart:
+                        st.plotly_chart(cpi_chart, use_container_width=True)
+                
+                with tab2:
+                    cpi_yoy_chart = create_change_chart(cpi_data, "CPI Year-over-Year Change", ACCENT_GREEN, 'YoY')
+                    if cpi_yoy_chart:
+                        st.plotly_chart(cpi_yoy_chart, use_container_width=True)
+                
+                with tab3:
+                    cpi_mom_chart = create_change_chart(cpi_data, "CPI Month-over-Month Change", ACCENT_GREEN, 'MoM')
+                    if cpi_mom_chart:
+                        st.plotly_chart(cpi_mom_chart, use_container_width=True)
+                
+                # Show latest values
+                latest_cpi = cpi_data.iloc[-1, 0]
+                latest_date = cpi_data.index[-1].strftime("%B %Y")
+                prev_cpi = cpi_data.iloc[-2, 0]
+                yoy_change = ((latest_cpi - cpi_data.iloc[-13, 0]) / cpi_data.iloc[-13, 0]) * 100
+                mom_change = ((latest_cpi - prev_cpi) / prev_cpi) * 100
+                
+                st.markdown(f"""
+                **Latest Value ({latest_date}):** {latest_cpi:.2f}  
+                **Month-over-Month:** {mom_change:+.2f}%  
+                **Year-over-Year:** {yoy_change:+.2f}%
+                """)
+    
     st.markdown("---")
     
     # PPI Section
     st.markdown("### 📈 Producer Price Index (PPI)")
-    ppi_col1, ppi_col2 = st.columns([3, 1])
     
-    with ppi_col1:
-        with st.spinner("Fetching PPI data from FRED..."):
-            ppi_data = fetch_fred_data("PPIACO", "PPI")
-            if not ppi_data.empty:
-                ppi_chart = create_indicator_chart(ppi_data, "Producer Price Index (PPI)", ACCENT_BLUE)
-                if ppi_chart:
-                    st.plotly_chart(ppi_chart, use_container_width=True)
-                    
-                    # Show latest value
-                    latest_ppi = ppi_data.iloc[-1, 0]
-                    latest_date = ppi_data.index[-1].strftime("%B %Y")
-                    prev_ppi = ppi_data.iloc[-2, 0]
-                    yoy_change = ((latest_ppi - ppi_data.iloc[-13, 0]) / ppi_data.iloc[-13, 0]) * 100
-                    mom_change = ((latest_ppi - prev_ppi) / prev_ppi) * 100
-                    
-                    st.markdown(f"""
-                    **Latest Value ({latest_date}):** {latest_ppi:.2f}  
-                    **Month-over-Month:** {mom_change:+.2f}%  
-                    **Year-over-Year:** {yoy_change:+.2f}%
-                    """)
+    ppi_col1, ppi_col2 = st.columns([3, 1])
     
     with ppi_col2:
         next_date, days = get_next_release_date("PPI")
@@ -394,6 +505,41 @@ else:
             <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
         </div>
         """, unsafe_allow_html=True)
+    
+    with ppi_col1:
+        with st.spinner("Fetching PPI data from FRED..."):
+            ppi_data = fetch_fred_data("PPIACO", "PPI")
+            if not ppi_data.empty:
+                # Create tabs for different views
+                tab1, tab2, tab3 = st.tabs(["📈 Index Level", "📊 Year-over-Year %", "📉 Month-over-Month %"])
+                
+                with tab1:
+                    ppi_chart = create_indicator_chart(ppi_data, "Producer Price Index - All Commodities", ACCENT_BLUE)
+                    if ppi_chart:
+                        st.plotly_chart(ppi_chart, use_container_width=True)
+                
+                with tab2:
+                    ppi_yoy_chart = create_change_chart(ppi_data, "PPI Year-over-Year Change", ACCENT_BLUE, 'YoY')
+                    if ppi_yoy_chart:
+                        st.plotly_chart(ppi_yoy_chart, use_container_width=True)
+                
+                with tab3:
+                    ppi_mom_chart = create_change_chart(ppi_data, "PPI Month-over-Month Change", ACCENT_BLUE, 'MoM')
+                    if ppi_mom_chart:
+                        st.plotly_chart(ppi_mom_chart, use_container_width=True)
+                
+                # Show latest values
+                latest_ppi = ppi_data.iloc[-1, 0]
+                latest_date = ppi_data.index[-1].strftime("%B %Y")
+                prev_ppi = ppi_data.iloc[-2, 0]
+                yoy_change = ((latest_ppi - ppi_data.iloc[-13, 0]) / ppi_data.iloc[-13, 0]) * 100
+                mom_change = ((latest_ppi - prev_ppi) / prev_ppi) * 100
+                
+                st.markdown(f"""
+                **Latest Value ({latest_date}):** {latest_ppi:.2f}  
+                **Month-over-Month:** {mom_change:+.2f}%  
+                **Year-over-Year:** {yoy_change:+.2f}%
+                """)
 
 st.markdown("---")
 
