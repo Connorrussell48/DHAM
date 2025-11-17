@@ -1,29 +1,25 @@
-# home.py - D-HAM Multi-Strategy Workspace with Auto-Updates
+# 3_Current_Data.py - Current Market Data Dashboard
 from __future__ import annotations
-import json
-import time  # ADDED for auto-update functionality
-from pathlib import Path
-from textwrap import dedent
-from datetime import datetime, timedelta
-import os
-import pytz 
-import yfinance as yf 
+import streamlit as st
 import pandas as pd
 import numpy as np
-
-import streamlit as st
+from datetime import datetime, timedelta
+import pytz
+from textwrap import dedent
+import plotly.graph_objects as go
+from fredapi import Fred
 
 # --------------------------------------------------------------------------------------
 # Page setup
 # --------------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="D-HAM",
+    page_title="Current Data - D-HAM",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # --------------------------------------------------------------------------------------
-# Theme / CSS (Final Polish)
+# Theme / CSS
 # --------------------------------------------------------------------------------------
 BLOOM_BG       = "#0B0F14"    
 BLOOM_PANEL    = "#121820"    
@@ -35,372 +31,113 @@ INPUT_BG_LIGHT = "#3A4654"
 ACCENT_BLUE    = "#2BB3F3"    
 ACCENT_GREEN   = "#26D07C"    
 ACCENT_PURPLE  = "#8A7CF5"    
-DARK_PURPLE    = "#3A2A6A"    
-
-# --- Market Data Configuration ---
-MAJOR_TICKERS = ["SPY", "QQQ", "IWM", "^VIX", "GLD", "SLV", "TLT"]
-SECTOR_TICKERS = {
-    "Technology": "XLK", "Healthcare": "XLV", "Financials": "XLF", 
-    "Consumer Disc.": "XLY", "Industrials": "XLI", "Energy": "XLE",
-    "Materials": "XLB", "Utilities": "XLU", "Real Estate": "XLRE"
-}
-COUNTRY_TICKERS = {
-    "EAFE": "EFA", "Emerging": "EEM", "Europe": "EZU", "Japan": "EWJ", "China": "MCHI",
-    "Canada": "EWC", "Brazil": "EWZ"
-}
-HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())))
-
-def get_spx_tickers():
-    return [
-        'MMM', 'AOS', 'ABT', 'ABBV', 'ACN', 'ADBE', 'AMD', 'AES', 'AFL', 'A',
-        'APD', 'ABNB', 'AKAM', 'ALB', 'ARE', 'ALGN', 'ALLE', 'LNT', 'ALL', 'GOOGL',
-        'GOOG', 'MO', 'AMZN', 'AMCR', 'AEE', 'AEP', 'AXP', 'AIG', 'AMT', 'AWK',
-        'AMP', 'AME', 'AMGN', 'APH', 'ADI', 'AON', 'APA', 'APO', 'AAPL', 'AMAT',
-        'APTV', 'ACGL', 'ADM', 'ANET', 'AJG', 'AIZ', 'T', 'ATO', 'ADSK', 'ADP',
-        'AZO', 'AVB', 'AVY', 'AXON', 'BKR', 'BALL', 'BAC', 'BAX', 'BDX',
-        'BBY', 'TECH', 'BIIB', 'BLK', 'BX', 'BK', 'BA', 'BKNG', 'BSX', 'BMY',
-        'AVGO', 'BR', 'BRO', 'BLDR', 'BG', 'BXP', 'CHRW', 'CDNS', 'CZR',
-        'CPT', 'CPB', 'COF', 'CAH', 'KMX', 'CCL', 'CARR', 'CAT', 'CBOE', 'CBRE',
-        'CDW', 'COR', 'CNC', 'CNP', 'CF', 'CRL', 'SCHW', 'CHTR', 'CVX', 'CMG',
-        'CB', 'CHD', 'CI', 'CINF', 'CTAS', 'CSCO', 'C', 'CFG', 'CLX', 'CME',
-        'CMS', 'KO', 'CTSH', 'COIN', 'CL', 'CMCSA', 'CAG', 'COP', 'ED', 'STZ',
-        'CEG', 'COO', 'CPRT', 'GLW', 'CPAY', 'CTVA', 'CSGP', 'COST', 'CTRA', 'CRWD',
-        'CCI', 'CSX', 'CMI', 'CVS', 'DHR', 'DRI', 'DDOG', 'DVA', 'DAY', 'DECK',
-        'DE', 'DELL', 'DAL', 'DVN', 'DXCM', 'FANG', 'DLR', 'DG', 'DLTR', 'D',
-        'DPZ', 'DASH', 'DOV', 'DOW', 'DHI', 'DTE', 'DUK', 'DD', 'EMN', 'ETN',
-        'EBAY', 'ECL', 'EIX', 'EW', 'EA', 'ELV', 'EMR', 'ENPH', 'ETR', 'EOG',
-        'EPAM', 'EQT', 'EFX', 'EQIX', 'EQR', 'ERIE', 'ESS', 'EL', 'EG', 'EVRG',
-        'ES', 'EXC', 'EXE', 'EXPE', 'EXPD', 'EXR', 'XOM', 'FFIV', 'FDS', 'FICO',
-        'FAST', 'FRT', 'FDX', 'FIS', 'FITB', 'FSLR', 'FE', 'FI', 'F', 'FTNT',
-        'FTV', 'FOXA', 'FOX', 'BEN', 'FCX', 'GRMN', 'IT', 'GE', 'GEHC', 'GEV',
-        'GEN', 'GNRC', 'GD', 'GIS', 'GM', 'GPC', 'GILD', 'GPN', 'GL', 'GDDY',
-        'GS', 'HAL', 'HIG', 'HAS', 'HCA', 'DOC', 'HSIC', 'HSY', 'HPE', 'HLT',
-        'HOLX', 'HD', 'HON', 'HRL', 'HST', 'HWM', 'HPQ', 'HUBB', 'HUM', 'HBAN',
-        'HII', 'IBM', 'IEX', 'IDXX', 'ITW', 'INCY', 'IR', 'PODD', 'INTC', 'IBKR',
-        'ICE', 'IFF', 'IP', 'IPG', 'INTU', 'ISRG', 'IVZ', 'INVH', 'IQV', 'IRM',
-        'JBHT', 'JBL', 'JKHY', 'J', 'JNJ', 'JCI', 'JPM', 'K', 'KVUE', 'KDP',
-        'KEY', 'KEYS', 'KMB', 'KIM', 'KMI', 'KKR', 'KLAC', 'KHC', 'KR', 'LHX',
-        'LH', 'LRCX', 'LW', 'LVS', 'LDOS', 'LEN', 'LII', 'LLY', 'LIN', 'LYV',
-        'LKQ', 'LMT', 'L', 'LOW', 'LULU', 'LYB', 'MTB', 'MPC', 'MKTX', 'MAR',
-        'MMC', 'MLM', 'MAS', 'MA', 'MTCH', 'MKC', 'MCD', 'MCK', 'MDT', 'MRK',
-        'META', 'MET', 'MTD', 'MGM', 'MCHP', 'MU', 'MSFT', 'MAA', 'MRNA', 'MHK',
-        'MOH', 'TAP', 'MDLZ', 'MPWR', 'MNST', 'MCO', 'MS', 'MOS', 'MSI', 'MSCI',
-        'NDAQ', 'NTAP', 'NFLX', 'NEM', 'NWSA', 'NWS', 'NEE', 'NKE', 'NI', 'NDSN',
-        'NSC', 'NTRS', 'NOC', 'NCLH', 'NRG', 'NUE', 'NVDA', 'NVR', 'NXPI', 'ORLY',
-        'OXY', 'ODFL', 'OMC', 'ON', 'OKE', 'ORCL', 'OTIS', 'PCAR', 'PKG', 'PLTR',
-        'PANW', 'PSKY', 'PH', 'PAYX', 'PAYC', 'PYPL', 'PNR', 'PEP', 'PFE', 'PCG',
-        'PM', 'PSX', 'PNW', 'PNC', 'POOL', 'PPG', 'PPL', 'PFG', 'PG', 'PGR',
-        'PLD', 'PRU', 'PEG', 'PTC', 'PSA', 'PHM', 'PWR', 'QCOM', 'DGX', 'RL',
-        'RJF', 'RTX', 'O', 'REG', 'REGN', 'RF', 'RSG', 'RMD', 'RVTY', 'ROK',
-        'ROL', 'ROP', 'ROST', 'RCL', 'SPGI', 'CRM', 'SBAC', 'SLB', 'STX', 'SRE',
-        'NOW', 'SHW', 'SPG', 'SWKS', 'SJM', 'SW', 'SNA', 'SOLV', 'SO', 'LUV',
-        'SWK', 'SBUX', 'STT', 'STLD', 'STE', 'SYK', 'SMCI', 'SYF', 'SNPS', 'SYY',
-        'TMUS', 'TROW', 'TTWO', 'TPR', 'TRGP', 'TGT', 'TEL', 'TDY', 'TER', 'TSLA',
-        'TXN', 'TPL', 'TXT', 'TMO', 'TJX', 'TKO', 'TTD', 'TSCO', 'TT', 'TDG',
-        'TRV', 'TRMB', 'TFC', 'TYL', 'TSN', 'USB', 'UBER', 'UDR', 'ULTA', 'UNP',
-        'UAL', 'UPS', 'URI', 'UNH', 'UHS', 'VLO', 'VTR', 'VLTO', 'VRSN', 'VRSK',
-        'VZ', 'VRTX', 'VTRS', 'VICI', 'V', 'VST', 'VMC', 'WRB', 'GWW', 'WAB',
-        'WMT', 'DIS', 'WBD', 'WM', 'WAT', 'WEC', 'WFC', 'WELL', 'WST', 'WDC',
-        'WY', 'WSM', 'WMB', 'WTW', 'WDAY', 'WYNN', 'XEL', 'XYL', 'YUM', 'ZBRA',
-        'ZBH', 'ZTS', 'HIMS'
-    ]
-
-SPX_MOVER_TICKERS = get_spx_tickers()
+DARK_PURPLE    = "#3A2A6A"
 
 # --------------------------------------------------------------------------------------
-# --- GLOBAL HELPER FUNCTIONS ---
+# FRED API Configuration
 # --------------------------------------------------------------------------------------
+# Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
+FRED_API_KEY = "your_fred_api_key_here"  # Replace with your actual API key
 
-def get_market_status():
-    """Checks the status of the US equity market (NYSE/NASDAQ)."""
-    tz = pytz.timezone('America/New_York')
-    now = datetime.now(tz)
+# --------------------------------------------------------------------------------------
+# Data Release Schedules (Approximate - these are typical release patterns)
+# --------------------------------------------------------------------------------------
+def get_next_release_date(indicator_name):
+    """
+    Estimates the next release date for economic indicators.
+    CPI and PPI are typically released monthly, around mid-month.
+    """
+    now = datetime.now()
+    year = now.year
+    month = now.month
     
-    is_weekday = 0 <= now.weekday() <= 4
-    market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
-    market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
-
-    is_open = is_weekday and (market_open <= now < market_close)
+    # Economic data is usually released around the 13th-15th of each month
+    # for the previous month's data
     
-    cache_ttl = timedelta(hours=4) 
-
-    if not is_weekday:
-        status_text = "Market Closed (Weekend)"
-        status_color = ACCENT_PURPLE
-    elif now >= market_close:
-        status_text = "Market Closed (After Hours)"
-        status_color = "#D9534F"
-    elif now < market_open:
-        status_text = "Market Closed (Pre-Market)"
-        status_color = ACCENT_BLUE
+    if indicator_name == "CPI":
+        # CPI typically released around 13th of each month
+        release_day = 13
+        release_name = "Consumer Price Index"
+    elif indicator_name == "PPI":
+        # PPI typically released around 14th of each month  
+        release_day = 14
+        release_name = "Producer Price Index"
     else:
-        status_text = "Regular Session Open"
-        status_color = ACCENT_GREEN
+        return None, None
+    
+    # Calculate next release date
+    next_release = datetime(year, month, release_day)
+    
+    # If we've passed this month's release, move to next month
+    if now.day > release_day:
+        if month == 12:
+            next_release = datetime(year + 1, 1, release_day)
+        else:
+            next_release = datetime(year, month + 1, release_day)
+    
+    # Format the date
+    days_until = (next_release - now).days
+    
+    return next_release.strftime("%B %d, %Y"), days_until
 
-    return now, is_open, status_text, status_color, cache_ttl
-
-@st.cache_data(show_spinner=False)
-def get_metric_styles(change_pct):
-    """Determines color and icon based on percentage change."""
-    if change_pct > 0.01:
-        color_token = "--green-accent"
-        icon = '↑'
-    elif change_pct < -0.01:
-        color_token = "--red-neg"
-        icon = '↓'
-    else:
-        color_token = "--muted-text-new" 
-        icon = '•'
-    return f"var({color_token})", icon, f"var({color_token})"
-
-@st.cache_data(ttl='1h', show_spinner=False)
-def fetch_ticker_data(tickers):
-    """Fetches the last 15 months of adjusted close prices for tickers."""
-    tickers = list(set(tickers)) 
-    if not tickers:
-        return pd.DataFrame()
-    data = yf.download(tickers, period="15mo", interval="1d", progress=False, auto_adjust=True)
-    if data.empty:
-        return pd.DataFrame()
-    return data['Close']
-
-@st.cache_data(ttl=timedelta(seconds=5), show_spinner=False)
-def fetch_live_summary(tickers):
-    """Fetches key metrics for market summary (5s TTL)."""
+# --------------------------------------------------------------------------------------
+# Data Fetching Functions
+# --------------------------------------------------------------------------------------
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_fred_data(series_id, series_name):
+    """Fetch data from FRED API."""
     try:
-        data = yf.Tickers(tickers).fast_info
-        if isinstance(data, pd.DataFrame):
-            summary = data.T.to_dict() 
-        else:
-            summary = {t: data.get(t, {}) for t in tickers}
-        return summary
-    except Exception:
-        return {}
+        fred = Fred(api_key=FRED_API_KEY)
+        data = fred.get_series(series_id)
+        df = pd.DataFrame({series_name: data})
+        return df
+    except Exception as e:
+        st.error(f"Error fetching {series_name} data: {str(e)}")
+        return pd.DataFrame()
 
-def calculate_returns(data, period):
-    """Calculates returns for the given period."""
-    if data.empty: return pd.Series(dtype='float64')
+def create_indicator_chart(df, title, color):
+    """Create a plotly chart for economic indicators."""
+    if df.empty:
+        return None
     
-    last_price = data.iloc[-1]
+    # Get last 5 years of data
+    five_years_ago = datetime.now() - timedelta(days=5*365)
+    df_filtered = df[df.index >= five_years_ago]
     
-    if period == '1D':
-        ref_price = data.iloc[-2] if len(data) >= 2 else data.iloc[-1]
-    elif period == '7D':
-        idx = max(0, len(data) - 6) 
-        ref_price = data.iloc[idx]
-    elif period == '30D':
-        idx = max(0, len(data) - 22) 
-        ref_price = data.iloc[idx]
-    elif period == '1Y':
-        idx = max(0, len(data) - 260) 
-        ref_price = data.iloc[idx]
-    elif period == 'YTD':
-        current_year = data.index[-1].year
-        ytd_start_index = data.index[data.index.year == current_year].min()
-        if pd.notna(ytd_start_index) and ytd_start_index in data.index:
-             ref_price = data.loc[ytd_start_index]
-        else:
-            return pd.Series(0.0, index=data.columns) 
-
-    returns = ((last_price - ref_price) / ref_price) * 100
-    return returns.fillna(0.0)
-
-@st.cache_data(show_spinner=False)
-def generate_heatmap_data(period, tickers_list):
-    """Generates data for the market heatmap."""
-    all_close_data = fetch_ticker_data(tickers_list) 
-    if all_close_data.empty: return pd.DataFrame(), False
+    fig = go.Figure()
     
-    returns = calculate_returns(all_close_data, period)
+    fig.add_trace(go.Scatter(
+        x=df_filtered.index,
+        y=df_filtered.iloc[:, 0],
+        mode='lines',
+        name=title,
+        line=dict(color=color, width=2),
+        fill='tozeroy',
+        fillcolor=f'rgba{tuple(list(bytes.fromhex(color[1:])) + [0.1])}',
+    ))
     
-    data = []
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=18, color=BLOOM_TEXT)),
+        xaxis=dict(
+            title="Date",
+            gridcolor=NEUTRAL_GRAY,
+            color=BLOOM_TEXT,
+            showgrid=True,
+        ),
+        yaxis=dict(
+            title="Index Value",
+            gridcolor=NEUTRAL_GRAY,
+            color=BLOOM_TEXT,
+            showgrid=True,
+        ),
+        plot_bgcolor=BLOOM_PANEL,
+        paper_bgcolor=BLOOM_BG,
+        font=dict(color=BLOOM_TEXT),
+        hovermode='x unified',
+        height=400,
+    )
     
-    major_row = {"Category": "Major Indices"}
-    for ticker in MAJOR_TICKERS:
-        if ticker in returns: major_row[ticker] = returns[ticker]
-    data.append(major_row)
-    
-    sector_row = {"Category": "Sector ETFs"}
-    for ticker in list(SECTOR_TICKERS.values()):
-        if ticker in returns: sector_row[ticker] = returns[ticker]
-    data.append(sector_row)
-
-    country_row = {"Category": "Country ETFs"}
-    for ticker in list(COUNTRY_TICKERS.values()):
-        if ticker in returns: country_row[ticker] = returns[ticker]
-    data.append(country_row)
-    
-    df = pd.DataFrame(data).set_index("Category").fillna(np.nan)
-    return df, True
-
-def get_metric_html(title, price, change_pct, accent_color_token):
-    """Generates the HTML for a Market KPI Card."""
-    color, icon, _ = get_metric_styles(change_pct)
-    change_text = f"{icon} {abs(change_pct):.2f}%"
-    
-    return dedent(f"""
-        <div class="kpi" style="
-             background: var(--inputlight); 
-             border: 1px solid var(--neutral); 
-             border-left: 5px solid {color};
-             padding: 10px 14px;
-             border-radius: 10px;
-             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-             transition: all 0.2s;">
-            <div class="h">{title}</div>
-            <div class="v" style="color: {color};">{price:.2f}</div>
-            <div class="text-sm font-semibold" style="color: {color};">{change_text}</div>
-        </div>
-    """)
-
-def get_heatmap_color_style(return_val):
-    """Calculates the CSS style string for a heatmap box."""
-    if pd.isna(return_val):
-        return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
-    
-    try:
-        val = float(return_val)
-    except ValueError:
-        return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
-
-    max_saturation = 4.0
-    
-    if val > 0:
-        alpha = min(0.9, 0.1 + (val / max_saturation) * 0.8) 
-        bg = f'rgba(38, 208, 124, {alpha})' 
-    elif val < 0:
-        alpha = min(0.9, 0.1 + (abs(val) / max_saturation) * 0.8)
-        bg = f'rgba(217, 83, 79, {alpha})' 
-    else:
-        bg = f'rgba(138, 124, 245, 0.1)' 
-        
-    return f'background-color: {bg}; color: var(--text); border: 1px solid rgba(255,255,255,0.1);'
-
-@st.cache_data(show_spinner=False)
-def get_top_movers_uncached(ticker_list, period, scan_time):
-    """Fetches data, calculates returns, and returns top 5 gainers/losers."""
-    all_close_data = fetch_ticker_data(ticker_list) 
-    
-    if all_close_data.empty: return pd.DataFrame(), pd.DataFrame()
-    
-    returns = calculate_returns(all_close_data, period).rename("Return (%)")
-    last_prices = all_close_data.iloc[-1].rename("Price ($)")
-    
-    combined_df = pd.concat([returns, last_prices], axis=1).dropna(subset=['Price ($)'])
-    
-    top_gainers = combined_df.nlargest(5, "Return (%)")
-    top_losers = combined_df.nsmallest(5, "Return (%)")
-    
-    return top_gainers, top_losers
-
-# --------------------------------------------------------------------------------------
-# NEW: Container Rendering Functions for Auto-Update
-# --------------------------------------------------------------------------------------
-
-def render_market_kpis_in_container(container, is_open, status_text, status_color):
-    """Renders market KPIs in the provided container - enables targeted updates."""
-    with container:
-        col_spy, col_qqq, col_vix, col_time = st.columns(4)
-        
-        tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
-        market_data = fetch_live_summary(tickers_to_fetch)
-        
-        def get_ticker_metric(ticker):
-            if ticker in market_data:
-                data = market_data[ticker]
-                price = data.get('lastPrice', 0.0)
-                change_pct = data.get('regularMarketChangePercent', 0.0)
-            else:
-                price = 0.0
-                change_pct = 0.0
-                try:
-                    close_data = fetch_ticker_data([ticker])
-                    if not close_data.empty and len(close_data) >= 2:
-                        close_data = close_data[ticker]
-                        price = close_data.iloc[-1]
-                        change_pct = ((close_data.iloc[-1] - close_data.iloc[-2]) / close_data.iloc[-2]) * 100
-                except Exception:
-                    pass
-            return price, change_pct
-
-        # SPY
-        spy_price, spy_change_pct = get_ticker_metric("SPY")
-        with col_spy:
-            st.markdown(get_metric_html("S&P 500 (SPY)", spy_price, spy_change_pct, "--green-accent"), 
-                       unsafe_allow_html=True)
-
-        # QQQ
-        qqq_price, qqq_change_pct = get_ticker_metric("QQQ")
-        with col_qqq:
-            st.markdown(get_metric_html("NASDAQ 100 (QQQ)", qqq_price, qqq_change_pct, "--red-neg"), 
-                       unsafe_allow_html=True)
-
-        # VIX
-        vix_price, vix_change_pct = get_ticker_metric("^VIX")
-        with col_vix:
-            st.markdown(get_metric_html("VIX Index (^VIX)", vix_price, vix_change_pct, "--purple"), 
-                       unsafe_allow_html=True)
-
-        # Time
-        now = datetime.now(pytz.timezone('America/New_York'))
-        current_time_str = now.strftime('%H:%M:%S EST')
-        
-        with col_time:
-            st.markdown(f"""
-                <div class="kpi" style="
-                     background: var(--inputlight); 
-                     border: 1px solid var(--neutral); 
-                     border-left: 5px solid {status_color};
-                     padding: 10px 14px;
-                     border-radius: 10px;
-                     box-shadow: 0 2px 5px rgba(0,0,0,0.3);">
-                    <div class="h">Current Time</div>
-                    <div class="v" style="color: {status_color};">{current_time_str}</div>
-                    <div class="text-sm font-semibold" style="color: var(--muted-text-new);">Market Status</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-
-def render_heatmap_in_container(container, return_period):
-    """Renders heatmap in the provided container."""
-    with container:
-        heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
-        
-        if data_loaded and not heatmap_df.empty:
-            all_tickers_data = []
-            
-            major_data = heatmap_df.loc["Major Indices"].dropna()
-            for ticker, ret in major_data.items():
-                all_tickers_data.append({"ticker": ticker, "return": ret})
-            
-            sector_data = heatmap_df.loc["Sector ETFs"].dropna()
-            for ticker, ret in sector_data.items():
-                all_tickers_data.append({"ticker": ticker, "return": ret})
-
-            country_data = heatmap_df.loc["Country ETFs"].dropna()
-            for ticker, ret in country_data.items():
-                all_tickers_data.append({"ticker": ticker, "return": ret})
-            
-            # Build HTML as a list then join
-            html_parts = ['<div class="heatmap-grid-container">']
-            
-            for item in all_tickers_data:
-                ticker = item['ticker']
-                ret = item['return']
-                box_style = get_heatmap_color_style(ret)
-                return_str = f"{'+' if ret > 0 else ''}{ret:.2f}%"
-                
-                html_parts.append(f'<div class="heatmap-box" style="{box_style}">')
-                html_parts.append(f'<span class="heatmap-box-ticker">{ticker}</span>')
-                html_parts.append(f'<span class="heatmap-box-return">{return_str}</span>')
-                html_parts.append('</div>')
-            
-            html_parts.append('</div>')
-            html_content = ''.join(html_parts)
-            
-            st.markdown(html_content, unsafe_allow_html=True)
-        else:
-            st.warning("Could not load market data for the heatmap.")
+    return fig
 
 # --------------------------------------------------------------------------------------
 # CSS injection
@@ -417,7 +154,6 @@ st.markdown(
           --green-accent: #26D07C;
           --red-neg: #D9534F; 
           --sidebar-bg: {BLOOM_PANEL};
-          --card-purple-shadow: rgba(138, 124, 245, 0.4); 
         }}
         html, body {{
           height:100%;
@@ -433,21 +169,7 @@ st.markdown(
         div[data-testid="stHeader"] > div:last-child > div:last-child {{
             color: var(--muted-text-new) !important;
         }}
-        div[data-testid="stAppViewContainer"] > div > div > div > div:nth-child(2) > div {{
-            color: var(--muted-text-new) !important;
-        }}
-        .kpi .h {{ 
-            color: var(--muted-text-new) !important; 
-        }}
-        .text-gray-400 {{
-            color: var(--muted-text-new) !important;
-        }}
         
-        div[data-testid="stAppViewContainer"] label {{
-            color: var(--text) !important;
-            font-weight: 600;
-        }}
-
         .stMarkdown, .stText, h1, h2, h3, h4, h5, h6 {{
             color: var(--text) !important;
         }}
@@ -481,135 +203,21 @@ st.markdown(
             color: var(--text) !important;
         }}
         
-        .strategy-link-card {{
+        .metric-card {{
             background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
-            border: 1px solid var(--neutral); 
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 5px 15px rgba(0,0,0,.4); 
-            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
-            height: 100%;
-            display: flex; 
-            flex-direction: column;
-            justify-content: space-between;
-        }}
-        .strategy-link-card:hover {{
-            border-color: var(--purple); 
-            transform: translateY(-5px); 
-            box-shadow: 0 15px 40px var(--card-purple-shadow); 
-        }}
-
-        .strategy-link-desc {{ color: var(--muted-text-new); font-size: 1.0rem; }} 
-
-        .strategy-link-title {{ 
-            font-weight: 800; 
-            font-size: 1.5rem; 
-            letter-spacing: .5px; 
-            display: flex;
-            align-items: center;
-            gap: 15px; 
-            margin-bottom: 10px;
-        }}
-
-        .heatmap-grid-container {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            padding: 15px;
-            background: var(--inputlight);
-            border-radius: 12px;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
-        }}
-        .heatmap-box {{
-            flex-grow: 1; 
-            flex-basis: 120px;
-            min-height: 80px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            border-radius: 8px;
-            padding: 8px;
-            font-weight: 700;
-            transition: all 0.3s;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            cursor: default;
-        }}
-        .heatmap-box-ticker {{
-            font-size: 1.1rem;
-            font-weight: 900;
-            line-height: 1.2;
-            margin-bottom: 2px;
-            color: var(--text);
-        }}
-        .heatmap-box-return {{
-            font-size: 0.85rem;
-            line-height: 1.0;
-            opacity: 0.8;
-            color: var(--text);
-        }}
-        .heatmap-box:hover {{
-            transform: scale(1.03);
-            opacity: 0.95;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }}
-        
-        .movers-list {{
-            background: var(--inputlight);
             border: 1px solid var(--neutral);
             border-radius: 12px;
-            padding: 15px;
-            height: 100%;
-        }}
-        .movers-item {{
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
-            font-size: 1.05rem;
-        }}
-        .movers-item:last-child {{
-            border-bottom: none;
-        }}
-        .movers-ticker {{
-            font-weight: 800;
-            flex: 0 0 25%;
-        }}
-        .movers-price {{
-            font-weight: 500;
-            flex: 0 0 35%;
-            text-align: right;
-            padding-right: 15px;
-            color: var(--muted-text-new);
-        }}
-        .movers-return {{
-            font-weight: 700;
-            flex: 0 0 40%;
-            text-align: right;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }}
         
-        /* Style the navigation buttons */
-        .stButton > button {{
-            background: var(--input) !important;
-            color: var(--text) !important;
-            border: 1px solid var(--neutral) !important;
-            border-radius: 8px !important;
-            font-weight: 600 !important;
-            padding: 10px 16px !important;
-            transition: all 0.2s !important;
-            width: 100% !important;
-        }}
-        .stButton > button:hover {{
-            background: var(--inputlight) !important;
-            border-color: var(--purple) !important;
-            color: var(--purple) !important;
-        }}
-        .stButton > button p {{
-            color: var(--text) !important;
-            margin: 0 !important;
-        }}
-        .stButton > button:hover p {{
-            color: var(--purple) !important;
+        .release-info {{
+            background: var(--inputlight);
+            border: 1px solid var(--neutral);
+            border-left: 4px solid var(--purple);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
         }}
         </style>
         """
@@ -625,261 +233,176 @@ st.markdown(
     <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;margin:0 0 10px 0;border-bottom:1px solid var(--neutral);">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
         <rect x="2" y="3" width="20" height="18" rx="3" stroke="#2BB3F3" stroke-width="1.5"/>
-        <polyline points="5,15 9,11 12,13 17,7 19,9" stroke="#26D07C" stroke-width="2" fill="none" />
-        <circle cx="19" cy="9" r="1.8" fill="#26D07C"/>
+        <circle cx="7" cy="8" r="2" fill="#26D07C"/>
+        <circle cx="12" cy="12" r="2" fill="#8A7CF5"/>
+        <circle cx="17" cy="8" r="2" fill="#2BB3F3"/>
+        <line x1="7" y1="10" x2="7" y2="18" stroke="#26D07C" stroke-width="2"/>
+        <line x1="12" y1="14" x2="12" y2="18" stroke="#8A7CF5" stroke-width="2"/>
+        <line x1="17" y1="10" x2="17" y2="18" stroke="#2BB3F3" stroke-width="2"/>
       </svg>
-      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">D-HAM</div>
-      <div style="margin-left:auto;font-size:.95rem;color:rgba(255,255,255,.70);font-weight:500;">Multi‑Strategy Workspace</div>
+      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">Current Data</div>
+      <div style="margin-left:auto;font-size:.95rem;color:rgba(255,255,255,.70);font-weight:500;">Economic Indicators & Releases</div>
     </div>
     """,
     unsafe_allow_html=True
 )
-
-st.markdown(
-    """
-    <div style="text-align:center; font-size:1.05rem; font-style:italic; color:rgba(255,255,255,0.80); margin:-4px 0 18px 0;">
-      "You're either a smart-fella or fart smella" – Confucius
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# Initialize Session State
-if "tickers" not in st.session_state:
-    st.session_state["tickers"] = ["SPY", "AAPL", "MSFT"]
-if "ma_window" not in st.session_state:
-    st.session_state["ma_window"] = 200
-if "lookback" not in st.session_state:
-    st.session_state["lookback"] = 200
 
 # --------------------------------------------------------------------------------------
 # Sidebar
 # --------------------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### Workspace Info")
-    st.markdown(f"""
+    st.markdown("### Current Data Dashboard")
+    st.markdown("""
         <div style="color: var(--muted); font-size: .85rem; padding: 10px 0;">
-            <p>Session started <b>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b></p>
-            <p>Cache TTL: <b>{get_market_status()[4].total_seconds() / 3600:.1f} hours</b></p>
+            <p>View key economic indicators from FRED (Federal Reserve Economic Data).</p>
         </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
     
-    st.markdown("### Strategy Configuration")
-    st.markdown(f"""
+    st.markdown("### Data Sources")
+    st.markdown("""
         <div style="color: var(--muted); font-size: .85rem;">
-            <p>Parameters used by the pages:</p>
             <ul style="list-style: none; padding-left: 0;">
-                <li>Tickers: {len(st.session_state['tickers'])}</li>
-                <li>MA Window: {st.session_state['ma_window']}</li>
-                <li>Lookback: {st.session_state['lookback']}</li>
+                <li>📊 CPI - Consumer Price Index</li>
+                <li>📈 PPI - Producer Price Index</li>
+                <li>📉 PCE - Personal Consumption Expenditures</li>
+                <li>💼 Unemployment Rate</li>
             </ul>
-            <p>Configure these values in the settings section of the strategy pages.</p>
+            <p style="margin-top: 10px; font-size: 0.75rem;">Data provided by Federal Reserve Economic Data (FRED)</p>
         </div>
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------------------
-# 🌎 Dynamic Market Summary Section (AUTO-UPDATING)
+# Main Content
 # --------------------------------------------------------------------------------------
-st.markdown("### Today's Market Summary")
-st.caption("Live data summary based on US market hours (EST/EDT).")
+st.markdown("### 📊 Key Economic Indicators")
+st.caption("Data from Federal Reserve Economic Data (FRED) - Updated monthly")
 
-now, is_open, status_text, status_color, _ = get_market_status()
-
-st.markdown(f"""
-    <div style="margin-bottom: 5px; margin-top: -10px;">
-        <h4 style="font-size: 1.15rem; font-weight: 700; margin: 0; padding: 0;">
-            Status: <span style='color: {status_color};'>{status_text}</span>
-        </h4>
-    </div>
-    <div style="border-top: 1px solid var(--neutral); margin-bottom: 20px;"></div>
-""", unsafe_allow_html=True)
-
-# Initialize session state for tracking updates
-if 'market_last_update' not in st.session_state:
-    st.session_state.market_last_update = time.time()
-
-# Create empty container for market KPIs
-market_kpi_container = st.empty()
-
-# Initial render
-render_market_kpis_in_container(market_kpi_container, is_open, status_text, status_color)
-
-# Auto-update mechanism (only during market hours)
-if is_open:
-    current_time = time.time()
-    time_since_update = current_time - st.session_state.market_last_update
+# Check if API key is configured
+if FRED_API_KEY == "your_fred_api_key_here":
+    st.warning("""
+    ⚠️ **FRED API Key Required**
     
-    # Update every 5 seconds
-    if time_since_update >= 5:
-        st.session_state.market_last_update = current_time
-        # Clear only the live data cache
-        fetch_live_summary.clear()
-        # Re-render the container with fresh data
-        render_market_kpis_in_container(market_kpi_container, is_open, status_text, status_color)
+    To display real economic data, you need to:
+    1. Get a free API key from [FRED](https://fred.stlouisfed.org/docs/api/api_key.html)
+    2. Replace `FRED_API_KEY` in the code with your actual key
     
-    # Use st.rerun() with a delay to create auto-refresh
-    time.sleep(5)
-    st.rerun()
-
-st.markdown("---")
-
-# --------------------------------------------------------------------------------------
-# Page navigation (FIXED - Using st.page_link)
-# --------------------------------------------------------------------------------------
-st.markdown("### Jump to a Strategy")
-
-PAGE_MAPPING = {
-    "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis"},
-    "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading"},
-    "Current Data": {"file": "3_Current_Data.py", "desc": "Real-Time Market Overview & Data"},
-}
-pages_dir = Path("pages")
-available = []
-
-def get_card_html(label, desc):
-    """Generates the clean card HTML structure."""
-    return dedent(f"""
-        <div class="strategy-link-card">
-            <div>
-                <div class="strategy-link-title">{label}</div>
-                <div class="strategy-link-desc">{desc}</div>
-            </div>
-        </div>
+    For now, showing demo layout with mock data.
     """)
-
-for label, data in PAGE_MAPPING.items():
-    rel_path = pages_dir / data["file"]
-    if rel_path.exists():
-        available.append((label, data["file"], data["desc"]))
-
-if available:
-    cols = st.columns(len(available))
-    for i, (label, page_file, desc) in enumerate(available):
-        with cols[i]:
-            st.markdown(get_card_html(label, desc), unsafe_allow_html=True)
-            if st.button("Go to Page", key=f"nav_{label}", use_container_width=True):
-                st.switch_page(f"pages/{page_file}")
-else:
-    st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
-
-st.markdown("---")
-
-# --------------------------------------------------------------------------------------
-# ♨️ Market Heatmap Section (AUTO-UPDATING)
-# --------------------------------------------------------------------------------------
-st.markdown("### Market Return Heatmap")
-
-return_period = st.selectbox(
-    "Select Return Period", 
-    options=['1D', '7D', '30D', 'YTD', '1Y'], 
-    index=0, 
-    key='return_period_toggle'
-)
-
-# Initialize session state for heatmap updates
-if 'heatmap_last_update' not in st.session_state:
-    st.session_state.heatmap_last_update = time.time()
-
-# Create empty container for heatmap
-heatmap_container = st.empty()
-
-# Initial render
-render_heatmap_in_container(heatmap_container, return_period)
-
-# Auto-update heatmap every 1 hour during market hours
-if is_open:
-    current_time = time.time()
-    time_since_heatmap_update = current_time - st.session_state.heatmap_last_update
     
-    # Update every hour (3600 seconds)
-    if time_since_heatmap_update >= 3600:
-        st.session_state.heatmap_last_update = current_time
-        # Clear heatmap-related caches
-        fetch_ticker_data.clear()
-        generate_heatmap_data.clear()
-        # Re-render with fresh data
-        render_heatmap_in_container(heatmap_container, return_period)
-
-st.markdown("---")
-
-# --------------------------------------------------------------------------------------
-# 📈 Top Movers Section (Manually Triggered)
-# --------------------------------------------------------------------------------------
-st.markdown(f"### Top Movers (S&P 500 Scan)")
-
-if 'movers_run' not in st.session_state:
-    st.session_state['movers_run'] = datetime.min
-    st.session_state['gainer_df'] = pd.DataFrame()
-    st.session_state['loser_df'] = pd.DataFrame()
-
-col_btn, col_status = st.columns([1, 1.5])
-
-with col_btn:
-    run_clicked = st.button("Run S&P 500 Scan", type="primary", use_container_width=True, 
-                            help="Fetch and analyze the latest data for all S&P 500 tickers.")
-
-with col_status:
-    st.markdown(f"""
-        <div style="font-size: .85rem; color: var(--muted-text-new); margin-top: 10px; text-align: right;">
-            Last Scan Time: {st.session_state['movers_run'].strftime('%Y-%m-%d %H:%M:%S')}
+    # Show demo layout
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.markdown("#### 📊 Consumer Price Index (CPI)")
+        next_date, days = get_next_release_date("CPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <strong>Next Release:</strong> {next_date}<br>
+            <strong>Days Until Release:</strong> {days} days
         </div>
-    """, unsafe_allow_html=True)
-
-if run_clicked:
-    fetch_ticker_data.clear()
-    get_top_movers_uncached.clear() 
-    st.session_state['movers_run'] = datetime.now()
+        """, unsafe_allow_html=True)
+        st.info("Connect FRED API to view actual CPI data")
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    with st.spinner(f"Scanning {len(SPX_MOVER_TICKERS)} tickers for {return_period} returns..."):
-        gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period, st.session_state['movers_run'])
-        
-        st.session_state['gainer_df'] = gainer_df
-        st.session_state['loser_df'] = loser_df
+    with col2:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.markdown("#### 📈 Producer Price Index (PPI)")
+        next_date, days = get_next_release_date("PPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <strong>Next Release:</strong> {next_date}<br>
+            <strong>Days Until Release:</strong> {days} days
+        </div>
+        """, unsafe_allow_html=True)
+        st.info("Connect FRED API to view actual PPI data")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    st.toast("S&P 500 scan complete!", icon="✅")
+else:
+    # Fetch real data
+    st.markdown("---")
     
-gainer_df = st.session_state['gainer_df']
-loser_df = st.session_state['loser_df']
+    # CPI Section
+    st.markdown("### 📊 Consumer Price Index (CPI)")
+    cpi_col1, cpi_col2 = st.columns([3, 1])
+    
+    with cpi_col1:
+        with st.spinner("Fetching CPI data from FRED..."):
+            cpi_data = fetch_fred_data("CPIAUCSL", "CPI")
+            if not cpi_data.empty:
+                cpi_chart = create_indicator_chart(cpi_data, "Consumer Price Index (CPI-U)", ACCENT_GREEN)
+                if cpi_chart:
+                    st.plotly_chart(cpi_chart, use_container_width=True)
+                    
+                    # Show latest value
+                    latest_cpi = cpi_data.iloc[-1, 0]
+                    latest_date = cpi_data.index[-1].strftime("%B %Y")
+                    prev_cpi = cpi_data.iloc[-2, 0]
+                    yoy_change = ((latest_cpi - cpi_data.iloc[-13, 0]) / cpi_data.iloc[-13, 0]) * 100
+                    mom_change = ((latest_cpi - prev_cpi) / prev_cpi) * 100
+                    
+                    st.markdown(f"""
+                    **Latest Value ({latest_date}):** {latest_cpi:.2f}  
+                    **Month-over-Month:** {mom_change:+.2f}%  
+                    **Year-over-Year:** {yoy_change:+.2f}%
+                    """)
+    
+    with cpi_col2:
+        next_date, days = get_next_release_date("CPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # PPI Section
+    st.markdown("### 📈 Producer Price Index (PPI)")
+    ppi_col1, ppi_col2 = st.columns([3, 1])
+    
+    with ppi_col1:
+        with st.spinner("Fetching PPI data from FRED..."):
+            ppi_data = fetch_fred_data("PPIACO", "PPI")
+            if not ppi_data.empty:
+                ppi_chart = create_indicator_chart(ppi_data, "Producer Price Index (PPI)", ACCENT_BLUE)
+                if ppi_chart:
+                    st.plotly_chart(ppi_chart, use_container_width=True)
+                    
+                    # Show latest value
+                    latest_ppi = ppi_data.iloc[-1, 0]
+                    latest_date = ppi_data.index[-1].strftime("%B %Y")
+                    prev_ppi = ppi_data.iloc[-2, 0]
+                    yoy_change = ((latest_ppi - ppi_data.iloc[-13, 0]) / ppi_data.iloc[-13, 0]) * 100
+                    mom_change = ((latest_ppi - prev_ppi) / prev_ppi) * 100
+                    
+                    st.markdown(f"""
+                    **Latest Value ({latest_date}):** {latest_ppi:.2f}  
+                    **Month-over-Month:** {mom_change:+.2f}%  
+                    **Year-over-Year:** {yoy_change:+.2f}%
+                    """)
+    
+    with ppi_col2:
+        next_date, days = get_next_release_date("PPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--blue);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-col_gainers, col_losers = st.columns(2)
+st.markdown("---")
 
-with col_gainers:
-    st.markdown("#### Top 5 Gainers", unsafe_allow_html=True)
-    if not gainer_df.empty:
-        gainer_list_html = '<div class="movers-list">'
-        for ticker, row in gainer_df.iterrows():
-            return_str = f"+{row['Return (%)']:.2f}%"
-            price_str = f"{row['Price ($)']:.2f}"
-            
-            gainer_list_html += dedent(f"""
-                <div class="movers-item">
-                    <span class="movers-ticker" style="color: var(--green-accent);">{ticker}</span>
-                    <span class="movers-price">${price_str}</span>
-                    <span class="movers-return" style="color: var(--green-accent);">{return_str}</span>
-                </div>
-            """)
-        gainer_list_html += '</div>'
-        st.markdown(gainer_list_html, unsafe_allow_html=True)
-    else:
-        st.info("Click 'Run S&P 500 Scan' to fetch data.")
+# Additional metrics
+st.markdown("### 📌 Additional Economic Indicators")
+st.info("Coming soon: PCE, Unemployment Rate, GDP, and more economic indicators")
 
-with col_losers:
-    st.markdown("#### Top 5 Losers", unsafe_allow_html=True)
-    if not loser_df.empty:
-        loser_list_html = '<div class="movers-list">'
-        for ticker, row in loser_df.iterrows():
-            return_str = f"{row['Return (%)']:.2f}%"
-            price_str = f"{row['Price ($)']:.2f}"
-            
-            loser_list_html += dedent(f"""
-                <div class="movers-item">
-                    <span class="movers-ticker" style="color: var(--red-neg);">{ticker}</span>
-                    <span class="movers-price">${price_str}</span>
-                    <span class="movers-return" style="color: var(--red-neg);">{return_str}</span>
-                </div>
-            """)
-        loser_list_html += '</div>'
-        st.markdown(loser_list_html, unsafe_allow_html=True)
-    else:
-        st.info("Click 'Run S&P 500 Scan' to fetch data.")
+st.markdown("---")
+
+# Back to home button
+if st.button("← Back to Home", use_container_width=True):
+    st.switch_page("Home.py")
