@@ -833,8 +833,9 @@ if run_clicked:
         
         st.session_state['gainer_df'] = gainer_df
         st.session_state['loser_df'] = loser_df
-
-    st.toast("S&P 500 scan complete!", icon="✅")
+    
+    st.success("S&P 500 scan complete!")
+    st.rerun()
     
 gainer_df = st.session_state['gainer_df']
 loser_df = st.session_state['loser_df']
