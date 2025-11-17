@@ -576,27 +576,6 @@ st.markdown(
             flex: 0 0 40%;
             text-align: right;
         }}
-        
-        /* Page link button styling */
-        button[kind="pageNavigation"] {{
-            background: var(--input) !important;
-            color: var(--text) !important;
-            border: 1px solid var(--neutral) !important;
-            border-radius: 8px !important;
-            font-weight: 600 !important;
-            transition: all 0.2s !important;
-        }}
-        button[kind="pageNavigation"]:hover {{
-            background: var(--inputlight) !important;
-            border-color: var(--purple) !important;
-            color: var(--purple) !important;
-        }}
-        button[kind="pageNavigation"] p {{
-            color: var(--text) !important;
-        }}
-        button[kind="pageNavigation"]:hover p {{
-            color: var(--purple) !important;
-        }}
         </style>
         """
     ),
@@ -742,10 +721,27 @@ if available:
     cols = st.columns(len(available))
     for i, (label, page_file, desc) in enumerate(available):
         with cols[i]:
-            # Render the card HTML
-            st.markdown(get_card_html(label, desc), unsafe_allow_html=True)
-            # Add the functional navigation link below the card
-            st.page_link(f"pages/{page_file}", label="Go to Page", use_container_width=True)
+            # Render the card HTML with integrated button
+            page_name = page_file.replace('.py', '')
+            card_with_button = get_card_html(label, desc).replace('</div>', f'''
+                <a href="/{page_name}" target="_self" style="
+                    display: block;
+                    margin-top: 15px;
+                    background: var(--input);
+                    color: var(--text);
+                    border: 1px solid var(--neutral);
+                    border-radius: 8px;
+                    padding: 10px 16px;
+                    text-align: center;
+                    text-decoration: none;
+                    font-weight: 600;
+                    transition: all 0.2s;
+                " onmouseover="this.style.background='var(--inputlight)'; this.style.borderColor='var(--purple)'; this.style.color='var(--purple)';" 
+                   onmouseout="this.style.background='var(--input)'; this.style.borderColor='var(--neutral)'; this.style.color='var(--text)';">
+                    Go to Page
+                </a>
+            </div>')
+            st.markdown(card_with_button, unsafe_allow_html=True)
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
