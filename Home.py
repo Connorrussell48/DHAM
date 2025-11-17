@@ -278,10 +278,29 @@ def get_heatmap_color_style(return_val):
 
 @st.cache_data(show_spinner=False)
 def get_top_movers_uncached(ticker_list, period, scan_time):
-    """Fetches data, calculates returns, and returns top 5 gainers/losers."""
-    all_close_data = fetch_ticker_data(ticker_list) 
+    """Fetches data, calculates returns, and returns top 5 gainers/losers - OPTIMIZED VERSION."""
     
-    if all_close_data.empty: return pd.DataFrame(), pd.DataFrame()
+    # Optimize: Only fetch the minimum data needed for the selected period
+    if period == '1D':
+        fetch_period = '5d'  # Only need last week
+    elif period == '7D':
+        fetch_period = '1mo'  # Only need last month
+    elif period == '30D':
+        fetch_period = '2mo'  # Only need 2 months
+    elif period == 'YTD':
+        fetch_period = '1y'  # Need this year
+    else:  # '1Y'
+        fetch_period = '1y'
+    
+    # Download data with optimized period
+    all_close_data = yf.download(ticker_list, period=fetch_period, interval="1d", progress=False, auto_adjust=True, threads=True)
+    
+    if all_close_data.empty: 
+        return pd.DataFrame(), pd.DataFrame()
+    
+    # Extract just the Close prices
+    if 'Close' in all_close_data.columns:
+        all_close_data = all_close_data['Close']
     
     returns = calculate_returns(all_close_data, period).rename("Return (%)")
     last_prices = all_close_data.iloc[-1].rename("Price ($)")
@@ -828,11 +847,28 @@ if run_clicked:
     get_top_movers_uncached.clear() 
     st.session_state['movers_run'] = datetime.now()
     
-    with st.spinner(f"Scanning {len(SPX_MOVER_TICKERS)} tickers for {return_period} returns..."):
-        gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period, st.session_state['movers_run'])
-        
-        st.session_state['gainer_df'] = gainer_df
-        st.session_state['loser_df'] = loser_df
+    # Create a progress bar
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    status_text.text(f"Downloading data for {len(SPX_MOVER_TICKERS)} tickers...")
+    progress_bar.progress(25)
+    
+    gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period, st.session_state['movers_run'])
+    
+    progress_bar.progress(75)
+    status_text.text("Processing results...")
+    
+    st.session_state['gainer_df'] = gainer_df
+    st.session_state['loser_df'] = loser_df
+    
+    progress_bar.progress(100)
+    status_text.text("Scan complete!")
+    
+    # Clean up progress indicators
+    time.sleep(0.5)
+    progress_bar.empty()
+    status_text.empty()
     
     st.success("S&P 500 scan complete!")
     st.rerun()
