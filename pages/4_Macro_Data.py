@@ -45,7 +45,7 @@ DARK_PURPLE    = "#3A2A6A"
 # --------------------------------------------------------------------------------------
 # Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
 # IMPORTANT: API key must be exactly 32 characters, lowercase alphanumeric only
-FRED_API_KEY = "your_fred_api_key_here"  # Replace with your actual API key
+FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4"  # Replace with your actual API key
 
 # Validate API key format
 def validate_fred_api_key(key):
