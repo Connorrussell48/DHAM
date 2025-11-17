@@ -121,9 +121,10 @@ def create_indicator_chart(df, title, color):
         y=df_filtered.iloc[:, 0],
         mode='lines',
         name=title,
-        line=dict(color=color, width=2),
+        line=dict(color=ACCENT_PURPLE, width=2),
         fill='tozeroy',
-        fillcolor=f'rgba{tuple(list(bytes.fromhex(color[1:])) + [0.1])}',
+        fillcolor=f'rgba(138, 124, 245, 0.1)',
+        hovertemplate='%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
     ))
     
     fig.update_layout(
@@ -135,10 +136,12 @@ def create_indicator_chart(df, title, color):
             showgrid=True,
         ),
         yaxis=dict(
-            title="Index Value",
+            title="Rate (%)",
             gridcolor=NEUTRAL_GRAY,
             color=BLOOM_TEXT,
             showgrid=True,
+            ticksuffix="%",
+            tickformat=".2f",
         ),
         plot_bgcolor=BLOOM_PANEL,
         paper_bgcolor=BLOOM_BG,
@@ -566,15 +569,20 @@ with unrate_col1:
     with st.spinner("Fetching Unemployment Rate from FRED..."):
         unrate_data = fetch_fred_data("UNRATE", "UNRATE")
         if not unrate_data.empty:
-            # Create tabs for YoY and MoM only
-            tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
+            # Create tabs for Absolute, YoY, and MoM
+            tab1, tab2, tab3 = st.tabs(["Absolute Rate", "Year-over-Year %", "Month-over-Month %"])
             
             with tab1:
+                unrate_chart = create_indicator_chart(unrate_data, "Unemployment Rate", ACCENT_PURPLE)
+                if unrate_chart:
+                    st.plotly_chart(unrate_chart, use_container_width=True)
+            
+            with tab2:
                 unrate_yoy_chart = create_change_chart(unrate_data, "Unemployment Rate Year-over-Year Change", 'YoY')
                 if unrate_yoy_chart:
                     st.plotly_chart(unrate_yoy_chart, use_container_width=True)
             
-            with tab2:
+            with tab3:
                 unrate_mom_chart = create_change_chart(unrate_data, "Unemployment Rate Month-over-Month Change", 'MoM')
                 if unrate_mom_chart:
                     st.plotly_chart(unrate_mom_chart, use_container_width=True)
@@ -599,15 +607,20 @@ with lfpr_col1:
     with st.spinner("Fetching Labor Force Participation Rate from FRED..."):
         lfpr_data = fetch_fred_data("CIVPART", "LFPR")
         if not lfpr_data.empty:
-            # Create tabs for YoY and MoM only
-            tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
+            # Create tabs for Absolute, YoY, and MoM
+            tab1, tab2, tab3 = st.tabs(["Absolute Rate", "Year-over-Year %", "Month-over-Month %"])
             
             with tab1:
+                lfpr_chart = create_indicator_chart(lfpr_data, "Labor Force Participation Rate", ACCENT_PURPLE)
+                if lfpr_chart:
+                    st.plotly_chart(lfpr_chart, use_container_width=True)
+            
+            with tab2:
                 lfpr_yoy_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Year-over-Year Change", 'YoY')
                 if lfpr_yoy_chart:
                     st.plotly_chart(lfpr_yoy_chart, use_container_width=True)
             
-            with tab2:
+            with tab3:
                 lfpr_mom_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Month-over-Month Change", 'MoM')
                 if lfpr_mom_chart:
                     st.plotly_chart(lfpr_mom_chart, use_container_width=True)
