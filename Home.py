@@ -470,6 +470,17 @@ st.markdown(
             color: var(--green-accent) !important;
         }}
         
+        /* Make sidebar navigation links text white */
+        [data-testid="stSidebarNav"] li a span {{
+            color: var(--text) !important;
+        }}
+        [data-testid="stSidebarNav"] li a:hover span {{
+            color: var(--green-accent) !important;
+        }}
+        [data-testid="stSidebarNav"] ul li {{
+            color: var(--text) !important;
+        }}
+        
         .strategy-link-card {{
             background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
             border: 1px solid var(--neutral); 
