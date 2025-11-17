@@ -743,7 +743,7 @@ st.markdown("---")
 # --------------------------------------------------------------------------------------
 # Page navigation (FIXED - Using st.page_link)
 # --------------------------------------------------------------------------------------
-st.markdown("### Jump to a Strategy")
+st.markdown("### Page Navigation")
 
 PAGE_MAPPING = {
     "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Advanced Momentum and Trend Analysis"},
