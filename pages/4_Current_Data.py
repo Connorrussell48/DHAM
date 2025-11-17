@@ -44,7 +44,7 @@ DARK_PURPLE    = "#3A2A6A"
 # FRED API Configuration
 # --------------------------------------------------------------------------------------
 # Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
-FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4"  # Replace with your actual API key
+FRED_API_KEY = "your_fred_api_key_here"  # Replace with your actual API key
 
 # --------------------------------------------------------------------------------------
 # Data Release Schedules (Approximate - these are typical release patterns)
@@ -176,6 +176,7 @@ def create_change_chart(df, title, change_type='YoY'):
         y=pct_filtered.iloc[:, 0],
         name=title,
         marker=dict(color=ACCENT_PURPLE),
+        hovertemplate='%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
     ))
     
     # Add zero line
@@ -195,6 +196,7 @@ def create_change_chart(df, title, change_type='YoY'):
             color=BLOOM_TEXT,
             showgrid=True,
             ticksuffix="%",
+            tickformat=".2f",
         ),
         plot_bgcolor=BLOOM_PANEL,
         paper_bgcolor=BLOOM_BG,
@@ -330,10 +332,10 @@ with st.sidebar:
     st.markdown("""
         <div style="color: var(--muted); font-size: .85rem;">
             <ul style="list-style: none; padding-left: 0;">
-                <li>📊 <strong>CPI</strong> - Consumer Price Index for All Urban Consumers (CPI-U)</li>
-                <li>📈 <strong>PPI</strong> - Producer Price Index for All Commodities</li>
-                <li>📉 <strong>PCE</strong> - Personal Consumption Expenditures</li>
-                <li>💼 <strong>Unemployment Rate</strong></li>
+                <li><strong>CPI</strong> - Consumer Price Index for All Urban Consumers (CPI-U)</li>
+                <li><strong>PPI</strong> - Producer Price Index for All Commodities</li>
+                <li><strong>PCE</strong> - Personal Consumption Expenditures</li>
+                <li><strong>Unemployment Rate</strong></li>
             </ul>
             <p style="margin-top: 10px; font-size: 0.75rem; font-style: italic;">
                 CPI-U covers ~93% of US population including urban wage earners, professionals, and retirees.
@@ -345,7 +347,7 @@ with st.sidebar:
 # --------------------------------------------------------------------------------------
 # Main Content
 # --------------------------------------------------------------------------------------
-st.markdown("### 📊 Key Economic Indicators")
+st.markdown("### Key Economic Indicators")
 st.caption("Data from Federal Reserve Economic Data (FRED) - Updated monthly")
 
 # Check if API key is configured
@@ -439,7 +441,7 @@ else:
     st.markdown("---")
     
     # CPI Section
-    st.markdown("### 📊 Consumer Price Index (CPI)")
+    st.markdown("### Consumer Price Index (CPI)")
     
     cpi_col1, cpi_col2 = st.columns([3, 1])
     
@@ -458,7 +460,7 @@ else:
             cpi_data = fetch_fred_data("CPIAUCSL", "CPI")
             if not cpi_data.empty:
                 # Create tabs for YoY and MoM only
-                tab1, tab2 = st.tabs(["📊 Year-over-Year %", "📉 Month-over-Month %"])
+                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
                 
                 with tab1:
                     cpi_yoy_chart = create_change_chart(cpi_data, "CPI Year-over-Year Change", 'YoY')
@@ -473,7 +475,7 @@ else:
     st.markdown("---")
     
     # PPI Section
-    st.markdown("### 📈 Producer Price Index (PPI)")
+    st.markdown("### Producer Price Index (PPI)")
     
     ppi_col1, ppi_col2 = st.columns([3, 1])
     
@@ -492,7 +494,7 @@ else:
             ppi_data = fetch_fred_data("PPIACO", "PPI")
             if not ppi_data.empty:
                 # Create tabs for YoY and MoM only
-                tab1, tab2 = st.tabs(["📊 Year-over-Year %", "📉 Month-over-Month %"])
+                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
                 
                 with tab1:
                     ppi_yoy_chart = create_change_chart(ppi_data, "PPI Year-over-Year Change", 'YoY')
@@ -507,7 +509,7 @@ else:
 st.markdown("---")
 
 # Additional metrics
-st.markdown("### 📌 Additional Economic Indicators")
+st.markdown("### Additional Economic Indicators")
 st.info("Coming soon: PCE, Unemployment Rate, GDP, and more economic indicators")
 
 st.markdown("---")
