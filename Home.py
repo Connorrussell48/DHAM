@@ -717,10 +717,7 @@ if is_open:
         fetch_live_summary.clear()
         # Re-render the container with fresh data
         render_market_kpis_in_container(market_kpi_container, is_open, status_text, status_color)
-    
-    # Use st.rerun() with a delay to create auto-refresh
-    time.sleep(5)
-    st.rerun()
+        st.rerun()
 
 st.markdown("---")
 
