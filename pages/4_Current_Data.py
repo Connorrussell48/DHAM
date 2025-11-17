@@ -116,8 +116,8 @@ def create_indicator_chart(df, title, color):
     
     fig = go.Figure()
     
-    # Check if this is ICSA data (jobless claims) - it's in thousands, not percentages
-    is_icsa = "Claims" in title or "ICSA" in title
+    # Check if this is data in thousands (not percentages)
+    is_thousands = "Claims" in title or "ICSA" in title or "Payrolls" in title or "PAYEMS" in title
     
     fig.add_trace(go.Scatter(
         x=df_filtered.index,
@@ -127,7 +127,7 @@ def create_indicator_chart(df, title, color):
         line=dict(color=ACCENT_PURPLE, width=2),
         fill='tozeroy',
         fillcolor=f'rgba(138, 124, 245, 0.1)',
-        hovertemplate='%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>' if is_icsa else '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
+        hovertemplate='%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>' if is_thousands else '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
     ))
     
     fig.update_layout(
@@ -139,12 +139,12 @@ def create_indicator_chart(df, title, color):
             showgrid=True,
         ),
         yaxis=dict(
-            title="Thousands of Claims" if is_icsa else "Rate (%)",
+            title="Thousands" if is_thousands else "Rate (%)",
             gridcolor=NEUTRAL_GRAY,
             color=BLOOM_TEXT,
             showgrid=True,
-            ticksuffix="" if is_icsa else "%",
-            tickformat=",.0f" if is_icsa else ".2f",
+            ticksuffix="" if is_thousands else "%",
+            tickformat=",.0f" if is_thousands else ".2f",
         ),
         plot_bgcolor=BLOOM_PANEL,
         paper_bgcolor=BLOOM_BG,
@@ -345,6 +345,7 @@ with st.sidebar:
             <p style="margin-top: 15px;"><strong>Employment Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
                 <li><strong>Unemployment Rate</strong> - Official unemployment rate</li>
+                <li><strong>Nonfarm Payrolls</strong> - Total employed workers (headline jobs number)</li>
                 <li><strong>Initial Claims</strong> - Weekly jobless claims (leading indicator)</li>
                 <li><strong>LFPR</strong> - Labor Force Participation Rate</li>
             </ul>
@@ -590,6 +591,44 @@ with unrate_col1:
                 unrate_mom_chart = create_change_chart(unrate_data, "Unemployment Rate Month-over-Month Change", 'MoM')
                 if unrate_mom_chart:
                     st.plotly_chart(unrate_mom_chart, use_container_width=True)
+
+st.markdown("---")
+
+# Nonfarm Payrolls Section
+st.markdown("### Nonfarm Payrolls")
+
+payems_col1, payems_col2 = st.columns([3, 1])
+
+with payems_col2:
+    st.markdown(f"""
+    <div class="release-info">
+        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with payems_col1:
+    with st.spinner("Fetching Nonfarm Payrolls from FRED..."):
+        payems_data = fetch_fred_data("PAYEMS", "PAYEMS")
+        if not payems_data.empty:
+            # Create tabs for Absolute, YoY, and MoM
+            tab1, tab2, tab3 = st.tabs(["Absolute Payrolls", "Year-over-Year %", "Month-over-Month %"])
+            
+            with tab1:
+                payems_chart = create_indicator_chart(payems_data, "Nonfarm Payrolls (Thousands)", ACCENT_PURPLE)
+                if payems_chart:
+                    st.plotly_chart(payems_chart, use_container_width=True)
+            
+            with tab2:
+                payems_yoy_chart = create_change_chart(payems_data, "Nonfarm Payrolls Year-over-Year Change", 'YoY')
+                if payems_yoy_chart:
+                    st.plotly_chart(payems_yoy_chart, use_container_width=True)
+            
+            with tab3:
+                payems_mom_chart = create_change_chart(payems_data, "Nonfarm Payrolls Month-over-Month Change", 'MoM')
+                if payems_mom_chart:
+                    st.plotly_chart(payems_mom_chart, use_container_width=True)
 
 st.markdown("---")
 
