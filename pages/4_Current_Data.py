@@ -340,7 +340,9 @@ with st.sidebar:
             <p><strong>Inflation Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
                 <li><strong>CPI</strong> - Consumer Price Index for All Urban Consumers</li>
+                <li><strong>Core CPI</strong> - CPI excluding food and energy</li>
                 <li><strong>PPI</strong> - Producer Price Index for All Commodities</li>
+                <li><strong>Core PPI</strong> - PPI excluding food and energy</li>
             </ul>
             <p style="margin-top: 15px;"><strong>Employment Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
@@ -491,6 +493,40 @@ else:
     
     st.markdown("---")
     
+    # Core CPI Section
+    st.markdown("### Core Consumer Price Index (Core CPI)")
+    
+    core_cpi_col1, core_cpi_col2 = st.columns([3, 1])
+    
+    with core_cpi_col2:
+        next_date, days = get_next_release_date("CPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with core_cpi_col1:
+        with st.spinner("Fetching Core CPI data from FRED..."):
+            core_cpi_data = fetch_fred_data("CPILFESL", "Core CPI")
+            if not core_cpi_data.empty:
+                # Create tabs for YoY and MoM only
+                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
+                
+                with tab1:
+                    core_cpi_yoy_chart = create_change_chart(core_cpi_data, "Core CPI Year-over-Year Change", 'YoY')
+                    if core_cpi_yoy_chart:
+                        st.plotly_chart(core_cpi_yoy_chart, use_container_width=True)
+                
+                with tab2:
+                    core_cpi_mom_chart = create_change_chart(core_cpi_data, "Core CPI Month-over-Month Change", 'MoM')
+                    if core_cpi_mom_chart:
+                        st.plotly_chart(core_cpi_mom_chart, use_container_width=True)
+    
+    st.markdown("---")
+    
     # PPI Section
     st.markdown("### Producer Price Index (PPI)")
     
@@ -522,6 +558,40 @@ else:
                     ppi_mom_chart = create_change_chart(ppi_data, "PPI Month-over-Month Change", 'MoM')
                     if ppi_mom_chart:
                         st.plotly_chart(ppi_mom_chart, use_container_width=True)
+
+    st.markdown("---")
+    
+    # Core PPI Section
+    st.markdown("### Core Producer Price Index (Core PPI)")
+    
+    core_ppi_col1, core_ppi_col2 = st.columns([3, 1])
+    
+    with core_ppi_col2:
+        next_date, days = get_next_release_date("PPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--blue);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with core_ppi_col1:
+        with st.spinner("Fetching Core PPI data from FRED..."):
+            core_ppi_data = fetch_fred_data("PPILFE", "Core PPI")
+            if not core_ppi_data.empty:
+                # Create tabs for YoY and MoM only
+                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
+                
+                with tab1:
+                    core_ppi_yoy_chart = create_change_chart(core_ppi_data, "Core PPI Year-over-Year Change", 'YoY')
+                    if core_ppi_yoy_chart:
+                        st.plotly_chart(core_ppi_yoy_chart, use_container_width=True)
+                
+                with tab2:
+                    core_ppi_mom_chart = create_change_chart(core_ppi_data, "Core PPI Month-over-Month Change", 'MoM')
+                    if core_ppi_mom_chart:
+                        st.plotly_chart(core_ppi_mom_chart, use_container_width=True)
 
 st.markdown("---")
 
