@@ -576,6 +576,27 @@ st.markdown(
             flex: 0 0 40%;
             text-align: right;
         }}
+        
+        /* Page link button styling */
+        button[kind="pageNavigation"] {{
+            background: var(--input) !important;
+            color: var(--text) !important;
+            border: 1px solid var(--neutral) !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            transition: all 0.2s !important;
+        }}
+        button[kind="pageNavigation"]:hover {{
+            background: var(--inputlight) !important;
+            border-color: var(--purple) !important;
+            color: var(--purple) !important;
+        }}
+        button[kind="pageNavigation"] p {{
+            color: var(--text) !important;
+        }}
+        button[kind="pageNavigation"]:hover p {{
+            color: var(--purple) !important;
+        }}
         </style>
         """
     ),
@@ -724,7 +745,7 @@ if available:
             # Render the card HTML
             st.markdown(get_card_html(label, desc), unsafe_allow_html=True)
             # Add the functional navigation link below the card
-            st.page_link(f"pages/{page_file}", label="Go to Page ➡️", use_container_width=True)
+            st.page_link(f"pages/{page_file}", label="Go to Page", use_container_width=True)
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
