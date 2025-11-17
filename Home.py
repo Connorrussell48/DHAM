@@ -723,7 +723,7 @@ if available:
         with cols[i]:
             # Render the card HTML with integrated button
             page_name = page_file.replace('.py', '')
-            card_with_button = get_card_html(label, desc).replace('</div>', f'''
+            button_html = f"""
                 <a href="/{page_name}" target="_self" style="
                     display: block;
                     margin-top: 15px;
@@ -740,7 +740,8 @@ if available:
                    onmouseout="this.style.background='var(--input)'; this.style.borderColor='var(--neutral)'; this.style.color='var(--text)';">
                     Go to Page
                 </a>
-            </div>')
+            </div>"""
+            card_with_button = get_card_html(label, desc).replace('</div>', button_html)
             st.markdown(card_with_button, unsafe_allow_html=True)
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
