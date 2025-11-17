@@ -486,7 +486,6 @@ st.markdown(
             border-color: var(--purple); 
             transform: translateY(-5px); 
             box-shadow: 0 15px 40px var(--card-purple-shadow); 
-            cursor: pointer;
         }}
 
         .strategy-link-desc {{ color: var(--muted-text-new); font-size: 1.0rem; }} 
@@ -499,26 +498,6 @@ st.markdown(
             align-items: center;
             gap: 15px; 
             margin-bottom: 10px;
-        }}
-
-        .goto-page-button {{
-            margin-top: 15px;
-            background: var(--input) !important;
-            color: var(--text) !important;
-            border: 1px solid var(--neutral) !important;
-            border-radius: 8px !important;
-            padding: 8px 12px !important;
-            text-align: center;
-            text-decoration: none;
-            font-weight: 600;
-            transition: background 0.2s;
-            display: block;
-        }}
-
-        .goto-page-button:hover {{
-            background: var(--inputlight) !important;
-            border-color: var(--purple) !important;
-            color: var(--purple) !important;
         }}
 
         .heatmap-grid-container {{
@@ -711,7 +690,7 @@ if is_open:
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# Page navigation
+# Page navigation (FIXED - Using st.page_link)
 # --------------------------------------------------------------------------------------
 st.markdown("### Jump to a Strategy")
 
@@ -722,33 +701,30 @@ PAGE_MAPPING = {
 pages_dir = Path("pages")
 available = []
 
-def get_card_html(label, rel_path, desc):
-    """Generates the clean card HTML structure."""
-    page_name = rel_path.replace('pages/', '').replace('.py', '')
-    url = f"/{page_name}"
-    
+def get_card_html(label, desc):
+    """Generates the clean card HTML structure (without links)."""
     return dedent(f"""
         <div class="strategy-link-card">
             <div>
                 <div class="strategy-link-title">{label}</div>
                 <div class="strategy-link-desc">{desc}</div>
             </div>
-            <a href="{url}" target="_self" class="goto-page-button">
-                Go to Page ➡️
-            </a>
         </div>
     """)
 
 for label, data in PAGE_MAPPING.items():
     rel_path = pages_dir / data["file"]
     if rel_path.exists():
-        available.append((label, rel_path.as_posix(), data["desc"]))
+        available.append((label, data["file"], data["desc"]))
 
 if available:
     cols = st.columns(len(available))
-    for i, (label, rel_path, desc) in enumerate(available):
+    for i, (label, page_file, desc) in enumerate(available):
         with cols[i]:
-            st.markdown(get_card_html(label, rel_path, desc), unsafe_allow_html=True)
+            # Render the card HTML
+            st.markdown(get_card_html(label, desc), unsafe_allow_html=True)
+            # Add the functional navigation link below the card
+            st.page_link(f"pages/{page_file}", label="Go to Page ➡️", use_container_width=True)
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
