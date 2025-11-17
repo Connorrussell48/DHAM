@@ -174,14 +174,17 @@ def create_change_chart(df, title, change_type='YoY'):
     five_years_ago = datetime.now() - timedelta(days=5*365)
     pct_filtered = pct_change[pct_change.index >= five_years_ago]
     
-    # Use purple color for all bars
+    # Use purple line chart
     fig = go.Figure()
     
-    fig.add_trace(go.Bar(
+    fig.add_trace(go.Scatter(
         x=pct_filtered.index,
         y=pct_filtered.iloc[:, 0],
+        mode='lines',
         name=title,
-        marker=dict(color=ACCENT_PURPLE),
+        line=dict(color=ACCENT_PURPLE, width=2),
+        fill='tozeroy',
+        fillcolor=f'rgba(138, 124, 245, 0.1)',
         hovertemplate='%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
     ))
     
@@ -578,7 +581,7 @@ else:
     
     with core_ppi_col1:
         with st.spinner("Fetching Core PPI data from FRED..."):
-            core_ppi_data = fetch_fred_data("PPILFE", "Core PPI")
+            core_ppi_data = fetch_fred_data("WPSFD4131", "Core PPI")
             if not core_ppi_data.empty:
                 # Create tabs for YoY and MoM only
                 tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
