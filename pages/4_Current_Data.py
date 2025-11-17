@@ -20,7 +20,7 @@ except ImportError:
 # Page setup
 # --------------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Current Data - D-HAM",
+    page_title="Macro Data - D-HAM",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -394,7 +394,7 @@ st.markdown(
         <line x1="12" y1="14" x2="12" y2="18" stroke="#8A7CF5" stroke-width="2"/>
         <line x1="17" y1="10" x2="17" y2="18" stroke="#2BB3F3" stroke-width="2"/>
       </svg>
-      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">Current Data</div>
+      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">Macro Data</div>
       <div style="margin-left:auto;font-size:.95rem;color:rgba(255,255,255,.70);font-weight:500;">Economic Indicators & Releases</div>
     </div>
     """,
@@ -405,7 +405,7 @@ st.markdown(
 # Sidebar
 # --------------------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### Current Data Dashboard")
+    st.markdown("### Macro Data Dashboard")
     st.markdown("""
         <div style="color: var(--muted); font-size: .85rem; padding: 10px 0;">
             <p>View key economic indicators from FRED (Federal Reserve Economic Data).</p>
