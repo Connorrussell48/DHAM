@@ -701,14 +701,30 @@ PAGE_MAPPING = {
 pages_dir = Path("pages")
 available = []
 
-def get_card_html(label, desc):
-    """Generates the clean card HTML structure (without links)."""
+def get_card_html(label, desc, page_name):
+    """Generates the clean card HTML structure with integrated button."""
     return dedent(f"""
         <div class="strategy-link-card">
             <div>
                 <div class="strategy-link-title">{label}</div>
                 <div class="strategy-link-desc">{desc}</div>
             </div>
+            <a href="/{page_name}" target="_self" style="
+                display: block;
+                margin-top: 15px;
+                background: var(--input);
+                color: var(--text);
+                border: 1px solid var(--neutral);
+                border-radius: 8px;
+                padding: 10px 16px;
+                text-align: center;
+                text-decoration: none;
+                font-weight: 600;
+                transition: all 0.2s;
+            " onmouseover="this.style.background='var(--inputlight)'; this.style.borderColor='var(--purple)'; this.style.color='var(--purple)';" 
+               onmouseout="this.style.background='var(--input)'; this.style.borderColor='var(--neutral)'; this.style.color='var(--text)';">
+                Go to Page
+            </a>
         </div>
     """)
 
@@ -721,28 +737,8 @@ if available:
     cols = st.columns(len(available))
     for i, (label, page_file, desc) in enumerate(available):
         with cols[i]:
-            # Render the card HTML with integrated button
             page_name = page_file.replace('.py', '')
-            button_html = f"""
-                <a href="/{page_name}" target="_self" style="
-                    display: block;
-                    margin-top: 15px;
-                    background: var(--input);
-                    color: var(--text);
-                    border: 1px solid var(--neutral);
-                    border-radius: 8px;
-                    padding: 10px 16px;
-                    text-align: center;
-                    text-decoration: none;
-                    font-weight: 600;
-                    transition: all 0.2s;
-                " onmouseover="this.style.background='var(--inputlight)'; this.style.borderColor='var(--purple)'; this.style.color='var(--purple)';" 
-                   onmouseout="this.style.background='var(--input)'; this.style.borderColor='var(--neutral)'; this.style.color='var(--text)';">
-                    Go to Page
-                </a>
-            </div>"""
-            card_with_button = get_card_html(label, desc).replace('</div>', button_html)
-            st.markdown(card_with_button, unsafe_allow_html=True)
+            st.markdown(get_card_html(label, desc, page_name), unsafe_allow_html=True)
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
