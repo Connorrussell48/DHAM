@@ -331,16 +331,20 @@ with st.sidebar:
     st.markdown("### Data Sources")
     st.markdown("""
         <div style="color: var(--muted); font-size: .85rem;">
-            <ul style="list-style: none; padding-left: 0;">
-                <li><strong>CPI</strong> - Consumer Price Index for All Urban Consumers (CPI-U)</li>
+            <p><strong>Inflation Indicators:</strong></p>
+            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
+                <li><strong>CPI</strong> - Consumer Price Index for All Urban Consumers</li>
                 <li><strong>PPI</strong> - Producer Price Index for All Commodities</li>
-                <li><strong>PCE</strong> - Personal Consumption Expenditures</li>
-                <li><strong>Unemployment Rate</strong></li>
+            </ul>
+            <p style="margin-top: 15px;"><strong>Employment Indicators:</strong></p>
+            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
+                <li><strong>U-3</strong> - Official Unemployment Rate</li>
+                <li><strong>U-6</strong> - Broader Unemployment (includes underemployed)</li>
+                <li><strong>LFPR</strong> - Labor Force Participation Rate</li>
             </ul>
             <p style="margin-top: 10px; font-size: 0.75rem; font-style: italic;">
-                CPI-U covers ~93% of US population including urban wage earners, professionals, and retirees.
+                Data provided by Federal Reserve Economic Data (FRED)
             </p>
-            <p style="margin-top: 5px; font-size: 0.75rem;">Data provided by Federal Reserve Economic Data (FRED)</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -520,8 +524,127 @@ st.markdown("---")
 st.markdown("## Unemployment Metrics")
 st.markdown("---")
 
-# Placeholder for unemployment data
-st.info("Coming soon: Unemployment rate charts and labor market indicators")
+# U-3 Unemployment Rate Section
+st.markdown("### U-3 Unemployment Rate (Official)")
+
+u3_col1, u3_col2 = st.columns([3, 1])
+
+with u3_col2:
+    # Unemployment data is typically released first Friday of each month
+    now = datetime.now()
+    year = now.year
+    month = now.month
+    
+    # First Friday of next month
+    if now.day > 7:  # If past first week, show next month
+        if month == 12:
+            next_month = 1
+            next_year = year + 1
+        else:
+            next_month = month + 1
+            next_year = year
+    else:
+        next_month = month
+        next_year = year
+    
+    # Find first Friday
+    first_day = datetime(next_year, next_month, 1)
+    days_until_friday = (4 - first_day.weekday()) % 7
+    first_friday = first_day + timedelta(days=days_until_friday)
+    
+    days_until = (first_friday - now).days
+    next_release_str = first_friday.strftime("%B %d, %Y")
+    
+    st.markdown(f"""
+    <div class="release-info">
+        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with u3_col1:
+    with st.spinner("Fetching U-3 Unemployment Rate from FRED..."):
+        u3_data = fetch_fred_data("UNRATE", "U3")
+        if not u3_data.empty:
+            # Create tabs for YoY and MoM only
+            tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
+            
+            with tab1:
+                u3_yoy_chart = create_change_chart(u3_data, "U-3 Unemployment Rate Year-over-Year Change", 'YoY')
+                if u3_yoy_chart:
+                    st.plotly_chart(u3_yoy_chart, use_container_width=True)
+            
+            with tab2:
+                u3_mom_chart = create_change_chart(u3_data, "U-3 Unemployment Rate Month-over-Month Change", 'MoM')
+                if u3_mom_chart:
+                    st.plotly_chart(u3_mom_chart, use_container_width=True)
+
+st.markdown("---")
+
+# U-6 Unemployment Rate Section
+st.markdown("### U-6 Unemployment Rate (Broader Measure)")
+
+u6_col1, u6_col2 = st.columns([3, 1])
+
+with u6_col2:
+    st.markdown(f"""
+    <div class="release-info">
+        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with u6_col1:
+    with st.spinner("Fetching U-6 Unemployment Rate from FRED..."):
+        u6_data = fetch_fred_data("U6RATE", "U6")
+        if not u6_data.empty:
+            # Create tabs for YoY and MoM only
+            tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
+            
+            with tab1:
+                u6_yoy_chart = create_change_chart(u6_data, "U-6 Unemployment Rate Year-over-Year Change", 'YoY')
+                if u6_yoy_chart:
+                    st.plotly_chart(u6_yoy_chart, use_container_width=True)
+            
+            with tab2:
+                u6_mom_chart = create_change_chart(u6_data, "U-6 Unemployment Rate Month-over-Month Change", 'MoM')
+                if u6_mom_chart:
+                    st.plotly_chart(u6_mom_chart, use_container_width=True)
+
+st.markdown("---")
+
+# Labor Force Participation Rate Section
+st.markdown("### Labor Force Participation Rate")
+
+lfpr_col1, lfpr_col2 = st.columns([3, 1])
+
+with lfpr_col2:
+    st.markdown(f"""
+    <div class="release-info">
+        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with lfpr_col1:
+    with st.spinner("Fetching Labor Force Participation Rate from FRED..."):
+        lfpr_data = fetch_fred_data("CIVPART", "LFPR")
+        if not lfpr_data.empty:
+            # Create tabs for YoY and MoM only
+            tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
+            
+            with tab1:
+                lfpr_yoy_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Year-over-Year Change", 'YoY')
+                if lfpr_yoy_chart:
+                    st.plotly_chart(lfpr_yoy_chart, use_container_width=True)
+            
+            with tab2:
+                lfpr_mom_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Month-over-Month Change", 'MoM')
+                if lfpr_mom_chart:
+                    st.plotly_chart(lfpr_mom_chart, use_container_width=True)
 
 st.markdown("---")
 
