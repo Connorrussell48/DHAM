@@ -338,8 +338,7 @@ with st.sidebar:
             </ul>
             <p style="margin-top: 15px;"><strong>Employment Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
-                <li><strong>U-3</strong> - Official Unemployment Rate</li>
-                <li><strong>U-6</strong> - Broader Unemployment (includes underemployed)</li>
+                <li><strong>Unemployment Rate</strong> - Official unemployment rate</li>
                 <li><strong>LFPR</strong> - Labor Force Participation Rate</li>
             </ul>
             <p style="margin-top: 10px; font-size: 0.75rem; font-style: italic;">
@@ -524,12 +523,12 @@ st.markdown("---")
 st.markdown("## Unemployment Metrics")
 st.markdown("---")
 
-# U-3 Unemployment Rate Section
-st.markdown("### U-3 Unemployment Rate (Official)")
+# Unemployment Rate Section
+st.markdown("### Unemployment Rate")
 
-u3_col1, u3_col2 = st.columns([3, 1])
+unrate_col1, unrate_col2 = st.columns([3, 1])
 
-with u3_col2:
+with unrate_col2:
     # Unemployment data is typically released first Friday of each month
     now = datetime.now()
     year = now.year
@@ -563,55 +562,22 @@ with u3_col2:
     </div>
     """, unsafe_allow_html=True)
 
-with u3_col1:
-    with st.spinner("Fetching U-3 Unemployment Rate from FRED..."):
-        u3_data = fetch_fred_data("UNRATE", "U3")
-        if not u3_data.empty:
+with unrate_col1:
+    with st.spinner("Fetching Unemployment Rate from FRED..."):
+        unrate_data = fetch_fred_data("UNRATE", "UNRATE")
+        if not unrate_data.empty:
             # Create tabs for YoY and MoM only
             tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
             
             with tab1:
-                u3_yoy_chart = create_change_chart(u3_data, "U-3 Unemployment Rate Year-over-Year Change", 'YoY')
-                if u3_yoy_chart:
-                    st.plotly_chart(u3_yoy_chart, use_container_width=True)
+                unrate_yoy_chart = create_change_chart(unrate_data, "Unemployment Rate Year-over-Year Change", 'YoY')
+                if unrate_yoy_chart:
+                    st.plotly_chart(unrate_yoy_chart, use_container_width=True)
             
             with tab2:
-                u3_mom_chart = create_change_chart(u3_data, "U-3 Unemployment Rate Month-over-Month Change", 'MoM')
-                if u3_mom_chart:
-                    st.plotly_chart(u3_mom_chart, use_container_width=True)
-
-st.markdown("---")
-
-# U-6 Unemployment Rate Section
-st.markdown("### U-6 Unemployment Rate (Broader Measure)")
-
-u6_col1, u6_col2 = st.columns([3, 1])
-
-with u6_col2:
-    st.markdown(f"""
-    <div class="release-info">
-        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with u6_col1:
-    with st.spinner("Fetching U-6 Unemployment Rate from FRED..."):
-        u6_data = fetch_fred_data("U6RATE", "U6")
-        if not u6_data.empty:
-            # Create tabs for YoY and MoM only
-            tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-            
-            with tab1:
-                u6_yoy_chart = create_change_chart(u6_data, "U-6 Unemployment Rate Year-over-Year Change", 'YoY')
-                if u6_yoy_chart:
-                    st.plotly_chart(u6_yoy_chart, use_container_width=True)
-            
-            with tab2:
-                u6_mom_chart = create_change_chart(u6_data, "U-6 Unemployment Rate Month-over-Month Change", 'MoM')
-                if u6_mom_chart:
-                    st.plotly_chart(u6_mom_chart, use_container_width=True)
+                unrate_mom_chart = create_change_chart(unrate_data, "Unemployment Rate Month-over-Month Change", 'MoM')
+                if unrate_mom_chart:
+                    st.plotly_chart(unrate_mom_chart, use_container_width=True)
 
 st.markdown("---")
 
