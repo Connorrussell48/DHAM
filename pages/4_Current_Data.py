@@ -116,8 +116,22 @@ def create_indicator_chart(df, title, color):
     
     fig = go.Figure()
     
-    # Check if this is data in thousands (not percentages)
+    # Check if this is data in thousands or billions (not percentages)
     is_thousands = "Claims" in title or "ICSA" in title or "Payrolls" in title or "PAYEMS" in title
+    is_billions = "GDP" in title or "Billions" in title
+    
+    if is_billions:
+        hover_template = '%{x|%Y-Q%q}<br>$%{y:,.1f}B<extra></extra>'
+        tick_format = ",.0f"
+        y_title = "Billions of Dollars"
+    elif is_thousands:
+        hover_template = '%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>'
+        tick_format = ",.0f"
+        y_title = "Thousands"
+    else:
+        hover_template = '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>'
+        tick_format = ".2f"
+        y_title = "Rate (%)"
     
     fig.add_trace(go.Scatter(
         x=df_filtered.index,
@@ -127,7 +141,7 @@ def create_indicator_chart(df, title, color):
         line=dict(color=ACCENT_PURPLE, width=2),
         fill='tozeroy',
         fillcolor=f'rgba(138, 124, 245, 0.1)',
-        hovertemplate='%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>' if is_thousands else '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
+        hovertemplate=hover_template,
     ))
     
     fig.update_layout(
@@ -139,12 +153,12 @@ def create_indicator_chart(df, title, color):
             showgrid=True,
         ),
         yaxis=dict(
-            title="Thousands" if is_thousands else "Rate (%)",
+            title=y_title,
             gridcolor=NEUTRAL_GRAY,
             color=BLOOM_TEXT,
             showgrid=True,
-            ticksuffix="" if is_thousands else "%",
-            tickformat=",.0f" if is_thousands else ".2f",
+            ticksuffix="" if (is_thousands or is_billions) else "%",
+            tickformat=tick_format,
         ),
         plot_bgcolor=BLOOM_PANEL,
         paper_bgcolor=BLOOM_BG,
@@ -186,6 +200,68 @@ def create_change_chart(df, title, change_type='YoY'):
         fill='tozeroy',
         fillcolor=f'rgba(138, 124, 245, 0.1)',
         hovertemplate='%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
+    ))
+    
+    # Add zero line
+    fig.add_hline(y=0, line_dash="dash", line_color=NEUTRAL_GRAY, line_width=1)
+    
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=18, color=BLOOM_TEXT)),
+        xaxis=dict(
+            title="Date",
+            gridcolor=NEUTRAL_GRAY,
+            color=BLOOM_TEXT,
+            showgrid=True,
+        ),
+        yaxis=dict(
+            title=y_label,
+            gridcolor=NEUTRAL_GRAY,
+            color=BLOOM_TEXT,
+            showgrid=True,
+            ticksuffix="%",
+            tickformat=".2f",
+        ),
+        plot_bgcolor=BLOOM_PANEL,
+        paper_bgcolor=BLOOM_BG,
+        font=dict(color=BLOOM_TEXT),
+        hovermode='x unified',
+        height=400,
+        showlegend=False,
+    )
+    
+    return fig
+
+def create_gdp_change_chart(df, title, change_type='YoY'):
+    """Create a chart showing YoY or QoQ percentage changes for GDP (quarterly data)."""
+    if df.empty:
+        return None
+    
+    # Calculate percentage changes
+    if change_type == 'YoY':
+        # Year-over-year: compare to 4 quarters ago
+        pct_change = df.pct_change(periods=4) * 100
+        y_label = "Year-over-Year Change (%)"
+    else:  # QoQ
+        # Quarter-over-quarter: compare to previous quarter
+        pct_change = df.pct_change(periods=1) * 100
+        y_label = "Quarter-over-Quarter Change (%)"
+    
+    # Get last 5 years of data
+    five_years_ago = datetime.now() - timedelta(days=5*365)
+    pct_filtered = pct_change[pct_change.index >= five_years_ago]
+    
+    # Use purple line chart
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=pct_filtered.index,
+        y=pct_filtered.iloc[:, 0],
+        mode='lines',
+        name=title,
+        line=dict(color=ACCENT_PURPLE, width=2),
+        fill='tozeroy',
+        fillcolor=f'rgba(138, 124, 245, 0.1)',
+        hovertemplate='%{x|%Y-Q%q}<br>%{y:.2f}%<extra></extra>',
     ))
     
     # Add zero line
@@ -353,6 +429,11 @@ with st.sidebar:
                 <li><strong>Nonfarm Payrolls</strong> - Total employed workers (headline jobs number)</li>
                 <li><strong>Initial Claims</strong> - Weekly jobless claims (leading indicator)</li>
                 <li><strong>LFPR</strong> - Labor Force Participation Rate</li>
+            </ul>
+            <p style="margin-top: 15px;"><strong>GDP Indicators:</strong></p>
+            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
+                <li><strong>Gross GDP</strong> - Total economic output (nominal)</li>
+                <li><strong>Real GDP</strong> - Inflation-adjusted economic output</li>
             </ul>
             <p style="margin-top: 10px; font-size: 0.75rem; font-style: italic;">
                 Data provided by Federal Reserve Economic Data (FRED)
@@ -790,6 +871,122 @@ with lfpr_col1:
                 lfpr_mom_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Month-over-Month Change", 'MoM')
                 if lfpr_mom_chart:
                     st.plotly_chart(lfpr_mom_chart, use_container_width=True)
+
+st.markdown("---")
+
+# ============================================================================
+# GDP METRICS
+# ============================================================================
+st.markdown("## GDP Metrics")
+st.markdown("---")
+
+# Gross GDP Section
+st.markdown("### Gross Domestic Product (GDP)")
+
+gdp_col1, gdp_col2 = st.columns([3, 1])
+
+with gdp_col2:
+    # GDP is released quarterly, typically around the end of the month following the quarter
+    now = datetime.now()
+    year = now.year
+    month = now.month
+    
+    # Determine which quarter we're in and next release
+    current_quarter = (month - 1) // 3 + 1
+    
+    # GDP releases are approximately: Jan 26 (Q4), Apr 25 (Q1), Jul 25 (Q2), Oct 24 (Q3)
+    release_months = [1, 4, 7, 10]  # January, April, July, October
+    release_day = 25
+    
+    # Find next release
+    next_release_month = None
+    for rm in release_months:
+        if month < rm or (month == rm and now.day < release_day):
+            next_release_month = rm
+            next_release_year = year
+            break
+    
+    if next_release_month is None:
+        next_release_month = release_months[0]
+        next_release_year = year + 1
+    
+    next_gdp_release = datetime(next_release_year, next_release_month, release_day)
+    days_until_gdp = (next_gdp_release - now).days
+    next_gdp_release_str = next_gdp_release.strftime("%B %d, %Y")
+    
+    st.markdown(f"""
+    <div class="release-info">
+        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_gdp_release_str}</strong></p>
+        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_gdp} days away</p>
+        <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with gdp_col1:
+    with st.spinner("Fetching Gross GDP data from FRED..."):
+        gdp_data = fetch_fred_data("GDP", "GDP")
+        if not gdp_data.empty:
+            # Create tabs for Absolute, YoY, QoQ, and MoM
+            tab1, tab2, tab3 = st.tabs(["Absolute GDP", "Year-over-Year %", "Quarter-over-Quarter %"])
+            
+            with tab1:
+                gdp_chart = create_indicator_chart(gdp_data, "Gross Domestic Product (Billions)", ACCENT_PURPLE)
+                if gdp_chart:
+                    st.plotly_chart(gdp_chart, use_container_width=True)
+            
+            with tab2:
+                # YoY: compare to 4 quarters ago
+                gdp_yoy_chart = create_gdp_change_chart(gdp_data, "Gross GDP Year-over-Year Change", 'YoY')
+                if gdp_yoy_chart:
+                    st.plotly_chart(gdp_yoy_chart, use_container_width=True)
+            
+            with tab3:
+                # QoQ: compare to previous quarter
+                gdp_qoq_chart = create_gdp_change_chart(gdp_data, "Gross GDP Quarter-over-Quarter Change", 'QoQ')
+                if gdp_qoq_chart:
+                    st.plotly_chart(gdp_qoq_chart, use_container_width=True)
+
+st.markdown("---")
+
+# Real GDP Section
+st.markdown("### Real Gross Domestic Product (Real GDP)")
+
+real_gdp_col1, real_gdp_col2 = st.columns([3, 1])
+
+with real_gdp_col2:
+    st.markdown(f"""
+    <div class="release-info">
+        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_gdp_release_str}</strong></p>
+        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_gdp} days away</p>
+        <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with real_gdp_col1:
+    with st.spinner("Fetching Real GDP data from FRED..."):
+        real_gdp_data = fetch_fred_data("GDPC1", "Real GDP")
+        if not real_gdp_data.empty:
+            # Create tabs for Absolute, YoY, QoQ
+            tab1, tab2, tab3 = st.tabs(["Absolute Real GDP", "Year-over-Year %", "Quarter-over-Quarter %"])
+            
+            with tab1:
+                real_gdp_chart = create_indicator_chart(real_gdp_data, "Real Gross Domestic Product (Billions, Chained 2017 Dollars)", ACCENT_PURPLE)
+                if real_gdp_chart:
+                    st.plotly_chart(real_gdp_chart, use_container_width=True)
+            
+            with tab2:
+                # YoY: compare to 4 quarters ago
+                real_gdp_yoy_chart = create_gdp_change_chart(real_gdp_data, "Real GDP Year-over-Year Change", 'YoY')
+                if real_gdp_yoy_chart:
+                    st.plotly_chart(real_gdp_yoy_chart, use_container_width=True)
+            
+            with tab3:
+                # QoQ: compare to previous quarter
+                real_gdp_qoq_chart = create_gdp_change_chart(real_gdp_data, "Real GDP Quarter-over-Quarter Change", 'QoQ')
+                if real_gdp_qoq_chart:
+                    st.plotly_chart(real_gdp_qoq_chart, use_container_width=True)
 
 st.markdown("---")
 
