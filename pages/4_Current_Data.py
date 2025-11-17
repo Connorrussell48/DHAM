@@ -44,7 +44,7 @@ DARK_PURPLE    = "#3A2A6A"
 # FRED API Configuration
 # --------------------------------------------------------------------------------------
 # Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
-FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4"  # Replace with your actual API key
+FRED_API_KEY = "your_fred_api_key_here"  # Replace with your actual API key
 
 # --------------------------------------------------------------------------------------
 # Data Release Schedules (Approximate - these are typical release patterns)
@@ -440,6 +440,12 @@ else:
     # Fetch real data
     st.markdown("---")
     
+    # ============================================================================
+    # INFLATION METRICS
+    # ============================================================================
+    st.markdown("## Inflation Metrics")
+    st.markdown("---")
+    
     # CPI Section
     st.markdown("### Consumer Price Index (CPI)")
     
@@ -505,6 +511,17 @@ else:
                     ppi_mom_chart = create_change_chart(ppi_data, "PPI Month-over-Month Change", 'MoM')
                     if ppi_mom_chart:
                         st.plotly_chart(ppi_mom_chart, use_container_width=True)
+
+st.markdown("---")
+
+# ============================================================================
+# UNEMPLOYMENT METRICS
+# ============================================================================
+st.markdown("## Unemployment Metrics")
+st.markdown("---")
+
+# Placeholder for unemployment data
+st.info("Coming soon: Unemployment rate charts and labor market indicators")
 
 st.markdown("---")
 
