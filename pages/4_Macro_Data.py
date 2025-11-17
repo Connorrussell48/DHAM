@@ -45,7 +45,7 @@ DARK_PURPLE    = "#3A2A6A"
 # --------------------------------------------------------------------------------------
 # Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
 # IMPORTANT: API key must be exactly 32 characters, lowercase alphanumeric only
-FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4"  # Replace with your actual API key
+FRED_API_KEY = "your_fred_api_key_here"  # Replace with your actual API key
 
 # Validate API key format
 def validate_fred_api_key(key):
@@ -718,325 +718,325 @@ else:
                     if core_ppi_mom_chart:
                         st.plotly_chart(core_ppi_mom_chart, use_container_width=True)
 
-st.markdown("---")
+    st.markdown("---")
 
-# ============================================================================
-# UNEMPLOYMENT METRICS
-# ============================================================================
-st.markdown("## Unemployment Metrics")
-st.markdown("---")
+    # ============================================================================
+    # UNEMPLOYMENT METRICS
+    # ============================================================================
+    st.markdown("## Unemployment Metrics")
+    st.markdown("---")
 
-# Unemployment Rate Section
-st.markdown("### Unemployment Rate")
+    # Unemployment Rate Section
+    st.markdown("### Unemployment Rate")
 
-unrate_col1, unrate_col2 = st.columns([3, 1])
+    unrate_col1, unrate_col2 = st.columns([3, 1])
 
-with unrate_col2:
-    # Unemployment data is typically released first Friday of each month
-    now = datetime.now()
-    year = now.year
-    month = now.month
+    with unrate_col2:
+        # Unemployment data is typically released first Friday of each month
+        now = datetime.now()
+        year = now.year
+        month = now.month
     
-    # First Friday of next month
-    if now.day > 7:  # If past first week, show next month
-        if month == 12:
-            next_month = 1
-            next_year = year + 1
+        # First Friday of next month
+        if now.day > 7:  # If past first week, show next month
+            if month == 12:
+                next_month = 1
+                next_year = year + 1
+            else:
+                next_month = month + 1
+                next_year = year
         else:
-            next_month = month + 1
+            next_month = month
             next_year = year
-    else:
-        next_month = month
-        next_year = year
     
-    # Find first Friday
-    first_day = datetime(next_year, next_month, 1)
-    days_until_friday = (4 - first_day.weekday()) % 7
-    first_friday = first_day + timedelta(days=days_until_friday)
+        # Find first Friday
+        first_day = datetime(next_year, next_month, 1)
+        days_until_friday = (4 - first_day.weekday()) % 7
+        first_friday = first_day + timedelta(days=days_until_friday)
     
-    days_until = (first_friday - now).days
-    next_release_str = first_friday.strftime("%B %d, %Y")
+        days_until = (first_friday - now).days
+        next_release_str = first_friday.strftime("%B %d, %Y")
     
-    st.markdown(f"""
-    <div class="release-info">
-        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-with unrate_col1:
-    with st.spinner("Fetching Unemployment Rate from FRED..."):
-        unrate_data = fetch_fred_data("UNRATE", "UNRATE")
-        if not unrate_data.empty:
-            # Create tabs for Absolute, YoY, and MoM
-            tab1, tab2, tab3 = st.tabs(["Absolute Rate", "Year-over-Year %", "Month-over-Month %"])
+    with unrate_col1:
+        with st.spinner("Fetching Unemployment Rate from FRED..."):
+            unrate_data = fetch_fred_data("UNRATE", "UNRATE")
+            if not unrate_data.empty:
+                # Create tabs for Absolute, YoY, and MoM
+                tab1, tab2, tab3 = st.tabs(["Absolute Rate", "Year-over-Year %", "Month-over-Month %"])
             
-            with tab1:
-                unrate_chart = create_indicator_chart(unrate_data, "Unemployment Rate", ACCENT_PURPLE)
-                if unrate_chart:
-                    st.plotly_chart(unrate_chart, use_container_width=True)
+                with tab1:
+                    unrate_chart = create_indicator_chart(unrate_data, "Unemployment Rate", ACCENT_PURPLE)
+                    if unrate_chart:
+                        st.plotly_chart(unrate_chart, use_container_width=True)
             
-            with tab2:
-                unrate_yoy_chart = create_change_chart(unrate_data, "Unemployment Rate Year-over-Year Change", 'YoY')
-                if unrate_yoy_chart:
-                    st.plotly_chart(unrate_yoy_chart, use_container_width=True)
+                with tab2:
+                    unrate_yoy_chart = create_change_chart(unrate_data, "Unemployment Rate Year-over-Year Change", 'YoY')
+                    if unrate_yoy_chart:
+                        st.plotly_chart(unrate_yoy_chart, use_container_width=True)
             
-            with tab3:
-                unrate_mom_chart = create_change_chart(unrate_data, "Unemployment Rate Month-over-Month Change", 'MoM')
-                if unrate_mom_chart:
-                    st.plotly_chart(unrate_mom_chart, use_container_width=True)
+                with tab3:
+                    unrate_mom_chart = create_change_chart(unrate_data, "Unemployment Rate Month-over-Month Change", 'MoM')
+                    if unrate_mom_chart:
+                        st.plotly_chart(unrate_mom_chart, use_container_width=True)
 
-st.markdown("---")
+    st.markdown("---")
 
-# Nonfarm Payrolls Section
-st.markdown("### Nonfarm Payrolls")
+    # Nonfarm Payrolls Section
+    st.markdown("### Nonfarm Payrolls")
 
-payems_col1, payems_col2 = st.columns([3, 1])
+    payems_col1, payems_col2 = st.columns([3, 1])
 
-with payems_col2:
-    st.markdown(f"""
-    <div class="release-info">
-        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-    </div>
-    """, unsafe_allow_html=True)
+    with payems_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-with payems_col1:
-    with st.spinner("Fetching Nonfarm Payrolls from FRED..."):
-        payems_data = fetch_fred_data("PAYEMS", "PAYEMS")
-        if not payems_data.empty:
-            # Create tabs for Absolute, YoY, and MoM
-            tab1, tab2, tab3 = st.tabs(["Absolute Payrolls", "Year-over-Year %", "Month-over-Month %"])
+    with payems_col1:
+        with st.spinner("Fetching Nonfarm Payrolls from FRED..."):
+            payems_data = fetch_fred_data("PAYEMS", "PAYEMS")
+            if not payems_data.empty:
+                # Create tabs for Absolute, YoY, and MoM
+                tab1, tab2, tab3 = st.tabs(["Absolute Payrolls", "Year-over-Year %", "Month-over-Month %"])
             
-            with tab1:
-                payems_chart = create_indicator_chart(payems_data, "Nonfarm Payrolls (Thousands)", ACCENT_PURPLE)
-                if payems_chart:
-                    st.plotly_chart(payems_chart, use_container_width=True)
+                with tab1:
+                    payems_chart = create_indicator_chart(payems_data, "Nonfarm Payrolls (Thousands)", ACCENT_PURPLE)
+                    if payems_chart:
+                        st.plotly_chart(payems_chart, use_container_width=True)
             
-            with tab2:
-                payems_yoy_chart = create_change_chart(payems_data, "Nonfarm Payrolls Year-over-Year Change", 'YoY')
-                if payems_yoy_chart:
-                    st.plotly_chart(payems_yoy_chart, use_container_width=True)
+                with tab2:
+                    payems_yoy_chart = create_change_chart(payems_data, "Nonfarm Payrolls Year-over-Year Change", 'YoY')
+                    if payems_yoy_chart:
+                        st.plotly_chart(payems_yoy_chart, use_container_width=True)
             
-            with tab3:
-                payems_mom_chart = create_change_chart(payems_data, "Nonfarm Payrolls Month-over-Month Change", 'MoM')
-                if payems_mom_chart:
-                    st.plotly_chart(payems_mom_chart, use_container_width=True)
+                with tab3:
+                    payems_mom_chart = create_change_chart(payems_data, "Nonfarm Payrolls Month-over-Month Change", 'MoM')
+                    if payems_mom_chart:
+                        st.plotly_chart(payems_mom_chart, use_container_width=True)
 
-st.markdown("---")
+    st.markdown("---")
 
-# Initial Jobless Claims Section
-st.markdown("### Initial Jobless Claims")
+    # Initial Jobless Claims Section
+    st.markdown("### Initial Jobless Claims")
 
-icsa_col1, icsa_col2 = st.columns([3, 1])
+    icsa_col1, icsa_col2 = st.columns([3, 1])
 
-with icsa_col2:
-    # Initial Claims are released every Thursday for the prior week
-    now = datetime.now()
+    with icsa_col2:
+        # Initial Claims are released every Thursday for the prior week
+        now = datetime.now()
     
-    # Find next Thursday
-    days_until_thursday = (3 - now.weekday()) % 7
-    if days_until_thursday == 0 and now.hour >= 8:  # If it's Thursday after 8:30 AM ET
-        days_until_thursday = 7
+        # Find next Thursday
+        days_until_thursday = (3 - now.weekday()) % 7
+        if days_until_thursday == 0 and now.hour >= 8:  # If it's Thursday after 8:30 AM ET
+            days_until_thursday = 7
     
-    next_thursday = now + timedelta(days=days_until_thursday)
-    next_release_str = next_thursday.strftime("%B %d, %Y")
+        next_thursday = now + timedelta(days=days_until_thursday)
+        next_release_str = next_thursday.strftime("%B %d, %Y")
     
-    st.markdown(f"""
-    <div class="release-info">
-        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_thursday} days away</p>
-        <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released weekly on Thursdays</p>
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_thursday} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released weekly on Thursdays</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-with icsa_col1:
-    with st.spinner("Fetching Initial Jobless Claims from FRED..."):
-        icsa_data = fetch_fred_data("ICSA", "ICSA")
-        if not icsa_data.empty:
-            # Create tabs for Absolute, YoY, and MoM
-            tab1, tab2, tab3 = st.tabs(["Absolute Claims", "Year-over-Year %", "Week-over-Week %"])
+    with icsa_col1:
+        with st.spinner("Fetching Initial Jobless Claims from FRED..."):
+            icsa_data = fetch_fred_data("ICSA", "ICSA")
+            if not icsa_data.empty:
+                # Create tabs for Absolute, YoY, and MoM
+                tab1, tab2, tab3 = st.tabs(["Absolute Claims", "Year-over-Year %", "Week-over-Week %"])
             
-            with tab1:
-                icsa_chart = create_indicator_chart(icsa_data, "Initial Jobless Claims (Thousands)", ACCENT_PURPLE)
-                if icsa_chart:
-                    st.plotly_chart(icsa_chart, use_container_width=True)
+                with tab1:
+                    icsa_chart = create_indicator_chart(icsa_data, "Initial Jobless Claims (Thousands)", ACCENT_PURPLE)
+                    if icsa_chart:
+                        st.plotly_chart(icsa_chart, use_container_width=True)
             
-            with tab2:
-                icsa_yoy_chart = create_change_chart(icsa_data, "Initial Jobless Claims Year-over-Year Change", 'YoY')
-                if icsa_yoy_chart:
-                    st.plotly_chart(icsa_yoy_chart, use_container_width=True)
+                with tab2:
+                    icsa_yoy_chart = create_change_chart(icsa_data, "Initial Jobless Claims Year-over-Year Change", 'YoY')
+                    if icsa_yoy_chart:
+                        st.plotly_chart(icsa_yoy_chart, use_container_width=True)
             
-            with tab3:
-                icsa_wow_chart = create_change_chart(icsa_data, "Initial Jobless Claims Week-over-Week Change", 'MoM')
-                if icsa_wow_chart:
-                    st.plotly_chart(icsa_wow_chart, use_container_width=True)
+                with tab3:
+                    icsa_wow_chart = create_change_chart(icsa_data, "Initial Jobless Claims Week-over-Week Change", 'MoM')
+                    if icsa_wow_chart:
+                        st.plotly_chart(icsa_wow_chart, use_container_width=True)
 
-st.markdown("---")
+    st.markdown("---")
 
-# Labor Force Participation Rate Section
-st.markdown("### Labor Force Participation Rate")
+    # Labor Force Participation Rate Section
+    st.markdown("### Labor Force Participation Rate")
 
-lfpr_col1, lfpr_col2 = st.columns([3, 1])
+    lfpr_col1, lfpr_col2 = st.columns([3, 1])
 
-with lfpr_col2:
-    st.markdown(f"""
-    <div class="release-info">
-        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-    </div>
-    """, unsafe_allow_html=True)
+    with lfpr_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-with lfpr_col1:
-    with st.spinner("Fetching Labor Force Participation Rate from FRED..."):
-        lfpr_data = fetch_fred_data("CIVPART", "LFPR")
-        if not lfpr_data.empty:
-            # Create tabs for Absolute, YoY, and MoM
-            tab1, tab2, tab3 = st.tabs(["Absolute Rate", "Year-over-Year %", "Month-over-Month %"])
+    with lfpr_col1:
+        with st.spinner("Fetching Labor Force Participation Rate from FRED..."):
+            lfpr_data = fetch_fred_data("CIVPART", "LFPR")
+            if not lfpr_data.empty:
+                # Create tabs for Absolute, YoY, and MoM
+                tab1, tab2, tab3 = st.tabs(["Absolute Rate", "Year-over-Year %", "Month-over-Month %"])
             
-            with tab1:
-                lfpr_chart = create_indicator_chart(lfpr_data, "Labor Force Participation Rate", ACCENT_PURPLE)
-                if lfpr_chart:
-                    st.plotly_chart(lfpr_chart, use_container_width=True)
+                with tab1:
+                    lfpr_chart = create_indicator_chart(lfpr_data, "Labor Force Participation Rate", ACCENT_PURPLE)
+                    if lfpr_chart:
+                        st.plotly_chart(lfpr_chart, use_container_width=True)
             
-            with tab2:
-                lfpr_yoy_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Year-over-Year Change", 'YoY')
-                if lfpr_yoy_chart:
-                    st.plotly_chart(lfpr_yoy_chart, use_container_width=True)
+                with tab2:
+                    lfpr_yoy_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Year-over-Year Change", 'YoY')
+                    if lfpr_yoy_chart:
+                        st.plotly_chart(lfpr_yoy_chart, use_container_width=True)
             
-            with tab3:
-                lfpr_mom_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Month-over-Month Change", 'MoM')
-                if lfpr_mom_chart:
-                    st.plotly_chart(lfpr_mom_chart, use_container_width=True)
+                with tab3:
+                    lfpr_mom_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Month-over-Month Change", 'MoM')
+                    if lfpr_mom_chart:
+                        st.plotly_chart(lfpr_mom_chart, use_container_width=True)
 
-st.markdown("---")
+    st.markdown("---")
 
-# ============================================================================
-# GDP METRICS
-# ============================================================================
-st.markdown("## GDP Metrics")
-st.markdown("---")
+    # ============================================================================
+    # GDP METRICS
+    # ============================================================================
+    st.markdown("## GDP Metrics")
+    st.markdown("---")
 
-# Gross GDP Section
-st.markdown("### Gross Domestic Product (GDP)")
+    # Gross GDP Section
+    st.markdown("### Gross Domestic Product (GDP)")
 
-gdp_col1, gdp_col2 = st.columns([3, 1])
+    gdp_col1, gdp_col2 = st.columns([3, 1])
 
-with gdp_col2:
-    # GDP is released quarterly, typically around the end of the month following the quarter
-    now = datetime.now()
-    year = now.year
-    month = now.month
+    with gdp_col2:
+        # GDP is released quarterly, typically around the end of the month following the quarter
+        now = datetime.now()
+        year = now.year
+        month = now.month
     
-    # Determine which quarter we're in and next release
-    current_quarter = (month - 1) // 3 + 1
+        # Determine which quarter we're in and next release
+        current_quarter = (month - 1) // 3 + 1
     
-    # GDP releases are approximately: Jan 26 (Q4), Apr 25 (Q1), Jul 25 (Q2), Oct 24 (Q3)
-    release_months = [1, 4, 7, 10]  # January, April, July, October
-    release_day = 25
+        # GDP releases are approximately: Jan 26 (Q4), Apr 25 (Q1), Jul 25 (Q2), Oct 24 (Q3)
+        release_months = [1, 4, 7, 10]  # January, April, July, October
+        release_day = 25
     
-    # Find next release
-    next_release_month = None
-    for rm in release_months:
-        if month < rm or (month == rm and now.day < release_day):
-            next_release_month = rm
-            next_release_year = year
-            break
+        # Find next release
+        next_release_month = None
+        for rm in release_months:
+            if month < rm or (month == rm and now.day < release_day):
+                next_release_month = rm
+                next_release_year = year
+                break
     
-    if next_release_month is None:
-        next_release_month = release_months[0]
-        next_release_year = year + 1
+        if next_release_month is None:
+            next_release_month = release_months[0]
+            next_release_year = year + 1
     
-    next_gdp_release = datetime(next_release_year, next_release_month, release_day)
-    days_until_gdp = (next_gdp_release - now).days
-    next_gdp_release_str = next_gdp_release.strftime("%B %d, %Y")
+        next_gdp_release = datetime(next_release_year, next_release_month, release_day)
+        days_until_gdp = (next_gdp_release - now).days
+        next_gdp_release_str = next_gdp_release.strftime("%B %d, %Y")
     
-    st.markdown(f"""
-    <div class="release-info">
-        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_gdp_release_str}</strong></p>
-        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_gdp} days away</p>
-        <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_gdp_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_gdp} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-with gdp_col1:
-    with st.spinner("Fetching Gross GDP data from FRED..."):
-        gdp_data = fetch_fred_data("GDP", "GDP")
-        if not gdp_data.empty:
-            # Create tabs for Absolute, YoY, QoQ, and MoM
-            tab1, tab2, tab3 = st.tabs(["Absolute GDP", "Year-over-Year %", "Quarter-over-Quarter %"])
+    with gdp_col1:
+        with st.spinner("Fetching Gross GDP data from FRED..."):
+            gdp_data = fetch_fred_data("GDP", "GDP")
+            if not gdp_data.empty:
+                # Create tabs for Absolute, YoY, QoQ, and MoM
+                tab1, tab2, tab3 = st.tabs(["Absolute GDP", "Year-over-Year %", "Quarter-over-Quarter %"])
             
-            with tab1:
-                gdp_chart = create_indicator_chart(gdp_data, "Gross Domestic Product (Billions)", ACCENT_PURPLE)
-                if gdp_chart:
-                    st.plotly_chart(gdp_chart, use_container_width=True)
+                with tab1:
+                    gdp_chart = create_indicator_chart(gdp_data, "Gross Domestic Product (Billions)", ACCENT_PURPLE)
+                    if gdp_chart:
+                        st.plotly_chart(gdp_chart, use_container_width=True)
             
-            with tab2:
-                # YoY: compare to 4 quarters ago
-                gdp_yoy_chart = create_gdp_change_chart(gdp_data, "Gross GDP Year-over-Year Change", 'YoY')
-                if gdp_yoy_chart:
-                    st.plotly_chart(gdp_yoy_chart, use_container_width=True)
+                with tab2:
+                    # YoY: compare to 4 quarters ago
+                    gdp_yoy_chart = create_gdp_change_chart(gdp_data, "Gross GDP Year-over-Year Change", 'YoY')
+                    if gdp_yoy_chart:
+                        st.plotly_chart(gdp_yoy_chart, use_container_width=True)
             
-            with tab3:
-                # QoQ: compare to previous quarter
-                gdp_qoq_chart = create_gdp_change_chart(gdp_data, "Gross GDP Quarter-over-Quarter Change", 'QoQ')
-                if gdp_qoq_chart:
-                    st.plotly_chart(gdp_qoq_chart, use_container_width=True)
+                with tab3:
+                    # QoQ: compare to previous quarter
+                    gdp_qoq_chart = create_gdp_change_chart(gdp_data, "Gross GDP Quarter-over-Quarter Change", 'QoQ')
+                    if gdp_qoq_chart:
+                        st.plotly_chart(gdp_qoq_chart, use_container_width=True)
 
-st.markdown("---")
+    st.markdown("---")
 
-# Real GDP Section
-st.markdown("### Real Gross Domestic Product (Real GDP)")
+    # Real GDP Section
+    st.markdown("### Real Gross Domestic Product (Real GDP)")
 
-real_gdp_col1, real_gdp_col2 = st.columns([3, 1])
+    real_gdp_col1, real_gdp_col2 = st.columns([3, 1])
 
-with real_gdp_col2:
-    st.markdown(f"""
-    <div class="release-info">
-        <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-        <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_gdp_release_str}</strong></p>
-        <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_gdp} days away</p>
-        <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-    </div>
-    """, unsafe_allow_html=True)
+    with real_gdp_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_gdp_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_gdp} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-with real_gdp_col1:
-    with st.spinner("Fetching Real GDP data from FRED..."):
-        real_gdp_data = fetch_fred_data("GDPC1", "Real GDP")
-        if not real_gdp_data.empty:
-            # Create tabs for Absolute, YoY, QoQ
-            tab1, tab2, tab3 = st.tabs(["Absolute Real GDP", "Year-over-Year %", "Quarter-over-Quarter %"])
+    with real_gdp_col1:
+        with st.spinner("Fetching Real GDP data from FRED..."):
+            real_gdp_data = fetch_fred_data("GDPC1", "Real GDP")
+            if not real_gdp_data.empty:
+                # Create tabs for Absolute, YoY, QoQ
+                tab1, tab2, tab3 = st.tabs(["Absolute Real GDP", "Year-over-Year %", "Quarter-over-Quarter %"])
             
-            with tab1:
-                real_gdp_chart = create_indicator_chart(real_gdp_data, "Real Gross Domestic Product (Billions, Chained 2017 Dollars)", ACCENT_PURPLE)
-                if real_gdp_chart:
-                    st.plotly_chart(real_gdp_chart, use_container_width=True)
+                with tab1:
+                    real_gdp_chart = create_indicator_chart(real_gdp_data, "Real Gross Domestic Product (Billions, Chained 2017 Dollars)", ACCENT_PURPLE)
+                    if real_gdp_chart:
+                        st.plotly_chart(real_gdp_chart, use_container_width=True)
             
-            with tab2:
-                # YoY: compare to 4 quarters ago
-                real_gdp_yoy_chart = create_gdp_change_chart(real_gdp_data, "Real GDP Year-over-Year Change", 'YoY')
-                if real_gdp_yoy_chart:
-                    st.plotly_chart(real_gdp_yoy_chart, use_container_width=True)
+                with tab2:
+                    # YoY: compare to 4 quarters ago
+                    real_gdp_yoy_chart = create_gdp_change_chart(real_gdp_data, "Real GDP Year-over-Year Change", 'YoY')
+                    if real_gdp_yoy_chart:
+                        st.plotly_chart(real_gdp_yoy_chart, use_container_width=True)
             
-            with tab3:
-                # QoQ: compare to previous quarter
-                real_gdp_qoq_chart = create_gdp_change_chart(real_gdp_data, "Real GDP Quarter-over-Quarter Change", 'QoQ')
-                if real_gdp_qoq_chart:
-                    st.plotly_chart(real_gdp_qoq_chart, use_container_width=True)
+                with tab3:
+                    # QoQ: compare to previous quarter
+                    real_gdp_qoq_chart = create_gdp_change_chart(real_gdp_data, "Real GDP Quarter-over-Quarter Change", 'QoQ')
+                    if real_gdp_qoq_chart:
+                        st.plotly_chart(real_gdp_qoq_chart, use_container_width=True)
 
-st.markdown("---")
+    st.markdown("---")
 
-# Additional metrics
-st.markdown("### Additional Economic Indicators")
-st.info("Coming soon: PCE, Unemployment Rate, GDP, and more economic indicators")
+    # Additional metrics
+    st.markdown("### Additional Economic Indicators")
+    st.info("Coming soon: PCE, Unemployment Rate, GDP, and more economic indicators")
 
-st.markdown("---")
+    st.markdown("---")
 
-# Back to home button
-if st.button("← Back to Home", use_container_width=True):
-    st.switch_page("Home.py")
+    # Back to home button
+    if st.button("← Back to Home", use_container_width=True):
+        st.switch_page("Home.py")
