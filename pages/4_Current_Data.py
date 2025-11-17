@@ -44,7 +44,7 @@ DARK_PURPLE    = "#3A2A6A"
 # FRED API Configuration
 # --------------------------------------------------------------------------------------
 # Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
-FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4"  # Replace with your actual API key
+FRED_API_KEY = "your_fred_api_key_here"  # Replace with your actual API key
 
 # --------------------------------------------------------------------------------------
 # Data Release Schedules (Approximate - these are typical release patterns)
@@ -149,7 +149,7 @@ def create_indicator_chart(df, title, color):
     
     return fig
 
-def create_change_chart(df, title, color, change_type='YoY'):
+def create_change_chart(df, title, change_type='YoY'):
     """Create a chart showing YoY or MoM percentage changes."""
     if df.empty:
         return None
@@ -168,16 +168,14 @@ def create_change_chart(df, title, color, change_type='YoY'):
     five_years_ago = datetime.now() - timedelta(days=5*365)
     pct_filtered = pct_change[pct_change.index >= five_years_ago]
     
-    # Create colors based on positive/negative values
-    colors = [ACCENT_GREEN if val > 0 else '#D9534F' for val in pct_filtered.iloc[:, 0]]
-    
+    # Use purple color for all bars
     fig = go.Figure()
     
     fig.add_trace(go.Bar(
         x=pct_filtered.index,
         y=pct_filtered.iloc[:, 0],
         name=title,
-        marker=dict(color=colors),
+        marker=dict(color=ACCENT_PURPLE),
     ))
     
     # Add zero line
@@ -196,6 +194,7 @@ def create_change_chart(df, title, color, change_type='YoY'):
             gridcolor=NEUTRAL_GRAY,
             color=BLOOM_TEXT,
             showgrid=True,
+            ticksuffix="%",
         ),
         plot_bgcolor=BLOOM_PANEL,
         paper_bgcolor=BLOOM_BG,
@@ -458,36 +457,18 @@ else:
         with st.spinner("Fetching CPI data from FRED..."):
             cpi_data = fetch_fred_data("CPIAUCSL", "CPI")
             if not cpi_data.empty:
-                # Create tabs for different views
-                tab1, tab2, tab3 = st.tabs(["📈 Index Level", "📊 Year-over-Year %", "📉 Month-over-Month %"])
+                # Create tabs for YoY and MoM only
+                tab1, tab2 = st.tabs(["📊 Year-over-Year %", "📉 Month-over-Month %"])
                 
                 with tab1:
-                    cpi_chart = create_indicator_chart(cpi_data, "Consumer Price Index - All Urban Consumers", ACCENT_GREEN)
-                    if cpi_chart:
-                        st.plotly_chart(cpi_chart, use_container_width=True)
-                
-                with tab2:
-                    cpi_yoy_chart = create_change_chart(cpi_data, "CPI Year-over-Year Change", ACCENT_GREEN, 'YoY')
+                    cpi_yoy_chart = create_change_chart(cpi_data, "CPI Year-over-Year Change", 'YoY')
                     if cpi_yoy_chart:
                         st.plotly_chart(cpi_yoy_chart, use_container_width=True)
                 
-                with tab3:
-                    cpi_mom_chart = create_change_chart(cpi_data, "CPI Month-over-Month Change", ACCENT_GREEN, 'MoM')
+                with tab2:
+                    cpi_mom_chart = create_change_chart(cpi_data, "CPI Month-over-Month Change", 'MoM')
                     if cpi_mom_chart:
                         st.plotly_chart(cpi_mom_chart, use_container_width=True)
-                
-                # Show latest values
-                latest_cpi = cpi_data.iloc[-1, 0]
-                latest_date = cpi_data.index[-1].strftime("%B %Y")
-                prev_cpi = cpi_data.iloc[-2, 0]
-                yoy_change = ((latest_cpi - cpi_data.iloc[-13, 0]) / cpi_data.iloc[-13, 0]) * 100
-                mom_change = ((latest_cpi - prev_cpi) / prev_cpi) * 100
-                
-                st.markdown(f"""
-                **Latest Value ({latest_date}):** {latest_cpi:.2f}  
-                **Month-over-Month:** {mom_change:+.2f}%  
-                **Year-over-Year:** {yoy_change:+.2f}%
-                """)
     
     st.markdown("---")
     
@@ -510,36 +491,18 @@ else:
         with st.spinner("Fetching PPI data from FRED..."):
             ppi_data = fetch_fred_data("PPIACO", "PPI")
             if not ppi_data.empty:
-                # Create tabs for different views
-                tab1, tab2, tab3 = st.tabs(["📈 Index Level", "📊 Year-over-Year %", "📉 Month-over-Month %"])
+                # Create tabs for YoY and MoM only
+                tab1, tab2 = st.tabs(["📊 Year-over-Year %", "📉 Month-over-Month %"])
                 
                 with tab1:
-                    ppi_chart = create_indicator_chart(ppi_data, "Producer Price Index - All Commodities", ACCENT_BLUE)
-                    if ppi_chart:
-                        st.plotly_chart(ppi_chart, use_container_width=True)
-                
-                with tab2:
-                    ppi_yoy_chart = create_change_chart(ppi_data, "PPI Year-over-Year Change", ACCENT_BLUE, 'YoY')
+                    ppi_yoy_chart = create_change_chart(ppi_data, "PPI Year-over-Year Change", 'YoY')
                     if ppi_yoy_chart:
                         st.plotly_chart(ppi_yoy_chart, use_container_width=True)
                 
-                with tab3:
-                    ppi_mom_chart = create_change_chart(ppi_data, "PPI Month-over-Month Change", ACCENT_BLUE, 'MoM')
+                with tab2:
+                    ppi_mom_chart = create_change_chart(ppi_data, "PPI Month-over-Month Change", 'MoM')
                     if ppi_mom_chart:
                         st.plotly_chart(ppi_mom_chart, use_container_width=True)
-                
-                # Show latest values
-                latest_ppi = ppi_data.iloc[-1, 0]
-                latest_date = ppi_data.index[-1].strftime("%B %Y")
-                prev_ppi = ppi_data.iloc[-2, 0]
-                yoy_change = ((latest_ppi - ppi_data.iloc[-13, 0]) / ppi_data.iloc[-13, 0]) * 100
-                mom_change = ((latest_ppi - prev_ppi) / prev_ppi) * 100
-                
-                st.markdown(f"""
-                **Latest Value ({latest_date}):** {latest_ppi:.2f}  
-                **Month-over-Month:** {mom_change:+.2f}%  
-                **Year-over-Year:** {yoy_change:+.2f}%
-                """)
 
 st.markdown("---")
 
