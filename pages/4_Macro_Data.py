@@ -1,4 +1,4 @@
-# 3_Current_Data.py - Current Market Data Dashboard
+# 4_Macro_Data.py - Macro Data Dashboard
 from __future__ import annotations
 import streamlit as st
 import pandas as pd
@@ -44,7 +44,21 @@ DARK_PURPLE    = "#3A2A6A"
 # FRED API Configuration
 # --------------------------------------------------------------------------------------
 # Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
-FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4"  # Replace with your actual API key
+# IMPORTANT: API key must be exactly 32 characters, lowercase alphanumeric only
+FRED_API_KEY = "your_fred_api_key_here"  # Replace with your actual API key
+
+# Validate API key format
+def validate_fred_api_key(key):
+    """Validate that FRED API key is in correct format."""
+    if key == "your_fred_api_key_here":
+        return False, "API key not configured"
+    if len(key) != 32:
+        return False, f"API key must be exactly 32 characters (yours is {len(key)})"
+    if not key.islower():
+        return False, "API key must be all lowercase"
+    if not key.isalnum():
+        return False, "API key must be alphanumeric only (no spaces or special characters)"
+    return True, "Valid"
 
 # --------------------------------------------------------------------------------------
 # Data Release Schedules (Approximate - these are typical release patterns)
@@ -447,7 +461,9 @@ with st.sidebar:
 st.markdown("### Key Economic Indicators")
 st.caption("Data from Federal Reserve Economic Data (FRED) - Updated monthly")
 
-# Check if API key is configured
+# Check if API key is configured and valid
+api_key_valid, api_key_message = validate_fred_api_key(FRED_API_KEY)
+
 if not FRED_AVAILABLE:
     st.error("""
     ❌ **FRED API Library Not Installed**
@@ -492,6 +508,31 @@ if not FRED_AVAILABLE:
         """, unsafe_allow_html=True)
         st.info("Install fredapi library to view actual PPI data")
         st.markdown('</div>', unsafe_allow_html=True)
+
+elif not api_key_valid:
+    st.error(f"""
+    ❌ **FRED API Key Issue: {api_key_message}**
+    
+    Your FRED API key must be:
+    - Exactly 32 characters long
+    - All lowercase letters and numbers only
+    - No spaces or special characters
+    
+    **How to fix:**
+    1. Go to https://fred.stlouisfed.org/docs/api/api_key.html
+    2. Sign up or log in to get your API key
+    3. Copy your API key exactly as shown (it should be 32 characters)
+    4. In the code, replace line 52:
+       ```python
+       FRED_API_KEY = "paste_your_32_character_key_here"
+       ```
+    
+    **Example of correct format:**
+    ```python
+    FRED_API_KEY = "abcd1234efgh5678ijkl9012mnop3456"
+    ```
+    (must be lowercase alphanumeric, exactly 32 characters)
+    """)
 
 elif FRED_API_KEY == "your_fred_api_key_here":
     st.warning("""
