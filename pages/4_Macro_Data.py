@@ -471,6 +471,7 @@ with st.sidebar:
                 <li><strong>Core CPI</strong> - CPI excluding food and energy</li>
                 <li><strong>PPI</strong> - Producer Price Index for All Commodities</li>
                 <li><strong>Core PPI</strong> - PPI excluding food and energy</li>
+                <li><strong>Core PCE</strong> - Fed's preferred inflation measure</li>
             </ul>
             <p style="margin-top: 15px;"><strong>Employment Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
@@ -485,6 +486,7 @@ with st.sidebar:
                 <li><strong>Real PCE</strong> - Real Personal Consumption Expenditures</li>
                 <li><strong>PCE: Goods vs Services</strong> - Breakdown by category</li>
                 <li><strong>Real Retail Sales</strong> - Consumer retail spending</li>
+                <li><strong>Personal Saving Rate</strong> - Household savings as % of income</li>
             </ul>
             <p style="margin-top: 15px;"><strong>GDP Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
@@ -759,6 +761,41 @@ else:
                     core_ppi_mom_chart = create_change_chart(core_ppi_data, "Core PPI Month-over-Month Change", 'MoM')
                     if core_ppi_mom_chart:
                         st.plotly_chart(core_ppi_mom_chart, use_container_width=True)
+
+    st.markdown("---")
+    
+    # Core PCE Inflation Rate Section
+    st.markdown("### Core PCE Inflation Rate")
+    
+    core_pce_col1, core_pce_col2 = st.columns([3, 1])
+    
+    with core_pce_col2:
+        # PCE inflation is released monthly, similar timing to CPI
+        next_date, days = get_next_release_date("CPI")
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with core_pce_col1:
+        with st.spinner("Fetching Core PCE Inflation data from FRED..."):
+            core_pce_data = fetch_fred_data("PCEPILFE", "Core PCE")
+            if not core_pce_data.empty:
+                # Create tabs for YoY and MoM only
+                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
+                
+                with tab1:
+                    core_pce_yoy_chart = create_change_chart(core_pce_data, "Core PCE Inflation Year-over-Year Change", 'YoY')
+                    if core_pce_yoy_chart:
+                        st.plotly_chart(core_pce_yoy_chart, use_container_width=True)
+                
+                with tab2:
+                    core_pce_mom_chart = create_change_chart(core_pce_data, "Core PCE Inflation Month-over-Month Change", 'MoM')
+                    if core_pce_mom_chart:
+                        st.plotly_chart(core_pce_mom_chart, use_container_width=True)
 
     st.markdown("---")
 
@@ -1220,6 +1257,47 @@ else:
                         st.plotly_chart(retail_yoy_chart, use_container_width=True)
             else:
                 st.warning("No Real Retail Sales data available")
+
+    st.markdown("---")
+
+    # Personal Saving Rate Section
+    st.markdown("### Personal Saving Rate")
+
+    saving_col1, saving_col2 = st.columns([3, 1])
+
+    with saving_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_pce_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with saving_col1:
+        with st.spinner("Fetching Personal Saving Rate from FRED..."):
+            saving_data = fetch_fred_data("PSAVERT", "Personal Saving Rate")
+            if not saving_data.empty:
+                # Create tabs for Absolute Rate, MoM, and YoY
+                tab1, tab2, tab3 = st.tabs(["Saving Rate", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    saving_chart = create_indicator_chart(saving_data, "Personal Saving Rate (%)", ACCENT_PURPLE)
+                    if saving_chart:
+                        st.plotly_chart(saving_chart, use_container_width=True)
+                
+                with tab2:
+                    saving_mom_chart = create_change_chart(saving_data, "Personal Saving Rate Month-over-Month Change", 'MoM')
+                    if saving_mom_chart:
+                        st.plotly_chart(saving_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    saving_yoy_chart = create_change_chart(saving_data, "Personal Saving Rate Year-over-Year Change", 'YoY')
+                    if saving_yoy_chart:
+                        st.plotly_chart(saving_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Personal Saving Rate data available")
 
     st.markdown("---")
 
