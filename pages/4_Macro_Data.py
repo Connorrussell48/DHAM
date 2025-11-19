@@ -45,11 +45,12 @@ DARK_PURPLE    = "#3A2A6A"
 # --------------------------------------------------------------------------------------
 # Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
 # IMPORTANT: API key must be exactly 32 characters, lowercase alphanumeric only
-FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4"  # Replace with your actual API key
+FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4".strip()  # Replace with your actual API key
 
 # Validate API key format
 def validate_fred_api_key(key):
     """Validate that FRED API key is in correct format."""
+    key = key.strip()  # Remove any whitespace
     if key == "your_fred_api_key_here":
         return False, "API key not configured"
     if len(key) != 32:
@@ -105,18 +106,37 @@ def get_next_release_date(indicator_name):
 # Data Fetching Functions
 # --------------------------------------------------------------------------------------
 @st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_fred_data(series_id, series_name):
     """Fetch data from FRED API."""
     if not FRED_AVAILABLE:
         return pd.DataFrame()
     
     try:
-        fred = Fred(api_key=FRED_API_KEY)
+        # Debug info (shows first/last 4 chars and length, not the full key)
+        key_length = len(FRED_API_KEY)
+        has_uppercase = any(c.isupper() for c in FRED_API_KEY)
+        has_special = not FRED_API_KEY.isalnum()
+        
+        if key_length != 32:
+            st.error(f"❌ API key is {key_length} characters (needs to be exactly 32)")
+            return pd.DataFrame()
+        if has_uppercase:
+            st.error(f"❌ API key contains uppercase letters (must be all lowercase)")
+            return pd.DataFrame()
+        if has_special:
+            st.error(f"❌ API key contains special characters or spaces (must be alphanumeric only)")
+            return pd.DataFrame()
+        
+        # Create a new Fred instance for each call to avoid session issues
+        fred = Fred(api_key=FRED_API_KEY.strip())
         data = fred.get_series(series_id)
         df = pd.DataFrame({series_name: data})
         return df
     except Exception as e:
-        st.error(f"Error fetching {series_name} data: {str(e)}")
+        error_msg = str(e)
+        # Only show the error once per series
+        st.error(f"Error fetching {series_name} data: {error_msg}")
         return pd.DataFrame()
 
 def create_indicator_chart(df, title, color):
@@ -131,8 +151,10 @@ def create_indicator_chart(df, title, color):
     fig = go.Figure()
     
     # Check if this is data in thousands or billions (not percentages)
-    is_thousands = "Claims" in title or "ICSA" in title or "Payrolls" in title or "PAYEMS" in title
+    is_thousands = ("Claims" in title or "ICSA" in title or "Payrolls" in title or "PAYEMS" in title or 
+                    "Job Openings" in title or "Layoffs" in title)
     is_billions = "GDP" in title or "Billions" in title
+    is_rate = "Rate" in title and "Unemployment Rate" not in title  # JOLTS rates are actual percentages, not like unemployment rate
     
     if is_billions:
         hover_template = '%{x|%Y-Q%q}<br>$%{y:,.1f}B<extra></extra>'
@@ -142,6 +164,10 @@ def create_indicator_chart(df, title, color):
         hover_template = '%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>'
         tick_format = ",.0f"
         y_title = "Thousands"
+    elif is_rate:
+        hover_template = '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>'
+        tick_format = ".2f"
+        y_title = "Rate (%)"
     else:
         hover_template = '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>'
         tick_format = ".2f"
@@ -442,6 +468,7 @@ with st.sidebar:
                 <li><strong>Unemployment Rate</strong> - Official unemployment rate</li>
                 <li><strong>Nonfarm Payrolls</strong> - Total employed workers (headline jobs number)</li>
                 <li><strong>Initial Claims</strong> - Weekly jobless claims (leading indicator)</li>
+                <li><strong>JOLTS</strong> - Job openings, quits, hires, and layoffs</li>
                 <li><strong>LFPR</strong> - Labor Force Participation Rate</li>
             </ul>
             <p style="margin-top: 15px;"><strong>GDP Indicators:</strong></p>
@@ -874,6 +901,95 @@ else:
                     icsa_wow_chart = create_change_chart(icsa_data, "Initial Jobless Claims Week-over-Week Change", 'MoM')
                     if icsa_wow_chart:
                         st.plotly_chart(icsa_wow_chart, use_container_width=True)
+
+    st.markdown("---")
+
+    # Job Openings (JOLTS) Section
+    st.markdown("### Job Openings and Labor Turnover Survey (JOLTS)")
+
+    jolts_col1, jolts_col2 = st.columns([3, 1])
+
+    with jolts_col2:
+        # JOLTS data is released monthly, typically around the first Tuesday
+        now = datetime.now()
+        year = now.year
+        month = now.month
+        
+        # JOLTS is released on the first Tuesday, approximately 30 days after the reference month
+        # Typically released around the 1st-10th of each month
+        if now.day > 10:  # If past first 10 days, show next month
+            if month == 12:
+                next_month = 1
+                next_year = year + 1
+            else:
+                next_month = month + 1
+                next_year = year
+        else:
+            next_month = month
+            next_year = year
+        
+        # Estimate first Tuesday of the month
+        first_day = datetime(next_year, next_month, 1)
+        # Find first Tuesday (Tuesday = 1)
+        days_until_tuesday = (1 - first_day.weekday()) % 7
+        if days_until_tuesday == 0:
+            days_until_tuesday = 7
+        first_tuesday = first_day + timedelta(days=days_until_tuesday)
+        
+        days_until = (first_tuesday - now).days
+        next_jolts_release_str = first_tuesday.strftime("%B %d, %Y")
+        
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_jolts_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with jolts_col1:
+        with st.spinner("Fetching JOLTS data from FRED..."):
+            # Fetch all JOLTS data
+            jolts_data = fetch_fred_data("JTSJOL", "Job Openings")
+            quits_data = fetch_fred_data("JTSQUR", "Quits Rate")
+            hires_data = fetch_fred_data("JTSHIR", "Hires Rate")
+            layoffs_data = fetch_fred_data("JTSLDL", "Layoffs & Discharges")
+            
+            # Create tabs for each metric
+            tab1, tab2, tab3, tab4 = st.tabs(["Job Openings", "Quits Rate", "Hires Rate", "Layoffs & Discharges"])
+            
+            with tab1:
+                if not jolts_data.empty:
+                    jolts_chart = create_indicator_chart(jolts_data, "Job Openings (Thousands)", ACCENT_PURPLE)
+                    if jolts_chart:
+                        st.plotly_chart(jolts_chart, use_container_width=True)
+                else:
+                    st.warning("No Job Openings data available")
+            
+            with tab2:
+                if not quits_data.empty:
+                    quits_chart = create_indicator_chart(quits_data, "Quits Rate (%)", ACCENT_PURPLE)
+                    if quits_chart:
+                        st.plotly_chart(quits_chart, use_container_width=True)
+                else:
+                    st.warning("No Quits Rate data available")
+            
+            with tab3:
+                if not hires_data.empty:
+                    hires_chart = create_indicator_chart(hires_data, "Hires Rate (%)", ACCENT_PURPLE)
+                    if hires_chart:
+                        st.plotly_chart(hires_chart, use_container_width=True)
+                else:
+                    st.warning("No Hires Rate data available")
+            
+            with tab4:
+                if not layoffs_data.empty:
+                    layoffs_chart = create_indicator_chart(layoffs_data, "Layoffs & Discharges (Thousands)", ACCENT_PURPLE)
+                    if layoffs_chart:
+                        st.plotly_chart(layoffs_chart, use_container_width=True)
+                else:
+                    st.warning("No Layoffs & Discharges data available")
 
     st.markdown("---")
 
