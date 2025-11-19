@@ -805,7 +805,7 @@ if 'heatmap_last_update' not in st.session_state:
 
 with col_update:
     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)  # Spacer for alignment
-    update_clicked = st.button("🔄 Update Heatmap", type="secondary", use_container_width=True,
+    update_clicked = st.button("Update Heatmap", type="primary", use_container_width=True,
                                 help="Fetch the latest return data")
 
 with col_status:
