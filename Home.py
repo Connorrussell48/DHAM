@@ -801,6 +801,7 @@ with col_period:
 # Initialize session state for heatmap updates
 if 'heatmap_last_update' not in st.session_state:
     st.session_state.heatmap_last_update = datetime.now()
+    st.session_state.heatmap_update_count = 0
 
 with col_update:
     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)  # Spacer for alignment
