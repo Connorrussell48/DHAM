@@ -150,16 +150,25 @@ def create_indicator_chart(df, title, color):
     
     fig = go.Figure()
     
-    # Check if this is data in thousands or billions (not percentages)
+    # Check if this is data in thousands, millions, or billions (not percentages)
     is_thousands = ("Claims" in title or "ICSA" in title or "Payrolls" in title or "PAYEMS" in title or 
                     "Job Openings" in title or "Layoffs" in title)
-    is_billions = "GDP" in title or "Billions" in title or "PCE" in title or "Personal Consumption" in title
+    is_millions = "Millions" in title or "Retail Sales" in title
+    is_billions = "GDP" in title or "Billions" in title or ("PCE" in title and "Retail" not in title) or "Personal Consumption" in title
+    is_gdp = "GDP" in title  # GDP is quarterly
     is_rate = "Rate" in title and "Unemployment Rate" not in title  # JOLTS rates are actual percentages, not like unemployment rate
     
     if is_billions:
-        hover_template = '%{x|%Y-Q%q}<br>$%{y:,.1f}B<extra></extra>'
+        if is_gdp:
+            hover_template = '%{x|%Y-Q%q}<br>$%{y:,.1f}B<extra></extra>'
+        else:
+            hover_template = '%{x|%Y-%m}<br>$%{y:,.1f}B<extra></extra>'
         tick_format = ",.0f"
         y_title = "Billions of Dollars"
+    elif is_millions:
+        hover_template = '%{x|%Y-%m}<br>$%{y:,.0f}M<extra></extra>'
+        tick_format = ",.0f"
+        y_title = "Millions of Dollars"
     elif is_thousands:
         hover_template = '%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>'
         tick_format = ",.0f"
@@ -197,7 +206,7 @@ def create_indicator_chart(df, title, color):
             gridcolor=NEUTRAL_GRAY,
             color=BLOOM_TEXT,
             showgrid=True,
-            ticksuffix="" if (is_thousands or is_billions) else "%",
+            ticksuffix="" if (is_thousands or is_billions or is_millions) else "%",
             tickformat=tick_format,
         ),
         plot_bgcolor=BLOOM_PANEL,
@@ -474,7 +483,8 @@ with st.sidebar:
             <p style="margin-top: 15px;"><strong>Consumption Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
                 <li><strong>Real PCE</strong> - Real Personal Consumption Expenditures</li>
-                <li><strong>PCE Breakdown</strong> - Goods, Durables, Nondurables, Services</li>
+                <li><strong>PCE: Goods vs Services</strong> - Breakdown by category</li>
+                <li><strong>Real Retail Sales</strong> - Consumer retail spending</li>
             </ul>
             <p style="margin-top: 15px;"><strong>GDP Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
@@ -1129,14 +1139,12 @@ else:
 
     with pce_breakdown_col1:
         with st.spinner("Fetching Real PCE breakdown data from FRED..."):
-            # Fetch all PCE breakdown data
+            # Fetch PCE breakdown data
             goods_data = fetch_fred_data("PCDG", "Goods")
-            durables_data = fetch_fred_data("PCDG03", "Durables")
-            nondurables_data = fetch_fred_data("PCND", "Nondurables")
             services_data = fetch_fred_data("PCES", "Services")
             
-            # Create tabs for each category
-            tab1, tab2, tab3, tab4 = st.tabs(["Goods", "Durables", "Nondurables", "Services"])
+            # Create tabs for Goods and Services only
+            tab1, tab2 = st.tabs(["Goods", "Services"])
             
             with tab1:
                 if not goods_data.empty:
@@ -1156,40 +1164,6 @@ else:
                     st.warning("No Goods data available")
             
             with tab2:
-                if not durables_data.empty:
-                    # Create sub-tabs for YoY and MoM
-                    durables_tab1, durables_tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                    
-                    with durables_tab1:
-                        durables_yoy_chart = create_change_chart(durables_data, "Real PCE Durables Year-over-Year Change", 'YoY')
-                        if durables_yoy_chart:
-                            st.plotly_chart(durables_yoy_chart, use_container_width=True)
-                    
-                    with durables_tab2:
-                        durables_mom_chart = create_change_chart(durables_data, "Real PCE Durables Month-over-Month Change", 'MoM')
-                        if durables_mom_chart:
-                            st.plotly_chart(durables_mom_chart, use_container_width=True)
-                else:
-                    st.warning("No Durables data available")
-            
-            with tab3:
-                if not nondurables_data.empty:
-                    # Create sub-tabs for YoY and MoM
-                    nondurables_tab1, nondurables_tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                    
-                    with nondurables_tab1:
-                        nondurables_yoy_chart = create_change_chart(nondurables_data, "Real PCE Nondurables Year-over-Year Change", 'YoY')
-                        if nondurables_yoy_chart:
-                            st.plotly_chart(nondurables_yoy_chart, use_container_width=True)
-                    
-                    with nondurables_tab2:
-                        nondurables_mom_chart = create_change_chart(nondurables_data, "Real PCE Nondurables Month-over-Month Change", 'MoM')
-                        if nondurables_mom_chart:
-                            st.plotly_chart(nondurables_mom_chart, use_container_width=True)
-                else:
-                    st.warning("No Nondurables data available")
-            
-            with tab4:
                 if not services_data.empty:
                     # Create sub-tabs for YoY and MoM
                     services_tab1, services_tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
@@ -1205,6 +1179,47 @@ else:
                             st.plotly_chart(services_mom_chart, use_container_width=True)
                 else:
                     st.warning("No Services data available")
+
+    st.markdown("---")
+
+    # Real Retail Sales Section
+    st.markdown("### Real Retail Sales")
+
+    retail_col1, retail_col2 = st.columns([3, 1])
+
+    with retail_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_pce_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with retail_col1:
+        with st.spinner("Fetching Real Retail Sales data from FRED..."):
+            retail_data = fetch_fred_data("RSAFS", "Real Retail Sales")
+            if not retail_data.empty:
+                # Create tabs for Absolute, MoM, and YoY
+                tab1, tab2, tab3 = st.tabs(["Absolute Sales", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    retail_chart = create_indicator_chart(retail_data, "Real Retail Sales (Millions, Chained 2017 Dollars)", ACCENT_PURPLE)
+                    if retail_chart:
+                        st.plotly_chart(retail_chart, use_container_width=True)
+                
+                with tab2:
+                    retail_mom_chart = create_change_chart(retail_data, "Real Retail Sales Month-over-Month Change", 'MoM')
+                    if retail_mom_chart:
+                        st.plotly_chart(retail_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    retail_yoy_chart = create_change_chart(retail_data, "Real Retail Sales Year-over-Year Change", 'YoY')
+                    if retail_yoy_chart:
+                        st.plotly_chart(retail_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Real Retail Sales data available")
 
     st.markdown("---")
 
