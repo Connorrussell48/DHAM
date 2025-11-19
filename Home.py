@@ -153,13 +153,14 @@ def get_metric_styles(change_pct):
         icon = '•'
     return f"var({color_token})", icon, f"var({color_token})"
 
-@st.cache_data(ttl='1h', show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)  # 5 minute cache instead of 1 hour
 def fetch_ticker_data(tickers):
     """Fetches the last 15 months of adjusted close prices for tickers."""
     tickers = list(set(tickers)) 
     if not tickers:
         return pd.DataFrame()
-    data = yf.download(tickers, period="15mo", interval="1d", progress=False, auto_adjust=True)
+    # Fetch data with auto_adjust=True to get the most current prices
+    data = yf.download(tickers, period="15mo", interval="1d", progress=False, auto_adjust=True, threads=True)
     if data.empty:
         return pd.DataFrame()
     return data['Close']
@@ -786,36 +787,59 @@ st.markdown("---")
 # --------------------------------------------------------------------------------------
 st.markdown("### Market Return Heatmap")
 
-return_period = st.selectbox(
-    "Select Return Period", 
-    options=['1D', '7D', '30D', 'YTD', '1Y'], 
-    index=0, 
-    key='return_period_toggle'
-)
+# Create columns for the selector and update button
+col_period, col_update, col_status = st.columns([2, 1, 2])
+
+with col_period:
+    return_period = st.selectbox(
+        "Select Return Period", 
+        options=['1D', '7D', '30D', 'YTD', '1Y'], 
+        index=0, 
+        key='return_period_toggle'
+    )
 
 # Initialize session state for heatmap updates
 if 'heatmap_last_update' not in st.session_state:
-    st.session_state.heatmap_last_update = time.time()
+    st.session_state.heatmap_last_update = datetime.now()
+
+with col_update:
+    st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)  # Spacer for alignment
+    update_clicked = st.button("🔄 Update Heatmap", type="secondary", use_container_width=True,
+                                help="Fetch the latest return data")
+
+with col_status:
+    time_since_update = datetime.now() - st.session_state.heatmap_last_update
+    minutes_ago = int(time_since_update.total_seconds() / 60)
+    if minutes_ago < 1:
+        time_str = "just now"
+    elif minutes_ago == 1:
+        time_str = "1 minute ago"
+    elif minutes_ago < 60:
+        time_str = f"{minutes_ago} minutes ago"
+    else:
+        hours_ago = minutes_ago // 60
+        time_str = f"{hours_ago} hour{'s' if hours_ago > 1 else ''} ago"
+    
+    st.markdown(f"""
+        <div style="font-size: .85rem; color: var(--muted-text-new); margin-top: 10px;">
+            Last Updated: {time_str}
+        </div>
+    """, unsafe_allow_html=True)
+
+# Handle update button click
+if update_clicked:
+    st.session_state.heatmap_last_update = datetime.now()
+    # Clear heatmap-related caches
+    fetch_ticker_data.clear()
+    generate_heatmap_data.clear()
+    st.success("Heatmap data refreshed!")
+    st.rerun()
 
 # Create empty container for heatmap
 heatmap_container = st.empty()
 
 # Initial render
 render_heatmap_in_container(heatmap_container, return_period)
-
-# Auto-update heatmap every 1 hour during market hours
-if is_open:
-    current_time = time.time()
-    time_since_heatmap_update = current_time - st.session_state.heatmap_last_update
-    
-    # Update every hour (3600 seconds)
-    if time_since_heatmap_update >= 3600:
-        st.session_state.heatmap_last_update = current_time
-        # Clear heatmap-related caches
-        fetch_ticker_data.clear()
-        generate_heatmap_data.clear()
-        # Re-render with fresh data
-        render_heatmap_in_container(heatmap_container, return_period)
 
 st.markdown("---")
 
