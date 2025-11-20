@@ -152,13 +152,14 @@ def create_indicator_chart(df, title, color):
     
     # Check if this is data in thousands, millions, or billions (not percentages)
     is_thousands = ("Claims" in title or "ICSA" in title or "Payrolls" in title or "PAYEMS" in title or 
-                    "Job Openings" in title or "Layoffs" in title)
-    is_millions = "Millions" in title or "Retail Sales" in title
+                    "Job Openings" in title or "Layoffs" in title or "Housing Starts" in title or 
+                    "Building Permits" in title or "Existing Home Sales" in title)
+    is_millions = "Millions" in title or ("Retail Sales" in title and "Existing" not in title) or "Construction Spending" in title
     is_billions = "GDP" in title or "Billions" in title or ("PCE" in title and "Retail" not in title) or "Personal Consumption" in title
     is_gdp = "GDP" in title  # GDP is quarterly
-    is_rate = "Rate" in title and "Unemployment Rate" not in title  # JOLTS rates are actual percentages, not like unemployment rate
+    is_rate = ("Rate" in title and "Unemployment Rate" not in title and "Saving Rate" not in title) or "Mortgage" in title  # JOLTS rates and mortgage rates
     is_index = ("Index" in title or "PMI" in title or "Sentiment" in title or "Optimism" in title or 
-                "Expectations" in title or "Outlook" in title)  # Sentiment indices
+                "Expectations" in title or "Outlook" in title) and "Price Index" not in title  # Sentiment indices but not price indices
     
     if is_billions:
         if is_gdp:
@@ -501,6 +502,15 @@ with st.sidebar:
                 <li><strong>NFIB Small Business</strong> - Small business optimism</li>
                 <li><strong>ISM Manufacturing PMI</strong> - Manufacturing sector health</li>
                 <li><strong>Philly Fed Outlook</strong> - Regional manufacturing outlook</li>
+            </ul>
+            <p style="margin-top: 15px;"><strong>Real Estate Indicators:</strong></p>
+            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
+                <li><strong>Housing Starts</strong> - New residential construction</li>
+                <li><strong>Building Permits</strong> - Future construction indicator</li>
+                <li><strong>Case-Shiller Index</strong> - National home prices</li>
+                <li><strong>Existing Home Sales</strong> - Home sales volume</li>
+                <li><strong>Residential Construction</strong> - Construction spending</li>
+                <li><strong>30-Year Mortgage Rate</strong> - Borrowing costs</li>
             </ul>
             <p style="margin-top: 15px;"><strong>GDP Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
@@ -1539,6 +1549,273 @@ else:
                         st.plotly_chart(philly_yoy_chart, use_container_width=True)
             else:
                 st.warning("No Philadelphia Fed Business Outlook data available")
+
+    st.markdown("---")
+
+    # ============================================================================
+    # REAL ESTATE METRICS
+    # ============================================================================
+    st.markdown("## <u>Real Estate Metrics</u>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    # Housing Starts Section
+    st.markdown("### Housing Starts")
+
+    starts_col1, starts_col2 = st.columns([3, 1])
+
+    with starts_col2:
+        # Housing data is released monthly, typically mid-month
+        now = datetime.now()
+        year = now.year
+        month = now.month
+        
+        # Estimate mid-month release (around 17th)
+        if now.day > 17:
+            if month == 12:
+                next_month = 1
+                next_year = year + 1
+            else:
+                next_month = month + 1
+                next_year = year
+        else:
+            next_month = month
+            next_year = year
+        
+        next_housing_release = datetime(next_year, next_month, 17)
+        days_until_housing = (next_housing_release - now).days
+        next_housing_release_str = next_housing_release.strftime("%B %d, %Y")
+        
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with starts_col1:
+        with st.spinner("Fetching Housing Starts from FRED..."):
+            starts_data = fetch_fred_data("HOUST", "Housing Starts")
+            if not starts_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Housing Starts", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    starts_chart = create_indicator_chart(starts_data, "Housing Starts (Thousands of Units)", ACCENT_PURPLE)
+                    if starts_chart:
+                        st.plotly_chart(starts_chart, use_container_width=True)
+                
+                with tab2:
+                    starts_mom_chart = create_change_chart(starts_data, "Housing Starts Month-over-Month Change", 'MoM')
+                    if starts_mom_chart:
+                        st.plotly_chart(starts_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    starts_yoy_chart = create_change_chart(starts_data, "Housing Starts Year-over-Year Change", 'YoY')
+                    if starts_yoy_chart:
+                        st.plotly_chart(starts_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Housing Starts data available")
+
+    st.markdown("---")
+
+    # Building Permits Section
+    st.markdown("### Building Permits")
+
+    permits_col1, permits_col2 = st.columns([3, 1])
+
+    with permits_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with permits_col1:
+        with st.spinner("Fetching Building Permits from FRED..."):
+            permits_data = fetch_fred_data("PERMIT", "Building Permits")
+            if not permits_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Building Permits", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    permits_chart = create_indicator_chart(permits_data, "Building Permits (Thousands of Units)", ACCENT_PURPLE)
+                    if permits_chart:
+                        st.plotly_chart(permits_chart, use_container_width=True)
+                
+                with tab2:
+                    permits_mom_chart = create_change_chart(permits_data, "Building Permits Month-over-Month Change", 'MoM')
+                    if permits_mom_chart:
+                        st.plotly_chart(permits_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    permits_yoy_chart = create_change_chart(permits_data, "Building Permits Year-over-Year Change", 'YoY')
+                    if permits_yoy_chart:
+                        st.plotly_chart(permits_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Building Permits data available")
+
+    st.markdown("---")
+
+    # Case-Shiller Home Price Index Section
+    st.markdown("### S&P/Case-Shiller U.S. National Home Price Index")
+
+    homeprice_col1, homeprice_col2 = st.columns([3, 1])
+
+    with homeprice_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with homeprice_col1:
+        with st.spinner("Fetching Case-Shiller Home Price Index from FRED..."):
+            homeprice_data = fetch_fred_data("CSUSHPINSA", "Home Price Index")
+            if not homeprice_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Home Price Index", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    homeprice_chart = create_indicator_chart(homeprice_data, "S&P/Case-Shiller Home Price Index", ACCENT_PURPLE)
+                    if homeprice_chart:
+                        st.plotly_chart(homeprice_chart, use_container_width=True)
+                
+                with tab2:
+                    homeprice_mom_chart = create_change_chart(homeprice_data, "Home Price Index Month-over-Month Change", 'MoM')
+                    if homeprice_mom_chart:
+                        st.plotly_chart(homeprice_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    homeprice_yoy_chart = create_change_chart(homeprice_data, "Home Price Index Year-over-Year Change", 'YoY')
+                    if homeprice_yoy_chart:
+                        st.plotly_chart(homeprice_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Home Price Index data available")
+
+    st.markdown("---")
+
+    # Existing Home Sales Section
+    st.markdown("### Existing Home Sales")
+
+    existingsales_col1, existingsales_col2 = st.columns([3, 1])
+
+    with existingsales_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with existingsales_col1:
+        with st.spinner("Fetching Existing Home Sales from FRED..."):
+            existingsales_data = fetch_fred_data("EXHOSLUSM495S", "Existing Home Sales")
+            if not existingsales_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Existing Sales", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    existingsales_chart = create_indicator_chart(existingsales_data, "Existing Home Sales (Thousands of Units)", ACCENT_PURPLE)
+                    if existingsales_chart:
+                        st.plotly_chart(existingsales_chart, use_container_width=True)
+                
+                with tab2:
+                    existingsales_mom_chart = create_change_chart(existingsales_data, "Existing Home Sales Month-over-Month Change", 'MoM')
+                    if existingsales_mom_chart:
+                        st.plotly_chart(existingsales_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    existingsales_yoy_chart = create_change_chart(existingsales_data, "Existing Home Sales Year-over-Year Change", 'YoY')
+                    if existingsales_yoy_chart:
+                        st.plotly_chart(existingsales_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Existing Home Sales data available")
+
+    st.markdown("---")
+
+    # Residential Construction Spending Section
+    st.markdown("### Residential Construction Spending")
+
+    rescon_col1, rescon_col2 = st.columns([3, 1])
+
+    with rescon_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with rescon_col1:
+        with st.spinner("Fetching Residential Construction Spending from FRED..."):
+            rescon_data = fetch_fred_data("PRRESCON", "Residential Construction")
+            if not rescon_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Construction Spending", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    rescon_chart = create_indicator_chart(rescon_data, "Residential Construction Spending (Millions of Dollars)", ACCENT_PURPLE)
+                    if rescon_chart:
+                        st.plotly_chart(rescon_chart, use_container_width=True)
+                
+                with tab2:
+                    rescon_mom_chart = create_change_chart(rescon_data, "Residential Construction Month-over-Month Change", 'MoM')
+                    if rescon_mom_chart:
+                        st.plotly_chart(rescon_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    rescon_yoy_chart = create_change_chart(rescon_data, "Residential Construction Year-over-Year Change", 'YoY')
+                    if rescon_yoy_chart:
+                        st.plotly_chart(rescon_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Residential Construction Spending data available")
+
+    st.markdown("---")
+
+    # 30-Year Mortgage Rate Section
+    st.markdown("### 30-Year Fixed Mortgage Rate")
+
+    mortgage_col1, mortgage_col2 = st.columns([3, 1])
+
+    with mortgage_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released weekly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with mortgage_col1:
+        with st.spinner("Fetching 30-Year Mortgage Rate from FRED..."):
+            mortgage_data = fetch_fred_data("MORTGAGE30US", "Mortgage Rate")
+            if not mortgage_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Mortgage Rate", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    mortgage_chart = create_indicator_chart(mortgage_data, "30-Year Fixed Mortgage Rate (%)", ACCENT_PURPLE)
+                    if mortgage_chart:
+                        st.plotly_chart(mortgage_chart, use_container_width=True)
+                
+                with tab2:
+                    mortgage_mom_chart = create_change_chart(mortgage_data, "Mortgage Rate Month-over-Month Change", 'MoM')
+                    if mortgage_mom_chart:
+                        st.plotly_chart(mortgage_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    mortgage_yoy_chart = create_change_chart(mortgage_data, "Mortgage Rate Year-over-Year Change", 'YoY')
+                    if mortgage_yoy_chart:
+                        st.plotly_chart(mortgage_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No 30-Year Mortgage Rate data available")
 
     st.markdown("---")
 
