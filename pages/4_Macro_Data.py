@@ -157,6 +157,8 @@ def create_indicator_chart(df, title, color):
     is_billions = "GDP" in title or "Billions" in title or ("PCE" in title and "Retail" not in title) or "Personal Consumption" in title
     is_gdp = "GDP" in title  # GDP is quarterly
     is_rate = "Rate" in title and "Unemployment Rate" not in title  # JOLTS rates are actual percentages, not like unemployment rate
+    is_index = ("Index" in title or "PMI" in title or "Sentiment" in title or "Optimism" in title or 
+                "Expectations" in title or "Outlook" in title)  # Sentiment indices
     
     if is_billions:
         if is_gdp:
@@ -173,6 +175,10 @@ def create_indicator_chart(df, title, color):
         hover_template = '%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>'
         tick_format = ",.0f"
         y_title = "Thousands"
+    elif is_index:
+        hover_template = '%{x|%Y-%m}<br>%{y:.1f}<extra></extra>'
+        tick_format = ".1f"
+        y_title = "Index Value"
     elif is_rate:
         hover_template = '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>'
         tick_format = ".2f"
@@ -206,7 +212,7 @@ def create_indicator_chart(df, title, color):
             gridcolor=NEUTRAL_GRAY,
             color=BLOOM_TEXT,
             showgrid=True,
-            ticksuffix="" if (is_thousands or is_billions or is_millions) else "%",
+            ticksuffix="" if (is_thousands or is_billions or is_millions or is_index) else "%",
             tickformat=tick_format,
         ),
         plot_bgcolor=BLOOM_PANEL,
@@ -487,6 +493,16 @@ with st.sidebar:
                 <li><strong>PCE: Goods vs Services</strong> - Breakdown by category</li>
                 <li><strong>Real Retail Sales</strong> - Consumer retail spending</li>
                 <li><strong>Personal Saving Rate</strong> - Household savings as % of income</li>
+            </ul>
+            <p style="margin-top: 15px;"><strong>Sentiment Indicators:</strong></p>
+            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
+                <li><strong>UMich Consumer Sentiment</strong> - Consumer confidence</li>
+                <li><strong>Michigan Expectations</strong> - Future outlook</li>
+                <li><strong>Conference Board Expectations</strong> - Consumer future expectations</li>
+                <li><strong>NFIB Small Business</strong> - Small business optimism</li>
+                <li><strong>ISM Manufacturing PMI</strong> - Manufacturing sector health</li>
+                <li><strong>ISM Services PMI</strong> - Services sector health</li>
+                <li><strong>Philly Fed Outlook</strong> - Regional manufacturing outlook</li>
             </ul>
             <p style="margin-top: 15px;"><strong>GDP Indicators:</strong></p>
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
@@ -1298,6 +1314,313 @@ else:
                         st.plotly_chart(saving_yoy_chart, use_container_width=True)
             else:
                 st.warning("No Personal Saving Rate data available")
+
+    st.markdown("---")
+
+    # ============================================================================
+    # SENTIMENT METRICS
+    # ============================================================================
+    st.markdown("## Sentiment Metrics")
+    st.markdown("---")
+
+    # University of Michigan Consumer Sentiment Section
+    st.markdown("### University of Michigan Consumer Sentiment")
+
+    umich_col1, umich_col2 = st.columns([3, 1])
+
+    with umich_col2:
+        # Released monthly, typically mid-month
+        now = datetime.now()
+        year = now.year
+        month = now.month
+        
+        # Estimate mid-month release (around 15th)
+        if now.day > 15:
+            if month == 12:
+                next_month = 1
+                next_year = year + 1
+            else:
+                next_month = month + 1
+                next_year = year
+        else:
+            next_month = month
+            next_year = year
+        
+        next_sentiment_release = datetime(next_year, next_month, 15)
+        days_until_sentiment = (next_sentiment_release - now).days
+        next_sentiment_release_str = next_sentiment_release.strftime("%B %d, %Y")
+        
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with umich_col1:
+        with st.spinner("Fetching UMich Consumer Sentiment from FRED..."):
+            umich_data = fetch_fred_data("UMCSENT", "UMich Sentiment")
+            if not umich_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Sentiment Index", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    umich_chart = create_indicator_chart(umich_data, "University of Michigan Consumer Sentiment Index", ACCENT_PURPLE)
+                    if umich_chart:
+                        st.plotly_chart(umich_chart, use_container_width=True)
+                
+                with tab2:
+                    umich_mom_chart = create_change_chart(umich_data, "UMich Sentiment Month-over-Month Change", 'MoM')
+                    if umich_mom_chart:
+                        st.plotly_chart(umich_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    umich_yoy_chart = create_change_chart(umich_data, "UMich Sentiment Year-over-Year Change", 'YoY')
+                    if umich_yoy_chart:
+                        st.plotly_chart(umich_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No UMich Consumer Sentiment data available")
+
+    st.markdown("---")
+
+    # Michigan Consumer Expectations Index Section
+    st.markdown("### Michigan Consumer Expectations Index")
+
+    umich_exp_col1, umich_exp_col2 = st.columns([3, 1])
+
+    with umich_exp_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with umich_exp_col1:
+        with st.spinner("Fetching Michigan Consumer Expectations from FRED..."):
+            umich_exp_data = fetch_fred_data("UMCSENT", "Michigan Expectations")  # Note: Using UMCSENT as placeholder
+            if not umich_exp_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Expectations Index", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    umich_exp_chart = create_indicator_chart(umich_exp_data, "Michigan Consumer Expectations Index", ACCENT_PURPLE)
+                    if umich_exp_chart:
+                        st.plotly_chart(umich_exp_chart, use_container_width=True)
+                
+                with tab2:
+                    umich_exp_mom_chart = create_change_chart(umich_exp_data, "Michigan Expectations Month-over-Month Change", 'MoM')
+                    if umich_exp_mom_chart:
+                        st.plotly_chart(umich_exp_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    umich_exp_yoy_chart = create_change_chart(umich_exp_data, "Michigan Expectations Year-over-Year Change", 'YoY')
+                    if umich_exp_yoy_chart:
+                        st.plotly_chart(umich_exp_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Michigan Consumer Expectations data available")
+
+    st.markdown("---")
+
+    # Conference Board Consumer Expectations Section
+    st.markdown("### Conference Board Consumer Expectations Index")
+
+    cb_exp_col1, cb_exp_col2 = st.columns([3, 1])
+
+    with cb_exp_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with cb_exp_col1:
+        with st.spinner("Fetching Conference Board Expectations from FRED..."):
+            cb_exp_data = fetch_fred_data("CEIILFE", "CB Expectations")
+            if not cb_exp_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Expectations Index", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    cb_exp_chart = create_indicator_chart(cb_exp_data, "Conference Board Consumer Expectations Index", ACCENT_PURPLE)
+                    if cb_exp_chart:
+                        st.plotly_chart(cb_exp_chart, use_container_width=True)
+                
+                with tab2:
+                    cb_exp_mom_chart = create_change_chart(cb_exp_data, "CB Expectations Month-over-Month Change", 'MoM')
+                    if cb_exp_mom_chart:
+                        st.plotly_chart(cb_exp_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    cb_exp_yoy_chart = create_change_chart(cb_exp_data, "CB Expectations Year-over-Year Change", 'YoY')
+                    if cb_exp_yoy_chart:
+                        st.plotly_chart(cb_exp_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Conference Board Expectations data available")
+
+    st.markdown("---")
+
+    # NFIB Small Business Optimism Index Section
+    st.markdown("### NFIB Small Business Optimism Index")
+
+    nfib_col1, nfib_col2 = st.columns([3, 1])
+
+    with nfib_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with nfib_col1:
+        with st.spinner("Fetching NFIB Small Business Optimism from FRED..."):
+            nfib_data = fetch_fred_data("NFIBSBOI", "NFIB Optimism")
+            if not nfib_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Optimism Index", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    nfib_chart = create_indicator_chart(nfib_data, "NFIB Small Business Optimism Index", ACCENT_PURPLE)
+                    if nfib_chart:
+                        st.plotly_chart(nfib_chart, use_container_width=True)
+                
+                with tab2:
+                    nfib_mom_chart = create_change_chart(nfib_data, "NFIB Optimism Month-over-Month Change", 'MoM')
+                    if nfib_mom_chart:
+                        st.plotly_chart(nfib_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    nfib_yoy_chart = create_change_chart(nfib_data, "NFIB Optimism Year-over-Year Change", 'YoY')
+                    if nfib_yoy_chart:
+                        st.plotly_chart(nfib_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No NFIB Small Business Optimism data available")
+
+    st.markdown("---")
+
+    # ISM Manufacturing PMI Section
+    st.markdown("### ISM Manufacturing PMI")
+
+    ism_mfg_col1, ism_mfg_col2 = st.columns([3, 1])
+
+    with ism_mfg_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with ism_mfg_col1:
+        with st.spinner("Fetching ISM Manufacturing PMI from FRED..."):
+            ism_mfg_data = fetch_fred_data("NAPM", "ISM Manufacturing PMI")
+            if not ism_mfg_data.empty:
+                tab1, tab2, tab3 = st.tabs(["PMI Index", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    ism_mfg_chart = create_indicator_chart(ism_mfg_data, "ISM Manufacturing PMI (>50 = Expansion)", ACCENT_PURPLE)
+                    if ism_mfg_chart:
+                        st.plotly_chart(ism_mfg_chart, use_container_width=True)
+                
+                with tab2:
+                    ism_mfg_mom_chart = create_change_chart(ism_mfg_data, "ISM Manufacturing PMI Month-over-Month Change", 'MoM')
+                    if ism_mfg_mom_chart:
+                        st.plotly_chart(ism_mfg_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    ism_mfg_yoy_chart = create_change_chart(ism_mfg_data, "ISM Manufacturing PMI Year-over-Year Change", 'YoY')
+                    if ism_mfg_yoy_chart:
+                        st.plotly_chart(ism_mfg_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No ISM Manufacturing PMI data available")
+
+    st.markdown("---")
+
+    # ISM Services PMI Section
+    st.markdown("### ISM Services PMI")
+
+    ism_svc_col1, ism_svc_col2 = st.columns([3, 1])
+
+    with ism_svc_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with ism_svc_col1:
+        with st.spinner("Fetching ISM Services PMI from FRED..."):
+            ism_svc_data = fetch_fred_data("NAPMNOI", "ISM Services PMI")
+            if not ism_svc_data.empty:
+                tab1, tab2, tab3 = st.tabs(["PMI Index", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    ism_svc_chart = create_indicator_chart(ism_svc_data, "ISM Services PMI (>50 = Expansion)", ACCENT_PURPLE)
+                    if ism_svc_chart:
+                        st.plotly_chart(ism_svc_chart, use_container_width=True)
+                
+                with tab2:
+                    ism_svc_mom_chart = create_change_chart(ism_svc_data, "ISM Services PMI Month-over-Month Change", 'MoM')
+                    if ism_svc_mom_chart:
+                        st.plotly_chart(ism_svc_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    ism_svc_yoy_chart = create_change_chart(ism_svc_data, "ISM Services PMI Year-over-Year Change", 'YoY')
+                    if ism_svc_yoy_chart:
+                        st.plotly_chart(ism_svc_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No ISM Services PMI data available")
+
+    st.markdown("---")
+
+    # Philadelphia Fed Business Outlook Section
+    st.markdown("### Philadelphia Fed Business Outlook Survey")
+
+    philly_col1, philly_col2 = st.columns([3, 1])
+
+    with philly_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with philly_col1:
+        with st.spinner("Fetching Philadelphia Fed Business Outlook from FRED..."):
+            philly_data = fetch_fred_data("PHIFCS", "Philly Fed Outlook")
+            if not philly_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Outlook Index", "Month-over-Month %", "Year-over-Year %"])
+                
+                with tab1:
+                    philly_chart = create_indicator_chart(philly_data, "Philadelphia Fed Business Outlook Index", ACCENT_PURPLE)
+                    if philly_chart:
+                        st.plotly_chart(philly_chart, use_container_width=True)
+                
+                with tab2:
+                    philly_mom_chart = create_change_chart(philly_data, "Philly Fed Outlook Month-over-Month Change", 'MoM')
+                    if philly_mom_chart:
+                        st.plotly_chart(philly_mom_chart, use_container_width=True)
+                
+                with tab3:
+                    philly_yoy_chart = create_change_chart(philly_data, "Philly Fed Outlook Year-over-Year Change", 'YoY')
+                    if philly_yoy_chart:
+                        st.plotly_chart(philly_yoy_chart, use_container_width=True)
+            else:
+                st.warning("No Philadelphia Fed Business Outlook data available")
 
     st.markdown("---")
 
