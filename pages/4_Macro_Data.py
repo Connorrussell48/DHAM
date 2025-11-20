@@ -498,10 +498,8 @@ with st.sidebar:
             <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
                 <li><strong>UMich Consumer Sentiment</strong> - Consumer confidence</li>
                 <li><strong>Michigan Expectations</strong> - Future outlook</li>
-                <li><strong>Conference Board Expectations</strong> - Consumer future expectations</li>
                 <li><strong>NFIB Small Business</strong> - Small business optimism</li>
                 <li><strong>ISM Manufacturing PMI</strong> - Manufacturing sector health</li>
-                <li><strong>ISM Services PMI</strong> - Services sector health</li>
                 <li><strong>Philly Fed Outlook</strong> - Regional manufacturing outlook</li>
             </ul>
             <p style="margin-top: 15px;"><strong>GDP Indicators:</strong></p>
@@ -641,7 +639,7 @@ else:
     # ============================================================================
     # INFLATION METRICS
     # ============================================================================
-    st.markdown("## Inflation Metrics")
+    st.markdown("## <u>Inflation Metrics</u>", unsafe_allow_html=True)
     st.markdown("---")
     
     # CPI Section
@@ -818,7 +816,7 @@ else:
     # ============================================================================
     # UNEMPLOYMENT METRICS
     # ============================================================================
-    st.markdown("## Unemployment Metrics")
+    st.markdown("## <u>Unemployment Metrics</u>", unsafe_allow_html=True)
     st.markdown("---")
 
     # Unemployment Rate Section
@@ -1102,7 +1100,7 @@ else:
     # ============================================================================
     # CONSUMPTION METRICS
     # ============================================================================
-    st.markdown("## Consumption Metrics")
+    st.markdown("## <u>Consumption Metrics</u>", unsafe_allow_html=True)
     st.markdown("---")
 
     # Real Personal Consumption Expenditures Section
@@ -1320,7 +1318,7 @@ else:
     # ============================================================================
     # SENTIMENT METRICS
     # ============================================================================
-    st.markdown("## Sentiment Metrics")
+    st.markdown("## <u>Sentiment Metrics</u>", unsafe_allow_html=True)
     st.markdown("---")
 
     # University of Michigan Consumer Sentiment Section
@@ -1424,46 +1422,6 @@ else:
 
     st.markdown("---")
 
-    # Conference Board Consumer Expectations Section
-    st.markdown("### Conference Board Consumer Expectations Index")
-
-    cb_exp_col1, cb_exp_col2 = st.columns([3, 1])
-
-    with cb_exp_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with cb_exp_col1:
-        with st.spinner("Fetching Conference Board Expectations from FRED..."):
-            cb_exp_data = fetch_fred_data("CECILFE", "CB Expectations")
-            if not cb_exp_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Expectations Index", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    cb_exp_chart = create_indicator_chart(cb_exp_data, "Conference Board Consumer Expectations Index", ACCENT_PURPLE)
-                    if cb_exp_chart:
-                        st.plotly_chart(cb_exp_chart, use_container_width=True)
-                
-                with tab2:
-                    cb_exp_mom_chart = create_change_chart(cb_exp_data, "CB Expectations Month-over-Month Change", 'MoM')
-                    if cb_exp_mom_chart:
-                        st.plotly_chart(cb_exp_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    cb_exp_yoy_chart = create_change_chart(cb_exp_data, "CB Expectations Year-over-Year Change", 'YoY')
-                    if cb_exp_yoy_chart:
-                        st.plotly_chart(cb_exp_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Conference Board Expectations data available")
-
-    st.markdown("---")
-
     # NFIB Small Business Optimism Index Section
     st.markdown("### NFIB Small Business Optimism Index")
 
@@ -1544,46 +1502,6 @@ else:
 
     st.markdown("---")
 
-    # ISM Services PMI Section
-    st.markdown("### ISM Services PMI")
-
-    ism_svc_col1, ism_svc_col2 = st.columns([3, 1])
-
-    with ism_svc_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with ism_svc_col1:
-        with st.spinner("Fetching ISM Services PMI from FRED..."):
-            ism_svc_data = fetch_fred_data("NMFCI", "ISM Services PMI")
-            if not ism_svc_data.empty:
-                tab1, tab2, tab3 = st.tabs(["PMI Index", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    ism_svc_chart = create_indicator_chart(ism_svc_data, "ISM Services PMI (>50 = Expansion)", ACCENT_PURPLE)
-                    if ism_svc_chart:
-                        st.plotly_chart(ism_svc_chart, use_container_width=True)
-                
-                with tab2:
-                    ism_svc_mom_chart = create_change_chart(ism_svc_data, "ISM Services PMI Month-over-Month Change", 'MoM')
-                    if ism_svc_mom_chart:
-                        st.plotly_chart(ism_svc_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    ism_svc_yoy_chart = create_change_chart(ism_svc_data, "ISM Services PMI Year-over-Year Change", 'YoY')
-                    if ism_svc_yoy_chart:
-                        st.plotly_chart(ism_svc_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No ISM Services PMI data available")
-
-    st.markdown("---")
-
     # Philadelphia Fed Business Outlook Section
     st.markdown("### Philadelphia Fed Business Outlook Survey")
 
@@ -1627,7 +1545,7 @@ else:
     # ============================================================================
     # GDP METRICS
     # ============================================================================
-    st.markdown("## GDP Metrics")
+    st.markdown("## <u>GDP Metrics</u>", unsafe_allow_html=True)
     st.markdown("---")
 
     # Gross GDP Section
