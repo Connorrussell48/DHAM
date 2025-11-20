@@ -1496,12 +1496,13 @@ else:
     ism_mfg_col1, ism_mfg_col2 = st.columns([3, 1])
 
     with ism_mfg_col2:
+        next_ism_str, days_until_ism = get_next_release_date("ISM")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
             <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_ism_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_ism} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">1st business day of month</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1536,12 +1537,13 @@ else:
     philly_col1, philly_col2 = st.columns([3, 1])
 
     with philly_col2:
+        next_philly_str, days_until_philly = get_next_release_date("PHILLY_FED")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
             <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_philly_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_philly} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">3rd Thursday of month</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1582,33 +1584,14 @@ else:
     starts_col1, starts_col2 = st.columns([3, 1])
 
     with starts_col2:
-        # Housing data is released monthly, typically mid-month
-        now = datetime.now()
-        year = now.year
-        month = now.month
-        
-        # Estimate mid-month release (around 17th)
-        if now.day > 17:
-            if month == 12:
-                next_month = 1
-                next_year = year + 1
-            else:
-                next_month = month + 1
-                next_year = year
-        else:
-            next_month = month
-            next_year = year
-        
-        next_housing_release = datetime(next_year, next_month, 17)
-        days_until_housing = (next_housing_release - now).days
-        next_housing_release_str = next_housing_release.strftime("%B %d, %Y")
+        next_housing_release_str, days_until_housing = get_next_release_date("HOUSING")
         
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
             <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
             <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Mid-month (~17th)</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1643,12 +1626,13 @@ else:
     permits_col1, permits_col2 = st.columns([3, 1])
 
     with permits_col2:
+        next_permits_str, days_until_permits = get_next_release_date("HOUSING")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_permits_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_permits} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Mid-month (~17th)</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1683,12 +1667,13 @@ else:
     homeprice_col1, homeprice_col2 = st.columns([3, 1])
 
     with homeprice_col2:
+        next_homeprice_str, days_until_homeprice = get_next_release_date("HOME_PRICES")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_homeprice_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_homeprice} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Last Tuesday (~25th)</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1723,12 +1708,13 @@ else:
     existingsales_col1, existingsales_col2 = st.columns([3, 1])
 
     with existingsales_col2:
+        next_existingsales_str, days_until_existingsales = get_next_release_date("EXISTING_SALES")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_existingsales_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_existingsales} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Around 20-25th of month</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1758,12 +1744,13 @@ else:
     rescon_col1, rescon_col2 = st.columns([3, 1])
 
     with rescon_col2:
+        next_rescon_str, days_until_rescon = get_next_release_date("CONSTRUCTION")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_rescon_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_rescon} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">1st business day of month</p>
         </div>
         """, unsafe_allow_html=True)
 
