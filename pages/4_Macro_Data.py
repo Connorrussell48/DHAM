@@ -66,28 +66,118 @@ def validate_fred_api_key(key):
 # --------------------------------------------------------------------------------------
 def get_next_release_date(indicator_name):
     """
-    Estimates the next release date for economic indicators.
-    CPI and PPI are typically released monthly, around mid-month.
+    Provides accurate next release dates for economic indicators based on typical schedules.
     """
     now = datetime.now()
     year = now.year
     month = now.month
     
-    # Economic data is usually released around the 13th-15th of each month
-    # for the previous month's data
-    
     if indicator_name == "CPI":
-        # CPI typically released around 13th of each month
+        # CPI: Around 13th of month, for prior month's data
         release_day = 13
-        release_name = "Consumer Price Index"
     elif indicator_name == "PPI":
-        # PPI typically released around 14th of each month  
+        # PPI: Around 14th of month, for prior month's data
         release_day = 14
-        release_name = "Producer Price Index"
+    elif indicator_name == "PCE":
+        # PCE: Last business day of month, ~30 days after reference month
+        # Approximate as 28th
+        release_day = 28
+    elif indicator_name == "JOLTS":
+        # JOLTS: First Tuesday of the month, ~6 weeks after reference month
+        # Calculate first Tuesday
+        first_day = datetime(year, month, 1)
+        days_until_tuesday = (1 - first_day.weekday()) % 7
+        if days_until_tuesday == 0:
+            days_until_tuesday = 7
+        next_release = first_day + timedelta(days=days_until_tuesday)
+        
+        if now > next_release:
+            if month == 12:
+                first_day = datetime(year + 1, 1, 1)
+            else:
+                first_day = datetime(year, month + 1, 1)
+            days_until_tuesday = (1 - first_day.weekday()) % 7
+            if days_until_tuesday == 0:
+                days_until_tuesday = 7
+            next_release = first_day + timedelta(days=days_until_tuesday)
+        
+        days_until = (next_release - now).days
+        return next_release.strftime("%B %d, %Y"), days_until
+    
+    elif indicator_name == "HOUSING":
+        # Housing Starts & Building Permits: Around 16-20th of month
+        release_day = 17
+    elif indicator_name == "HOME_PRICES":
+        # Case-Shiller: Last Tuesday of the month, 2 months lag
+        # Approximate as 25th
+        release_day = 25
+    elif indicator_name == "EXISTING_SALES":
+        # Existing Home Sales: Around 20-25th of month
+        release_day = 22
+    elif indicator_name == "CONSTRUCTION":
+        # Construction Spending: First business day of month
+        release_day = 1
+    elif indicator_name == "UMICH":
+        # UMich Sentiment: 2nd Friday (preliminary) and last Friday (final)
+        # Find 2nd Friday
+        first_day = datetime(year, month, 1)
+        first_friday = first_day + timedelta(days=(4 - first_day.weekday()) % 7)
+        second_friday = first_friday + timedelta(days=7)
+        
+        if now > second_friday:
+            # Move to next month
+            if month == 12:
+                first_day = datetime(year + 1, 1, 1)
+            else:
+                first_day = datetime(year, month + 1, 1)
+            first_friday = first_day + timedelta(days=(4 - first_day.weekday()) % 7)
+            second_friday = first_friday + timedelta(days=7)
+        
+        days_until = (second_friday - now).days
+        return second_friday.strftime("%B %d, %Y"), days_until
+    
+    elif indicator_name == "NFIB":
+        # NFIB: 2nd Tuesday of month
+        first_day = datetime(year, month, 1)
+        first_tuesday = first_day + timedelta(days=(1 - first_day.weekday()) % 7)
+        second_tuesday = first_tuesday + timedelta(days=7)
+        
+        if now > second_tuesday:
+            if month == 12:
+                first_day = datetime(year + 1, 1, 1)
+            else:
+                first_day = datetime(year, month + 1, 1)
+            first_tuesday = first_day + timedelta(days=(1 - first_day.weekday()) % 7)
+            second_tuesday = first_tuesday + timedelta(days=7)
+        
+        days_until = (second_tuesday - now).days
+        return second_tuesday.strftime("%B %d, %Y"), days_until
+    
+    elif indicator_name == "ISM":
+        # ISM Manufacturing: 1st business day of month
+        # Approximate as 1st of month
+        release_day = 1
+    elif indicator_name == "PHILLY_FED":
+        # Philadelphia Fed: 3rd Thursday of month
+        first_day = datetime(year, month, 1)
+        first_thursday = first_day + timedelta(days=(3 - first_day.weekday()) % 7)
+        third_thursday = first_thursday + timedelta(days=14)
+        
+        if now > third_thursday:
+            if month == 12:
+                first_day = datetime(year + 1, 1, 1)
+            else:
+                first_day = datetime(year, month + 1, 1)
+            first_thursday = first_day + timedelta(days=(3 - first_day.weekday()) % 7)
+            third_thursday = first_thursday + timedelta(days=14)
+        
+        days_until = (third_thursday - now).days
+        return third_thursday.strftime("%B %d, %Y"), days_until
+    
     else:
         return None, None
     
-    # Calculate next release date
+    # For simple day-based releases
     next_release = datetime(year, month, release_day)
     
     # If we've passed this month's release, move to next month
@@ -97,9 +187,7 @@ def get_next_release_date(indicator_name):
         else:
             next_release = datetime(year, month + 1, release_day)
     
-    # Format the date
     days_until = (next_release - now).days
-    
     return next_release.strftime("%B %d, %Y"), days_until
 
 # --------------------------------------------------------------------------------------
@@ -794,8 +882,8 @@ else:
     core_pce_col1, core_pce_col2 = st.columns([3, 1])
     
     with core_pce_col2:
-        # PCE inflation is released monthly, similar timing to CPI
-        next_date, days = get_next_release_date("CPI")
+        # PCE inflation is released monthly, last business day of month
+        next_date, days = get_next_release_date("PCE")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
@@ -987,40 +1075,14 @@ else:
 
     with jolts_col2:
         # JOLTS data is released monthly, typically around the first Tuesday
-        now = datetime.now()
-        year = now.year
-        month = now.month
-        
-        # JOLTS is released on the first Tuesday, approximately 30 days after the reference month
-        # Typically released around the 1st-10th of each month
-        if now.day > 10:  # If past first 10 days, show next month
-            if month == 12:
-                next_month = 1
-                next_year = year + 1
-            else:
-                next_month = month + 1
-                next_year = year
-        else:
-            next_month = month
-            next_year = year
-        
-        # Estimate first Tuesday of the month
-        first_day = datetime(next_year, next_month, 1)
-        # Find first Tuesday (Tuesday = 1)
-        days_until_tuesday = (1 - first_day.weekday()) % 7
-        if days_until_tuesday == 0:
-            days_until_tuesday = 7
-        first_tuesday = first_day + timedelta(days=days_until_tuesday)
-        
-        days_until = (first_tuesday - now).days
-        next_jolts_release_str = first_tuesday.strftime("%B %d, %Y")
+        next_jolts_release_str, days_until = get_next_release_date("JOLTS")
         
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
             <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_jolts_release_str}</strong></p>
             <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">First Tuesday of month</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1119,41 +1181,14 @@ else:
     pce_col1, pce_col2 = st.columns([3, 1])
 
     with pce_col2:
-        # PCE data is released monthly, typically around the end of the month
-        now = datetime.now()
-        year = now.year
-        month = now.month
-        
-        # PCE is released approximately 30 days after the reference month
-        if now.day > 28:  # If near end of month, show next month
-            if month == 12:
-                next_month = 1
-                next_year = year + 1
-            else:
-                next_month = month + 1
-                next_year = year
-        else:
-            next_month = month
-            next_year = year
-        
-        # Estimate last business day of the month
-        if next_month == 2:
-            last_day = 28
-        elif next_month in [4, 6, 9, 11]:
-            last_day = 30
-        else:
-            last_day = 31
-            
-        next_pce_release = datetime(next_year, next_month, last_day)
-        days_until = (next_pce_release - now).days
-        next_pce_release_str = next_pce_release.strftime("%B %d, %Y")
+        next_pce_release_str, days_until = get_next_release_date("PCE")
         
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
             <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_pce_release_str}</strong></p>
             <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Last business day of month</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1337,32 +1372,13 @@ else:
     umich_col1, umich_col2 = st.columns([3, 1])
 
     with umich_col2:
-        # Released monthly, typically mid-month
-        now = datetime.now()
-        year = now.year
-        month = now.month
-        
-        # Estimate mid-month release (around 15th)
-        if now.day > 15:
-            if month == 12:
-                next_month = 1
-                next_year = year + 1
-            else:
-                next_month = month + 1
-                next_year = year
-        else:
-            next_month = month
-            next_year = year
-        
-        next_sentiment_release = datetime(next_year, next_month, 15)
-        days_until_sentiment = (next_sentiment_release - now).days
-        next_sentiment_release_str = next_sentiment_release.strftime("%B %d, %Y")
+        next_umich_str, days_until_umich = get_next_release_date("UMICH")
         
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_umich_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_umich} days away</p>
             <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
         </div>
         """, unsafe_allow_html=True)
@@ -1398,12 +1414,13 @@ else:
     umich_exp_col1, umich_exp_col2 = st.columns([3, 1])
 
     with umich_exp_col2:
+        next_umich_exp_str, days_until_umich_exp = get_next_release_date("UMICH")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_umich_exp_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_umich_exp} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">2nd Friday (preliminary)</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1438,12 +1455,13 @@ else:
     nfib_col1, nfib_col2 = st.columns([3, 1])
 
     with nfib_col2:
+        next_nfib_str, days_until_nfib = get_next_release_date("NFIB")
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_nfib_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_nfib} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">2nd Tuesday of month</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1481,7 +1499,7 @@ else:
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_ism_str}</strong></p>
             <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
             <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
         </div>
@@ -1521,7 +1539,7 @@ else:
         st.markdown(f"""
         <div class="release-info">
             <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_sentiment_release_str}</strong></p>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_philly_str}</strong></p>
             <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_sentiment} days away</p>
             <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
         </div>
@@ -1718,7 +1736,7 @@ else:
         with st.spinner("Fetching Existing Home Sales from FRED..."):
             existingsales_data = fetch_fred_data("EXHOSLUSM495S", "Existing Home Sales")
             if not existingsales_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Existing Sales", "Month-over-Month %", "Year-over-Year %"])
+                tab1, tab2 = st.tabs(["Existing Sales", "Month-over-Month %"])
                 
                 with tab1:
                     existingsales_chart = create_indicator_chart(existingsales_data, "Existing Home Sales (Thousands of Units)", ACCENT_PURPLE)
@@ -1729,11 +1747,6 @@ else:
                     existingsales_mom_chart = create_change_chart(existingsales_data, "Existing Home Sales Month-over-Month Change", 'MoM')
                     if existingsales_mom_chart:
                         st.plotly_chart(existingsales_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    existingsales_yoy_chart = create_change_chart(existingsales_data, "Existing Home Sales Year-over-Year Change", 'YoY')
-                    if existingsales_yoy_chart:
-                        st.plotly_chart(existingsales_yoy_chart, use_container_width=True)
             else:
                 st.warning("No Existing Home Sales data available")
 
@@ -1787,10 +1800,9 @@ else:
     with mortgage_col2:
         st.markdown(f"""
         <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released weekly</p>
+            <h4 style="margin-top: 0; color: var(--purple);">Data Availability</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>Updates Daily</strong></p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released weekly by Freddie Mac</p>
         </div>
         """, unsafe_allow_html=True)
 
