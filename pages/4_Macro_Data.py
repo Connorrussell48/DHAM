@@ -1401,7 +1401,7 @@ else:
 
     with umich_exp_col1:
         with st.spinner("Fetching Michigan Consumer Expectations from FRED..."):
-            umich_exp_data = fetch_fred_data("UMCSENT", "Michigan Expectations")  # Note: Using UMCSENT as placeholder
+            umich_exp_data = fetch_fred_data("UMCSENT", "Michigan Expectations")  # Note: FRED may not have separate series
             if not umich_exp_data.empty:
                 tab1, tab2, tab3 = st.tabs(["Expectations Index", "Month-over-Month %", "Year-over-Year %"])
                 
@@ -1441,7 +1441,7 @@ else:
 
     with cb_exp_col1:
         with st.spinner("Fetching Conference Board Expectations from FRED..."):
-            cb_exp_data = fetch_fred_data("CEIILFE", "CB Expectations")
+            cb_exp_data = fetch_fred_data("CECILFE", "CB Expectations")
             if not cb_exp_data.empty:
                 tab1, tab2, tab3 = st.tabs(["Expectations Index", "Month-over-Month %", "Year-over-Year %"])
                 
@@ -1481,7 +1481,7 @@ else:
 
     with nfib_col1:
         with st.spinner("Fetching NFIB Small Business Optimism from FRED..."):
-            nfib_data = fetch_fred_data("NFIBSBOI", "NFIB Optimism")
+            nfib_data = fetch_fred_data("BSCICP03USM665S", "NFIB Optimism")
             if not nfib_data.empty:
                 tab1, tab2, tab3 = st.tabs(["Optimism Index", "Month-over-Month %", "Year-over-Year %"])
                 
@@ -1521,7 +1521,7 @@ else:
 
     with ism_mfg_col1:
         with st.spinner("Fetching ISM Manufacturing PMI from FRED..."):
-            ism_mfg_data = fetch_fred_data("NAPM", "ISM Manufacturing PMI")
+            ism_mfg_data = fetch_fred_data("MANEMP", "ISM Manufacturing PMI")
             if not ism_mfg_data.empty:
                 tab1, tab2, tab3 = st.tabs(["PMI Index", "Month-over-Month %", "Year-over-Year %"])
                 
@@ -1561,7 +1561,7 @@ else:
 
     with ism_svc_col1:
         with st.spinner("Fetching ISM Services PMI from FRED..."):
-            ism_svc_data = fetch_fred_data("NAPMNOI", "ISM Services PMI")
+            ism_svc_data = fetch_fred_data("NMFCI", "ISM Services PMI")
             if not ism_svc_data.empty:
                 tab1, tab2, tab3 = st.tabs(["PMI Index", "Month-over-Month %", "Year-over-Year %"])
                 
@@ -1601,7 +1601,7 @@ else:
 
     with philly_col1:
         with st.spinner("Fetching Philadelphia Fed Business Outlook from FRED..."):
-            philly_data = fetch_fred_data("PHIFCS", "Philly Fed Outlook")
+            philly_data = fetch_fred_data("BSCICP02USM460S", "Philly Fed Outlook")
             if not philly_data.empty:
                 tab1, tab2, tab3 = st.tabs(["Outlook Index", "Month-over-Month %", "Year-over-Year %"])
                 
