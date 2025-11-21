@@ -173,6 +173,26 @@ def get_next_release_date(indicator_name):
         
         days_until = (third_thursday - now).days
         return third_thursday.strftime("%B %d, %Y"), days_until
+
+    elif indicator_name == "DELINQUENCY":
+        # Delinquency data: released quarterly
+        # Approximate as mid-quarter-month:
+        #   Q1 -> May 15, Q2 -> Aug 15, Q3 -> Nov 15, Q4 -> Feb 15 (next year)
+        release_months = [2, 5, 8, 11]  # Feb, May, Aug, Nov
+        release_day = 15
+
+        next_release = None
+        for y in (year, year + 1):
+            for rm in release_months:
+                candidate = datetime(y, rm, release_day)
+                if candidate > now:
+                    next_release = candidate
+                    break
+            if next_release is not None:
+                break
+
+        days_until = (next_release - now).days
+        return next_release.strftime("%B %d, %Y"), days_until
     
     else:
         return None, None
@@ -1825,7 +1845,302 @@ else:
                 st.warning("No 30-Year Mortgage Rate data available")
 
     st.markdown("---")
-
+    # ============================================================================
+    # FINANCIAL STABILITY METRICS
+    # ============================================================================
+    st.markdown("## <u>Financial Stability Metrics</u>", unsafe_allow_html=True)
+    st.markdown("---")
+    
+    # Get next delinquency release date (used by all delinquency indicators)
+    next_delinq_str, days_until_delinq = get_next_release_date("DELINQUENCY")
+    
+    # Credit Card Delinquency Rate Section
+    st.markdown("### Credit Card Delinquency Rate")
+    
+    cc_delinq_col1, cc_delinq_col2 = st.columns([3, 1])
+    
+    with cc_delinq_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with cc_delinq_col1:
+        with st.spinner("Fetching Credit Card Delinquency Rate from FRED..."):
+            cc_delinq_data = fetch_fred_data("DRCCLACBS", "Credit Card Delinquency")
+            if not cc_delinq_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
+                
+                with tab1:
+                    cc_delinq_chart = create_indicator_chart(cc_delinq_data, "Credit Card Delinquency Rate (%)", ACCENT_PURPLE)
+                    if cc_delinq_chart:
+                        st.plotly_chart(cc_delinq_chart, use_container_width=True)
+                
+                with tab2:
+                    cc_delinq_yoy_chart = create_gdp_change_chart(cc_delinq_data, "Credit Card Delinquency Year-over-Year Change", 'YoY')
+                    if cc_delinq_yoy_chart:
+                        st.plotly_chart(cc_delinq_yoy_chart, use_container_width=True)
+                
+                with tab3:
+                    cc_delinq_qoq_chart = create_gdp_change_chart(cc_delinq_data, "Credit Card Delinquency Quarter-over-Quarter Change", 'QoQ')
+                    if cc_delinq_qoq_chart:
+                        st.plotly_chart(cc_delinq_qoq_chart, use_container_width=True)
+            else:
+                st.warning("No Credit Card Delinquency data available")
+    
+    st.markdown("---")
+    
+    # Consumer Loan Delinquency Rate Section
+    st.markdown("### Consumer Loan Delinquency Rate")
+    
+    consumer_delinq_col1, consumer_delinq_col2 = st.columns([3, 1])
+    
+    with consumer_delinq_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with consumer_delinq_col1:
+        with st.spinner("Fetching Consumer Loan Delinquency Rate from FRED..."):
+            consumer_delinq_data = fetch_fred_data("DRCLACBS", "Consumer Loan Delinquency")
+            if not consumer_delinq_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
+                
+                with tab1:
+                    consumer_delinq_chart = create_indicator_chart(consumer_delinq_data, "Consumer Loan Delinquency Rate (%)", ACCENT_PURPLE)
+                    if consumer_delinq_chart:
+                        st.plotly_chart(consumer_delinq_chart, use_container_width=True)
+                
+                with tab2:
+                    consumer_delinq_yoy_chart = create_gdp_change_chart(consumer_delinq_data, "Consumer Loan Delinquency Year-over-Year Change", 'YoY')
+                    if consumer_delinq_yoy_chart:
+                        st.plotly_chart(consumer_delinq_yoy_chart, use_container_width=True)
+                
+                with tab3:
+                    consumer_delinq_qoq_chart = create_gdp_change_chart(consumer_delinq_data, "Consumer Loan Delinquency Quarter-over-Quarter Change", 'QoQ')
+                    if consumer_delinq_qoq_chart:
+                        st.plotly_chart(consumer_delinq_qoq_chart, use_container_width=True)
+            else:
+                st.warning("No Consumer Loan Delinquency data available")
+    
+    st.markdown("---")
+    
+    # Other Consumer Loan Delinquency Rate Section (includes Auto Loans)
+    st.markdown("### Other Consumer Loan Delinquency Rate (includes Auto Loans)")
+    
+    other_delinq_col1, other_delinq_col2 = st.columns([3, 1])
+    
+    with other_delinq_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with other_delinq_col1:
+        with st.spinner("Fetching Other Consumer Loan Delinquency Rate from FRED..."):
+            other_delinq_data = fetch_fred_data("DROCLACBS", "Other Consumer Loan Delinquency")
+            if not other_delinq_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
+                
+                with tab1:
+                    other_delinq_chart = create_indicator_chart(
+                        other_delinq_data,
+                        "Other Consumer Loan Delinquency Rate (%) - Includes Auto Loans",
+                        ACCENT_PURPLE
+                    )
+                    if other_delinq_chart:
+                        st.plotly_chart(other_delinq_chart, use_container_width=True)
+                
+                with tab2:
+                    other_delinq_yoy_chart = create_gdp_change_chart(
+                        other_delinq_data,
+                        "Other Consumer Loan Delinquency Year-over-Year Change",
+                        'YoY'
+                    )
+                    if other_delinq_yoy_chart:
+                        st.plotly_chart(other_delinq_yoy_chart, use_container_width=True)
+                
+                with tab3:
+                    other_delinq_qoq_chart = create_gdp_change_chart(
+                        other_delinq_data,
+                        "Other Consumer Loan Delinquency Quarter-over-Quarter Change",
+                        'QoQ'
+                    )
+                    if other_delinq_qoq_chart:
+                        st.plotly_chart(other_delinq_qoq_chart, use_container_width=True)
+            else:
+                st.warning("No Other Consumer Loan Delinquency data available")
+    
+    st.markdown("---")
+    
+    # Mortgage Delinquency Rate Section
+    st.markdown("### Single-Family Residential Mortgage Delinquency Rate")
+    
+    mortgage_delinq_col1, mortgage_delinq_col2 = st.columns([3, 1])
+    
+    with mortgage_delinq_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with mortgage_delinq_col1:
+        with st.spinner("Fetching Mortgage Delinquency Rate from FRED..."):
+            mortgage_delinq_data = fetch_fred_data("DRSFRMACBS", "Mortgage Delinquency")
+            if not mortgage_delinq_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
+                
+                with tab1:
+                    mortgage_delinq_chart = create_indicator_chart(
+                        mortgage_delinq_data,
+                        "Single-Family Residential Mortgage Delinquency Rate (%)",
+                        ACCENT_PURPLE
+                    )
+                    if mortgage_delinq_chart:
+                        st.plotly_chart(mortgage_delinq_chart, use_container_width=True)
+                
+                with tab2:
+                    mortgage_delinq_yoy_chart = create_gdp_change_chart(
+                        mortgage_delinq_data,
+                        "Mortgage Delinquency Year-over-Year Change",
+                        'YoY'
+                    )
+                    if mortgage_delinq_yoy_chart:
+                        st.plotly_chart(mortgage_delinq_yoy_chart, use_container_width=True)
+                
+                with tab3:
+                    mortgage_delinq_qoq_chart = create_gdp_change_chart(
+                        mortgage_delinq_data,
+                        "Mortgage Delinquency Quarter-over-Quarter Change",
+                        'QoQ'
+                    )
+                    if mortgage_delinq_qoq_chart:
+                        st.plotly_chart(mortgage_delinq_qoq_chart, use_container_width=True)
+            else:
+                st.warning("No Mortgage Delinquency data available")
+    
+    st.markdown("---")
+    
+    # Commercial & Industrial Loan Delinquency Rate Section
+    st.markdown("### Delinquency Rate on Commercial & Industrial Loans")
+    
+    ci_delinq_col1, ci_delinq_col2 = st.columns([3, 1])
+    
+    with ci_delinq_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with ci_delinq_col1:
+        with st.spinner("Fetching C&I Loan Delinquency Rate from FRED..."):
+            ci_delinq_data = fetch_fred_data("DRBLACBS", "C&I Loan Delinquency")
+            if not ci_delinq_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
+                
+                with tab1:
+                    ci_delinq_chart = create_indicator_chart(
+                        ci_delinq_data,
+                        "C&I Loan Delinquency Rate (%)",
+                        ACCENT_PURPLE
+                    )
+                    if ci_delinq_chart:
+                        st.plotly_chart(ci_delinq_chart, use_container_width=True)
+                
+                with tab2:
+                    ci_delinq_yoy_chart = create_gdp_change_chart(
+                        ci_delinq_data,
+                        "C&I Loan Delinquency Year-over-Year Change",
+                        'YoY'
+                    )
+                    if ci_delinq_yoy_chart:
+                        st.plotly_chart(ci_delinq_yoy_chart, use_container_width=True)
+                
+                with tab3:
+                    ci_delinq_qoq_chart = create_gdp_change_chart(
+                        ci_delinq_data,
+                        "C&I Loan Delinquency Quarter-over-Quarter Change",
+                        'QoQ'
+                    )
+                    if ci_delinq_qoq_chart:
+                        st.plotly_chart(ci_delinq_qoq_chart, use_container_width=True)
+            else:
+                st.warning("No C&I Loan Delinquency data available")
+    
+    st.markdown("---")
+    
+    # Commercial Real Estate Loan Delinquency Rate Section
+    st.markdown("### Delinquency Rate on Commercial Real Estate Loans")
+    
+    cre_delinq_col1, cre_delinq_col2 = st.columns([3, 1])
+    
+    with cre_delinq_col2:
+        st.markdown(f"""
+        <div class="release-info">
+            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
+            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
+            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with cre_delinq_col1:
+        with st.spinner("Fetching CRE Loan Delinquency Rate from FRED..."):
+            cre_delinq_data = fetch_fred_data("DRCRELEXFACBS", "CRE Loan Delinquency")
+            if not cre_delinq_data.empty:
+                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
+                
+                with tab1:
+                    cre_delinq_chart = create_indicator_chart(
+                        cre_delinq_data,
+                        "CRE Loan Delinquency Rate (%) - Excluding Farmland",
+                        ACCENT_PURPLE
+                    )
+                    if cre_delinq_chart:
+                        st.plotly_chart(cre_delinq_chart, use_container_width=True)
+                
+                with tab2:
+                    cre_delinq_yoy_chart = create_gdp_change_chart(
+                        cre_delinq_data,
+                        "CRE Loan Delinquency Year-over-Year Change",
+                        'YoY'
+                    )
+                    if cre_delinq_yoy_chart:
+                        st.plotly_chart(cre_delinq_yoy_chart, use_container_width=True)
+                
+                with tab3:
+                    cre_delinq_qoq_chart = create_gdp_change_chart(
+                        cre_delinq_data,
+                        "CRE Loan Delinquency Quarter-over-Quarter Change",
+                        'QoQ'
+                    )
+                    if cre_delinq_qoq_chart:
+                        st.plotly_chart(cre_delinq_qoq_chart, use_container_width=True)
+            else:
+                st.warning("No CRE Loan Delinquency data available")
+    
+    st.markdown("---")
     # ============================================================================
     # GDP METRICS
     # ============================================================================
