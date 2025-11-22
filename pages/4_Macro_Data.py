@@ -813,79 +813,74 @@ else:
     next_week_monday = this_week_monday + timedelta(days=7)
     next_week_friday = next_week_monday + timedelta(days=4)
     
-    # Function to get all releases in a date range
-    def get_releases_in_range(start_date, end_date):
-        """Get all indicator releases that fall within the date range."""
-        releases = []
-        indicators = [
-            # Inflation
-            ("CPI", "Consumer Price Index (CPI)"),
-            ("CPI", "Core CPI"),  # Same release day
-            ("PPI", "Producer Price Index (PPI)"),
-            ("PPI", "Core PPI"),  # Same release day
-            ("PCE", "Core PCE Inflation"),
-            
-            # Employment (all release first Friday)
-            ("EMPLOYMENT", "Unemployment Rate & Nonfarm Payrolls"),
-            ("EMPLOYMENT", "Labor Force Participation Rate"),
-            
-            # Weekly
-            ("INITIAL_CLAIMS", "Initial Jobless Claims"),
-            
-            # JOLTS
-            ("JOLTS", "Job Openings (JOLTS)"),
-            
-            # Consumption
-            ("PCE", "Real Personal Consumption Expenditures"),
-            ("PCE", "Real Retail Sales"),
-            ("PCE", "Personal Saving Rate"),
-            
-            # Sentiment
-            ("UMICH", "UMich Consumer Sentiment"),
-            ("NFIB", "NFIB Small Business Optimism"),
-            ("ISM", "ISM Manufacturing PMI"),
-            ("PHILLY_FED", "Philadelphia Fed Business Outlook"),
-            
-            # Real Estate
-            ("HOUSING", "Housing Starts & Building Permits"),
-            ("HOME_PRICES", "Case-Shiller Home Price Index"),
-            ("EXISTING_SALES", "Existing Home Sales"),
-            ("CONSTRUCTION", "Residential Construction Spending"),
-            
-            # Financial Stability
-            ("DELINQUENCY", "Delinquency Rates (All Categories)"),
-            
-            # GDP
-            ("GDP", "Gross GDP & Real GDP"),
-        ]
+    # Function to get all releases from FRED API in a date range
+    @st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
+    def get_fred_releases_in_range(start_date, end_date):
+        """Get all indicator releases from FRED API that fall within the date range."""
+        if not FRED_AVAILABLE:
+            return []
         
-        # Track which dates we've already added to avoid duplicates
-        added_dates = {}
-        
-        for code, name in indicators:
-            release_str, days_until = get_next_release_date(code)
-            if release_str:
-                # Parse the release date
-                release_date = datetime.strptime(release_str, "%B %d, %Y")
+        try:
+            import requests
+            
+            # Format dates for FRED API (YYYY-MM-DD)
+            start_str = start_date.strftime("%Y-%m-%d")
+            end_str = end_date.strftime("%Y-%m-%d")
+            
+            # Call FRED releases/dates API
+            url = "https://api.stlouisfed.org/fred/releases/dates"
+            params = {
+                "api_key": FRED_API_KEY,
+                "realtime_start": start_str,
+                "realtime_end": end_str,
+                "include_release_dates_with_no_data": "false",
+                "file_type": "json",
+                "limit": 1000
+            }
+            
+            response = requests.get(url, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                releases = []
                 
-                # Check if it falls within our range
-                if start_date <= release_date <= end_date:
-                    # Create a unique key for date + code combo
-                    date_key = (release_date.date(), code)
+                # Track which releases we've already added (to avoid duplicates)
+                seen_releases = set()
+                
+                for item in data.get("release_dates", []):
+                    release_date_str = item.get("date")
+                    release_name = item.get("release_name", "Unknown Release")
+                    release_id = item.get("release_id")
                     
-                    # Only add if we haven't added this date/code combo yet
-                    if date_key not in added_dates:
-                        releases.append({
-                            "date": release_date,
-                            "name": name,
-                            "code": code,
-                            "days_until": days_until
-                        })
-                        added_dates[date_key] = True
-        
-        # Sort by date
-        releases.sort(key=lambda x: x["date"])
-        return releases
+                    # Parse the date
+                    release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
+                    
+                    # Check if it falls within our range
+                    if start_date <= release_date <= end_date:
+                        # Create unique key to avoid duplicates
+                        release_key = (release_date.date(), release_name)
+                        
+                        if release_key not in seen_releases:
+                            days_until = (release_date - now).days
+                            
+                            releases.append({
+                                "date": release_date,
+                                "name": release_name,
+                                "release_id": release_id,
+                                "days_until": days_until
+                            })
+                            seen_releases.add(release_key)
+                
+                # Sort by date
+                releases.sort(key=lambda x: x["date"])
+                return releases
+            else:
+                st.warning(f"Could not fetch FRED release calendar: HTTP {response.status_code}")
+                return []
+                
+        except Exception as e:
+            st.warning(f"Error fetching release calendar: {str(e)}")
+            return []
     
     # Create tabs for this week and next week
     week_tab1, week_tab2 = st.tabs([
@@ -894,7 +889,7 @@ else:
     ])
     
     with week_tab1:
-        this_week_releases = get_releases_in_range(this_week_monday, this_week_friday)
+        this_week_releases = get_fred_releases_in_range(this_week_monday, this_week_friday)
         
         if this_week_releases:
             st.markdown("""
@@ -931,7 +926,7 @@ else:
                         </div>
                         <div style="text-align: right;">
                             <div style="font-size: 0.9rem; color: var(--muted-text-new);">
-                                {release["days_until"]} days away
+                                {abs(release["days_until"])} days {"ago" if release["days_until"] < 0 else "away"}
                             </div>
                         </div>
                     </div>
@@ -941,7 +936,7 @@ else:
             st.info("No scheduled releases this week")
     
     with week_tab2:
-        next_week_releases = get_releases_in_range(next_week_monday, next_week_friday)
+        next_week_releases = get_fred_releases_in_range(next_week_monday, next_week_friday)
         
         if next_week_releases:
             for release in next_week_releases:
