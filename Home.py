@@ -2257,12 +2257,21 @@ else:
 
     st.markdown("---")
 
-    # Additional metrics
-    st.markdown("### Additional Economic Indicators")
-    st.info("Coming soon: PCE, Unemployment Rate, GDP, and more economic indicators")
 
-    st.markdown("---")
 
-    # Back to home button
+    st.markdown("""
+        <style>
+        div[data-testid="stButton"] > button {
+            background: var(--panel) !important;
+            border: 1px solid var(--neutral) !important;
+            color: var(--text) !important;
+        }
+        div[data-testid="stButton"] > button:hover {
+            background: var(--inputlight) !important;
+            border-color: var(--purple) !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     if st.button("← Back to Home", use_container_width=True):
         st.switch_page("Home.py")
