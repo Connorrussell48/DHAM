@@ -896,7 +896,10 @@ else:
                             release_key = (release_date.date(), release_name)
                             
                             if release_key not in seen_releases:
-                                days_until = (release_date - now).days
+                                # Calculate days from today (just the date, not time)
+                                today = datetime.now().date()
+                                release_date_only = release_date.date()
+                                days_until = (release_date_only - today).days
                                 
                                 # Use our friendly name
                                 friendly_name = relevant_releases[release_name]
@@ -969,7 +972,10 @@ else:
                         release_key = (release_date.date(), release_name)
                         
                         if release_key not in seen_releases:
-                            days_until = (release_date - now).days
+                            # Calculate days from today (just the date, not time)
+                            today = datetime.now().date()
+                            release_date_only = release_date.date()
+                            days_until = (release_date_only - today).days
                             
                             releases.append({
                                 "date": release_date,
