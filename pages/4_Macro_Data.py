@@ -935,12 +935,13 @@ else:
             end_str = end_date.strftime("%Y-%m-%d")
             
             # Call FRED releases/dates API
+            # Note: For future dates, we need to include releases with no data
             url = "https://api.stlouisfed.org/fred/releases/dates"
             params = {
                 "api_key": FRED_API_KEY,
                 "realtime_start": start_str,
                 "realtime_end": end_str,
-                "include_release_dates_with_no_data": "false",
+                "include_release_dates_with_no_data": "true",  # Changed to true for future dates
                 "file_type": "json",
                 "limit": 10000  # Higher limit for all releases
             }
@@ -982,11 +983,17 @@ else:
                 releases.sort(key=lambda x: x["date"])
                 return releases
             else:
-                st.warning(f"Could not fetch FRED release calendar: HTTP {response.status_code}")
+                # Show more detailed error information
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("error_message", f"HTTP {response.status_code}")
+                except:
+                    error_msg = f"HTTP {response.status_code}"
+                st.warning(f"Could not fetch all FRED releases: {error_msg}")
                 return []
                 
         except Exception as e:
-            st.warning(f"Error fetching release calendar: {str(e)}")
+            st.warning(f"Error fetching all releases: {str(e)}")
             return []
     
     # Create tabs for this week and next week
