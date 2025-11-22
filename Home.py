@@ -1,32 +1,29 @@
-# 4_Macro_Data.py - Macro Data Dashboard
+# home.py - D-HAM Multi-Strategy Workspace with Auto-Updates
 from __future__ import annotations
-import streamlit as st
+import json
+import time  # ADDED for auto-update functionality
+from pathlib import Path
+from textwrap import dedent
+from datetime import datetime, timedelta
+import os
+import pytz 
+import yfinance as yf 
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
-import pytz
-from textwrap import dedent
-import plotly.graph_objects as go
 
-# Try to import fredapi, but make it optional
-try:
-    from fredapi import Fred
-    FRED_AVAILABLE = True
-except ImportError:
-    FRED_AVAILABLE = False
-    st.warning("⚠️ fredapi library not installed. Please add 'fredapi' to requirements.txt")
+import streamlit as st
 
 # --------------------------------------------------------------------------------------
 # Page setup
 # --------------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Macro Data - D-HAM",
+    page_title="D-HAM",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # --------------------------------------------------------------------------------------
-# Theme / CSS
+# Theme / CSS (Final Polish)
 # --------------------------------------------------------------------------------------
 BLOOM_BG       = "#0B0F14"    
 BLOOM_PANEL    = "#121820"    
@@ -38,424 +35,392 @@ INPUT_BG_LIGHT = "#3A4654"
 ACCENT_BLUE    = "#2BB3F3"    
 ACCENT_GREEN   = "#26D07C"    
 ACCENT_PURPLE  = "#8A7CF5"    
-DARK_PURPLE    = "#3A2A6A"
+DARK_PURPLE    = "#3A2A6A"    
+
+# --- Market Data Configuration ---
+MAJOR_TICKERS = ["SPY", "QQQ", "IWM", "^VIX", "GLD", "SLV", "TLT"]
+SECTOR_TICKERS = {
+    "Technology": "XLK", "Healthcare": "XLV", "Financials": "XLF", 
+    "Consumer Disc.": "XLY", "Industrials": "XLI", "Energy": "XLE",
+    "Materials": "XLB", "Utilities": "XLU", "Real Estate": "XLRE"
+}
+COUNTRY_TICKERS = {
+    "EAFE": "EFA", "Emerging": "EEM", "Europe": "EZU", "Japan": "EWJ", "China": "MCHI",
+    "Canada": "EWC", "Brazil": "EWZ"
+}
+HEATMAP_TICKERS = list(set(MAJOR_TICKERS + list(SECTOR_TICKERS.values()) + list(COUNTRY_TICKERS.values())))
+
+def get_spx_tickers():
+    return [
+        'MMM', 'AOS', 'ABT', 'ABBV', 'ACN', 'ADBE', 'AMD', 'AES', 'AFL', 'A',
+        'APD', 'ABNB', 'AKAM', 'ALB', 'ARE', 'ALGN', 'ALLE', 'LNT', 'ALL', 'GOOGL',
+        'GOOG', 'MO', 'AMZN', 'AMCR', 'AEE', 'AEP', 'AXP', 'AIG', 'AMT', 'AWK',
+        'AMP', 'AME', 'AMGN', 'APH', 'ADI', 'AON', 'APA', 'APO', 'AAPL', 'AMAT',
+        'APTV', 'ACGL', 'ADM', 'ANET', 'AJG', 'AIZ', 'T', 'ATO', 'ADSK', 'ADP',
+        'AZO', 'AVB', 'AVY', 'AXON', 'BKR', 'BALL', 'BAC', 'BAX', 'BDX',
+        'BBY', 'TECH', 'BIIB', 'BLK', 'BX', 'BK', 'BA', 'BKNG', 'BSX', 'BMY',
+        'AVGO', 'BR', 'BRO', 'BLDR', 'BG', 'BXP', 'CHRW', 'CDNS', 'CZR',
+        'CPT', 'CPB', 'COF', 'CAH', 'KMX', 'CCL', 'CARR', 'CAT', 'CBOE', 'CBRE',
+        'CDW', 'COR', 'CNC', 'CNP', 'CF', 'CRL', 'SCHW', 'CHTR', 'CVX', 'CMG',
+        'CB', 'CHD', 'CI', 'CINF', 'CTAS', 'CSCO', 'C', 'CFG', 'CLX', 'CME',
+        'CMS', 'KO', 'CTSH', 'COIN', 'CL', 'CMCSA', 'CAG', 'COP', 'ED', 'STZ',
+        'CEG', 'COO', 'CPRT', 'GLW', 'CPAY', 'CTVA', 'CSGP', 'COST', 'CTRA', 'CRWD',
+        'CCI', 'CSX', 'CMI', 'CVS', 'DHR', 'DRI', 'DDOG', 'DVA', 'DAY', 'DECK',
+        'DE', 'DELL', 'DAL', 'DVN', 'DXCM', 'FANG', 'DLR', 'DG', 'DLTR', 'D',
+        'DPZ', 'DASH', 'DOV', 'DOW', 'DHI', 'DTE', 'DUK', 'DD', 'EMN', 'ETN',
+        'EBAY', 'ECL', 'EIX', 'EW', 'EA', 'ELV', 'EMR', 'ENPH', 'ETR', 'EOG',
+        'EPAM', 'EQT', 'EFX', 'EQIX', 'EQR', 'ERIE', 'ESS', 'EL', 'EG', 'EVRG',
+        'ES', 'EXC', 'EXE', 'EXPE', 'EXPD', 'EXR', 'XOM', 'FFIV', 'FDS', 'FICO',
+        'FAST', 'FRT', 'FDX', 'FIS', 'FITB', 'FSLR', 'FE', 'FI', 'F', 'FTNT',
+        'FTV', 'FOXA', 'FOX', 'BEN', 'FCX', 'GRMN', 'IT', 'GE', 'GEHC', 'GEV',
+        'GEN', 'GNRC', 'GD', 'GIS', 'GM', 'GPC', 'GILD', 'GPN', 'GL', 'GDDY',
+        'GS', 'HAL', 'HIG', 'HAS', 'HCA', 'DOC', 'HSIC', 'HSY', 'HPE', 'HLT',
+        'HOLX', 'HD', 'HON', 'HRL', 'HST', 'HWM', 'HPQ', 'HUBB', 'HUM', 'HBAN',
+        'HII', 'IBM', 'IEX', 'IDXX', 'ITW', 'INCY', 'IR', 'PODD', 'INTC', 'IBKR',
+        'ICE', 'IFF', 'IP', 'IPG', 'INTU', 'ISRG', 'IVZ', 'INVH', 'IQV', 'IRM',
+        'JBHT', 'JBL', 'JKHY', 'J', 'JNJ', 'JCI', 'JPM', 'K', 'KVUE', 'KDP',
+        'KEY', 'KEYS', 'KMB', 'KIM', 'KMI', 'KKR', 'KLAC', 'KHC', 'KR', 'LHX',
+        'LH', 'LRCX', 'LW', 'LVS', 'LDOS', 'LEN', 'LII', 'LLY', 'LIN', 'LYV',
+        'LKQ', 'LMT', 'L', 'LOW', 'LULU', 'LYB', 'MTB', 'MPC', 'MKTX', 'MAR',
+        'MMC', 'MLM', 'MAS', 'MA', 'MTCH', 'MKC', 'MCD', 'MCK', 'MDT', 'MRK',
+        'META', 'MET', 'MTD', 'MGM', 'MCHP', 'MU', 'MSFT', 'MAA', 'MRNA', 'MHK',
+        'MOH', 'TAP', 'MDLZ', 'MPWR', 'MNST', 'MCO', 'MS', 'MOS', 'MSI', 'MSCI',
+        'NDAQ', 'NTAP', 'NFLX', 'NEM', 'NWSA', 'NWS', 'NEE', 'NKE', 'NI', 'NDSN',
+        'NSC', 'NTRS', 'NOC', 'NCLH', 'NRG', 'NUE', 'NVDA', 'NVR', 'NXPI', 'ORLY',
+        'OXY', 'ODFL', 'OMC', 'ON', 'OKE', 'ORCL', 'OTIS', 'PCAR', 'PKG', 'PLTR',
+        'PANW', 'PSKY', 'PH', 'PAYX', 'PAYC', 'PYPL', 'PNR', 'PEP', 'PFE', 'PCG',
+        'PM', 'PSX', 'PNW', 'PNC', 'POOL', 'PPG', 'PPL', 'PFG', 'PG', 'PGR',
+        'PLD', 'PRU', 'PEG', 'PTC', 'PSA', 'PHM', 'PWR', 'QCOM', 'DGX', 'RL',
+        'RJF', 'RTX', 'O', 'REG', 'REGN', 'RF', 'RSG', 'RMD', 'RVTY', 'ROK',
+        'ROL', 'ROP', 'ROST', 'RCL', 'SPGI', 'CRM', 'SBAC', 'SLB', 'STX', 'SRE',
+        'NOW', 'SHW', 'SPG', 'SWKS', 'SJM', 'SW', 'SNA', 'SOLV', 'SO', 'LUV',
+        'SWK', 'SBUX', 'STT', 'STLD', 'STE', 'SYK', 'SMCI', 'SYF', 'SNPS', 'SYY',
+        'TMUS', 'TROW', 'TTWO', 'TPR', 'TRGP', 'TGT', 'TEL', 'TDY', 'TER', 'TSLA',
+        'TXN', 'TPL', 'TXT', 'TMO', 'TJX', 'TKO', 'TTD', 'TSCO', 'TT', 'TDG',
+        'TRV', 'TRMB', 'TFC', 'TYL', 'TSN', 'USB', 'UBER', 'UDR', 'ULTA', 'UNP',
+        'UAL', 'UPS', 'URI', 'UNH', 'UHS', 'VLO', 'VTR', 'VLTO', 'VRSN', 'VRSK',
+        'VZ', 'VRTX', 'VTRS', 'VICI', 'V', 'VST', 'VMC', 'WRB', 'GWW', 'WAB',
+        'WMT', 'DIS', 'WBD', 'WM', 'WAT', 'WEC', 'WFC', 'WELL', 'WST', 'WDC',
+        'WY', 'WSM', 'WMB', 'WTW', 'WDAY', 'WYNN', 'XEL', 'XYL', 'YUM', 'ZBRA',
+        'ZBH', 'ZTS', 'HIMS'
+    ]
+
+SPX_MOVER_TICKERS = get_spx_tickers()
 
 # --------------------------------------------------------------------------------------
-# FRED API Configuration
+# --- GLOBAL HELPER FUNCTIONS ---
 # --------------------------------------------------------------------------------------
-# Note: You can get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
-# IMPORTANT: API key must be exactly 32 characters, lowercase alphanumeric only
-FRED_API_KEY = "a3ccd609f33dd35a715ac915a64af0e4".strip()  # Replace with your actual API key
 
-# Validate API key format
-def validate_fred_api_key(key):
-    """Validate that FRED API key is in correct format."""
-    key = key.strip()  # Remove any whitespace
-    if key == "your_fred_api_key_here":
-        return False, "API key not configured"
-    if len(key) != 32:
-        return False, f"API key must be exactly 32 characters (yours is {len(key)})"
-    if not key.islower():
-        return False, "API key must be all lowercase"
-    if not key.isalnum():
-        return False, "API key must be alphanumeric only (no spaces or special characters)"
-    return True, "Valid"
+def get_market_status():
+    """Checks the status of the US equity market (NYSE/NASDAQ)."""
+    tz = pytz.timezone('America/New_York')
+    now = datetime.now(tz)
+    
+    is_weekday = 0 <= now.weekday() <= 4
+    market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
 
-# --------------------------------------------------------------------------------------
-# Data Release Schedules (Approximate - these are typical release patterns)
-# --------------------------------------------------------------------------------------
-def get_next_release_date(indicator_name):
-    """
-    Provides accurate next release dates for economic indicators based on typical schedules.
-    """
-    now = datetime.now()
-    year = now.year
-    month = now.month
+    is_open = is_weekday and (market_open <= now < market_close)
     
-    if indicator_name == "CPI":
-        # CPI: Around 13th of month, for prior month's data
-        release_day = 13
-    elif indicator_name == "PPI":
-        # PPI: Around 14th of month, for prior month's data
-        release_day = 14
-    elif indicator_name == "PCE":
-        # PCE: Last business day of month, ~30 days after reference month
-        # Approximate as 28th
-        release_day = 28
-    elif indicator_name == "JOLTS":
-        # JOLTS: First Tuesday of the month, ~6 weeks after reference month
-        # Calculate first Tuesday
-        first_day = datetime(year, month, 1)
-        days_until_tuesday = (1 - first_day.weekday()) % 7
-        if days_until_tuesday == 0:
-            days_until_tuesday = 7
-        next_release = first_day + timedelta(days=days_until_tuesday)
-        
-        if now > next_release:
-            if month == 12:
-                first_day = datetime(year + 1, 1, 1)
-            else:
-                first_day = datetime(year, month + 1, 1)
-            days_until_tuesday = (1 - first_day.weekday()) % 7
-            if days_until_tuesday == 0:
-                days_until_tuesday = 7
-            next_release = first_day + timedelta(days=days_until_tuesday)
-        
-        days_until = (next_release - now).days
-        return next_release.strftime("%B %d, %Y"), days_until
-    
-    elif indicator_name == "HOUSING":
-        # Housing Starts & Building Permits: Around 16-20th of month
-        release_day = 17
-    elif indicator_name == "HOME_PRICES":
-        # Case-Shiller: Last Tuesday of the month, 2 months lag
-        # Approximate as 25th
-        release_day = 25
-    elif indicator_name == "EXISTING_SALES":
-        # Existing Home Sales: Around 20-25th of month
-        release_day = 22
-    elif indicator_name == "CONSTRUCTION":
-        # Construction Spending: First business day of month
-        release_day = 1
-    elif indicator_name == "UMICH":
-        # UMich Sentiment: 2nd Friday (preliminary) and last Friday (final)
-        # Find 2nd Friday
-        first_day = datetime(year, month, 1)
-        first_friday = first_day + timedelta(days=(4 - first_day.weekday()) % 7)
-        second_friday = first_friday + timedelta(days=7)
-        
-        if now > second_friday:
-            # Move to next month
-            if month == 12:
-                first_day = datetime(year + 1, 1, 1)
-            else:
-                first_day = datetime(year, month + 1, 1)
-            first_friday = first_day + timedelta(days=(4 - first_day.weekday()) % 7)
-            second_friday = first_friday + timedelta(days=7)
-        
-        days_until = (second_friday - now).days
-        return second_friday.strftime("%B %d, %Y"), days_until
-    
-    elif indicator_name == "NFIB":
-        # NFIB: 2nd Tuesday of month
-        first_day = datetime(year, month, 1)
-        first_tuesday = first_day + timedelta(days=(1 - first_day.weekday()) % 7)
-        second_tuesday = first_tuesday + timedelta(days=7)
-        
-        if now > second_tuesday:
-            if month == 12:
-                first_day = datetime(year + 1, 1, 1)
-            else:
-                first_day = datetime(year, month + 1, 1)
-            first_tuesday = first_day + timedelta(days=(1 - first_day.weekday()) % 7)
-            second_tuesday = first_tuesday + timedelta(days=7)
-        
-        days_until = (second_tuesday - now).days
-        return second_tuesday.strftime("%B %d, %Y"), days_until
-    
-    elif indicator_name == "ISM":
-        # ISM Manufacturing: 1st business day of month
-        # Approximate as 1st of month
-        release_day = 1
-    elif indicator_name == "PHILLY_FED":
-        # Philadelphia Fed: 3rd Thursday of month
-        first_day = datetime(year, month, 1)
-        first_thursday = first_day + timedelta(days=(3 - first_day.weekday()) % 7)
-        third_thursday = first_thursday + timedelta(days=14)
-        
-        if now > third_thursday:
-            if month == 12:
-                first_day = datetime(year + 1, 1, 1)
-            else:
-                first_day = datetime(year, month + 1, 1)
-            first_thursday = first_day + timedelta(days=(3 - first_day.weekday()) % 7)
-            third_thursday = first_thursday + timedelta(days=14)
-        
-        days_until = (third_thursday - now).days
-        return third_thursday.strftime("%B %d, %Y"), days_until
+    cache_ttl = timedelta(hours=4) 
 
-    elif indicator_name == "DELINQUENCY":
-        # Delinquency data: released quarterly
-        # Approximate as mid-quarter-month:
-        #   Q1 -> May 15, Q2 -> Aug 15, Q3 -> Nov 15, Q4 -> Feb 15 (next year)
-        release_months = [2, 5, 8, 11]  # Feb, May, Aug, Nov
-        release_day = 15
-
-        next_release = None
-        for y in (year, year + 1):
-            for rm in release_months:
-                candidate = datetime(y, rm, release_day)
-                if candidate > now:
-                    next_release = candidate
-                    break
-            if next_release is not None:
-                break
-
-        days_until = (next_release - now).days
-        return next_release.strftime("%B %d, %Y"), days_until
-    
+    if not is_weekday:
+        status_text = "Market Closed (Weekend)"
+        status_color = ACCENT_PURPLE
+    elif now >= market_close:
+        status_text = "Market Closed (After Hours)"
+        status_color = "#D9534F"
+    elif now < market_open:
+        status_text = "Market Closed (Pre-Market)"
+        status_color = ACCENT_BLUE
     else:
-        return None, None
-    
-    # For simple day-based releases
-    next_release = datetime(year, month, release_day)
-    
-    # If we've passed this month's release, move to next month
-    if now.day > release_day:
-        if month == 12:
-            next_release = datetime(year + 1, 1, release_day)
-        else:
-            next_release = datetime(year, month + 1, release_day)
-    
-    days_until = (next_release - now).days
-    return next_release.strftime("%B %d, %Y"), days_until
+        status_text = "Regular Session Open"
+        status_color = ACCENT_GREEN
 
-# --------------------------------------------------------------------------------------
-# Data Fetching Functions
-# --------------------------------------------------------------------------------------
-@st.cache_data(ttl=300, show_spinner=False)  # 5 minute cache for fresher data
-@st.cache_data(ttl=300, show_spinner=False)  # 5 minute cache for fresher data
-def fetch_fred_data(series_id, series_name):
-    """Fetch data from FRED API."""
-    if not FRED_AVAILABLE:
+    return now, is_open, status_text, status_color, cache_ttl
+
+@st.cache_data(show_spinner=False)
+def get_metric_styles(change_pct):
+    """Determines color and icon based on percentage change."""
+    if change_pct > 0.01:
+        color_token = "--green-accent"
+        icon = '↑'
+    elif change_pct < -0.01:
+        color_token = "--red-neg"
+        icon = '↓'
+    else:
+        color_token = "--muted-text-new" 
+        icon = '•'
+    return f"var({color_token})", icon, f"var({color_token})"
+
+@st.cache_data(ttl=300, show_spinner=False)  # 5 minute cache instead of 1 hour
+def fetch_ticker_data(tickers):
+    """Fetches the last 15 months of adjusted close prices for tickers."""
+    tickers = list(set(tickers)) 
+    if not tickers:
         return pd.DataFrame()
+    # Fetch data with auto_adjust=True to get the most current prices
+    data = yf.download(tickers, period="15mo", interval="1d", progress=False, auto_adjust=True, threads=True)
+    if data.empty:
+        return pd.DataFrame()
+    return data['Close']
+
+@st.cache_data(ttl=timedelta(seconds=5), show_spinner=False)
+def fetch_live_summary(tickers):
+    """Fetches key metrics for market summary (5s TTL)."""
+    try:
+        data = yf.Tickers(tickers).fast_info
+        if isinstance(data, pd.DataFrame):
+            summary = data.T.to_dict() 
+        else:
+            summary = {t: data.get(t, {}) for t in tickers}
+        return summary
+    except Exception:
+        return {}
+
+def calculate_returns(data, period):
+    """Calculates returns for the given period."""
+    if data.empty: return pd.Series(dtype='float64')
+    
+    last_price = data.iloc[-1]
+    
+    if period == '1D':
+        ref_price = data.iloc[-2] if len(data) >= 2 else data.iloc[-1]
+    elif period == '7D':
+        idx = max(0, len(data) - 6) 
+        ref_price = data.iloc[idx]
+    elif period == '30D':
+        idx = max(0, len(data) - 22) 
+        ref_price = data.iloc[idx]
+    elif period == '1Y':
+        idx = max(0, len(data) - 260) 
+        ref_price = data.iloc[idx]
+    elif period == 'YTD':
+        current_year = data.index[-1].year
+        ytd_start_index = data.index[data.index.year == current_year].min()
+        if pd.notna(ytd_start_index) and ytd_start_index in data.index:
+             ref_price = data.loc[ytd_start_index]
+        else:
+            return pd.Series(0.0, index=data.columns) 
+
+    returns = ((last_price - ref_price) / ref_price) * 100
+    return returns.fillna(0.0)
+
+@st.cache_data(show_spinner=False)
+def generate_heatmap_data(period, tickers_list):
+    """Generates data for the market heatmap."""
+    all_close_data = fetch_ticker_data(tickers_list) 
+    if all_close_data.empty: return pd.DataFrame(), False
+    
+    returns = calculate_returns(all_close_data, period)
+    
+    data = []
+    
+    major_row = {"Category": "Major Indices"}
+    for ticker in MAJOR_TICKERS:
+        if ticker in returns: major_row[ticker] = returns[ticker]
+    data.append(major_row)
+    
+    sector_row = {"Category": "Sector ETFs"}
+    for ticker in list(SECTOR_TICKERS.values()):
+        if ticker in returns: sector_row[ticker] = returns[ticker]
+    data.append(sector_row)
+
+    country_row = {"Category": "Country ETFs"}
+    for ticker in list(COUNTRY_TICKERS.values()):
+        if ticker in returns: country_row[ticker] = returns[ticker]
+    data.append(country_row)
+    
+    df = pd.DataFrame(data).set_index("Category").fillna(np.nan)
+    return df, True
+
+def get_metric_html(title, price, change_pct, accent_color_token):
+    """Generates the HTML for a Market KPI Card."""
+    color, icon, _ = get_metric_styles(change_pct)
+    change_text = f"{icon} {abs(change_pct):.2f}%"
+    
+    return dedent(f"""
+        <div class="kpi" style="
+             background: var(--inputlight); 
+             border: 1px solid var(--neutral); 
+             border-left: 5px solid {color};
+             padding: 10px 14px;
+             border-radius: 10px;
+             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+             transition: all 0.2s;">
+            <div class="h">{title}</div>
+            <div class="v" style="color: {color};">{price:.2f}</div>
+            <div class="text-sm font-semibold" style="color: {color};">{change_text}</div>
+        </div>
+    """)
+
+def get_heatmap_color_style(return_val):
+    """Calculates the CSS style string for a heatmap box."""
+    if pd.isna(return_val):
+        return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
     
     try:
-        # Debug info (shows first/last 4 chars and length, not the full key)
-        key_length = len(FRED_API_KEY)
-        has_uppercase = any(c.isupper() for c in FRED_API_KEY)
-        has_special = not FRED_API_KEY.isalnum()
-        
-        if key_length != 32:
-            st.error(f"❌ API key is {key_length} characters (needs to be exactly 32)")
-            return pd.DataFrame()
-        if has_uppercase:
-            st.error(f"❌ API key contains uppercase letters (must be all lowercase)")
-            return pd.DataFrame()
-        if has_special:
-            st.error(f"❌ API key contains special characters or spaces (must be alphanumeric only)")
-            return pd.DataFrame()
-        
-        # Create a new Fred instance for each call to avoid session issues
-        fred = Fred(api_key=FRED_API_KEY.strip())
-        data = fred.get_series(series_id)
-        df = pd.DataFrame({series_name: data})
-        return df
-    except Exception as e:
-        error_msg = str(e)
-        # Only show the error once per series
-        st.error(f"Error fetching {series_name} data: {error_msg}")
-        return pd.DataFrame()
+        val = float(return_val)
+    except ValueError:
+        return "background-color: var(--inputlight); color: var(--muted-text-new); border: 1px dashed var(--neutral);"
 
-def create_indicator_chart(df, title, color):
-    """Create a plotly chart for economic indicators."""
-    if df.empty:
-        return None
+    max_saturation = 4.0
     
-    # Get last 5 years of data
-    five_years_ago = datetime.now() - timedelta(days=5*365)
-    df_filtered = df[df.index >= five_years_ago]
-    
-    fig = go.Figure()
-    
-    # Check if this is data in thousands, millions, or billions (not percentages)
-    is_thousands = ("Claims" in title or "ICSA" in title or "Payrolls" in title or "PAYEMS" in title or 
-                    "Job Openings" in title or "Layoffs" in title or "Housing Starts" in title or 
-                    "Building Permits" in title or "Existing Home Sales" in title)
-    is_millions = "Millions" in title or ("Retail Sales" in title and "Existing" not in title) or "Construction Spending" in title
-    is_billions = "GDP" in title or "Billions" in title or ("PCE" in title and "Retail" not in title) or "Personal Consumption" in title
-    is_gdp = "GDP" in title  # GDP is quarterly
-    is_rate = ("Rate" in title and "Unemployment Rate" not in title and "Saving Rate" not in title) or "Mortgage" in title  # JOLTS rates and mortgage rates
-    is_index = ("Index" in title or "PMI" in title or "Sentiment" in title or "Optimism" in title or 
-                "Expectations" in title or "Outlook" in title) and "Price Index" not in title  # Sentiment indices but not price indices
-    
-    if is_billions:
-        if is_gdp:
-            hover_template = '%{x|%Y-Q%q}<br>$%{y:,.1f}B<extra></extra>'
-        else:
-            hover_template = '%{x|%Y-%m}<br>$%{y:,.1f}B<extra></extra>'
-        tick_format = ",.0f"
-        y_title = "Billions of Dollars"
-    elif is_millions:
-        hover_template = '%{x|%Y-%m}<br>$%{y:,.0f}M<extra></extra>'
-        tick_format = ",.0f"
-        y_title = "Millions of Dollars"
-    elif is_thousands:
-        hover_template = '%{x|%Y-%m}<br>%{y:,.0f}<extra></extra>'
-        tick_format = ",.0f"
-        y_title = "Thousands"
-    elif is_index:
-        hover_template = '%{x|%Y-%m}<br>%{y:.1f}<extra></extra>'
-        tick_format = ".1f"
-        y_title = "Index Value"
-    elif is_rate:
-        hover_template = '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>'
-        tick_format = ".2f"
-        y_title = "Rate (%)"
+    if val > 0:
+        alpha = min(0.9, 0.1 + (val / max_saturation) * 0.8) 
+        bg = f'rgba(38, 208, 124, {alpha})' 
+    elif val < 0:
+        alpha = min(0.9, 0.1 + (abs(val) / max_saturation) * 0.8)
+        bg = f'rgba(217, 83, 79, {alpha})' 
     else:
-        hover_template = '%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>'
-        tick_format = ".2f"
-        y_title = "Rate (%)"
-    
-    fig.add_trace(go.Scatter(
-        x=df_filtered.index,
-        y=df_filtered.iloc[:, 0],
-        mode='lines',
-        name=title,
-        line=dict(color=ACCENT_PURPLE, width=2),
-        fill='tozeroy',
-        fillcolor=f'rgba(138, 124, 245, 0.1)',
-        hovertemplate=hover_template,
-    ))
-    
-    fig.update_layout(
-        title=dict(text=title, font=dict(size=18, color=BLOOM_TEXT)),
-        xaxis=dict(
-            title="Date",
-            gridcolor=NEUTRAL_GRAY,
-            color=BLOOM_TEXT,
-            showgrid=True,
-        ),
-        yaxis=dict(
-            title=y_title,
-            gridcolor=NEUTRAL_GRAY,
-            color=BLOOM_TEXT,
-            showgrid=True,
-            ticksuffix="" if (is_thousands or is_billions or is_millions or is_index) else "%",
-            tickformat=tick_format,
-        ),
-        plot_bgcolor=BLOOM_PANEL,
-        paper_bgcolor=BLOOM_BG,
-        font=dict(color=BLOOM_TEXT),
-        hovermode='x unified',
-        height=400,
-    )
-    
-    return fig
+        bg = f'rgba(138, 124, 245, 0.1)' 
+        
+    return f'background-color: {bg}; color: var(--text); border: 1px solid rgba(255,255,255,0.1);'
 
-def create_change_chart(df, title, change_type='YoY'):
-    """Create a chart showing YoY or MoM percentage changes."""
-    if df.empty:
-        return None
+@st.cache_data(show_spinner=False)
+def get_top_movers_uncached(ticker_list, period, scan_time):
+    """Fetches data, calculates returns, and returns top 5 gainers/losers - OPTIMIZED VERSION."""
     
-    # Calculate percentage changes
-    if change_type == 'YoY':
-        # Year-over-year: compare to 12 months ago
-        pct_change = df.pct_change(periods=12) * 100
-        y_label = "Year-over-Year Change (%)"
-    else:  # MoM
-        # Month-over-month: compare to previous month
-        pct_change = df.pct_change(periods=1) * 100
-        y_label = "Month-over-Month Change (%)"
+    # Optimize: Only fetch the minimum data needed for the selected period
+    if period == '1D':
+        fetch_period = '5d'  # Only need last week
+    elif period == '7D':
+        fetch_period = '1mo'  # Only need last month
+    elif period == '30D':
+        fetch_period = '2mo'  # Only need 2 months
+    elif period == 'YTD':
+        fetch_period = '1y'  # Need this year
+    else:  # '1Y'
+        fetch_period = '1y'
     
-    # Get last 5 years of data
-    five_years_ago = datetime.now() - timedelta(days=5*365)
-    pct_filtered = pct_change[pct_change.index >= five_years_ago]
+    # Download data with optimized period
+    all_close_data = yf.download(ticker_list, period=fetch_period, interval="1d", progress=False, auto_adjust=True, threads=True)
     
-    # Use purple line chart
-    fig = go.Figure()
+    if all_close_data.empty: 
+        return pd.DataFrame(), pd.DataFrame()
     
-    fig.add_trace(go.Scatter(
-        x=pct_filtered.index,
-        y=pct_filtered.iloc[:, 0],
-        mode='lines',
-        name=title,
-        line=dict(color=ACCENT_PURPLE, width=2),
-        fill='tozeroy',
-        fillcolor=f'rgba(138, 124, 245, 0.1)',
-        hovertemplate='%{x|%Y-%m}<br>%{y:.2f}%<extra></extra>',
-    ))
+    # Extract just the Close prices
+    if 'Close' in all_close_data.columns:
+        all_close_data = all_close_data['Close']
     
-    # Add zero line
-    fig.add_hline(y=0, line_dash="dash", line_color=NEUTRAL_GRAY, line_width=1)
+    returns = calculate_returns(all_close_data, period).rename("Return (%)")
+    last_prices = all_close_data.iloc[-1].rename("Price ($)")
     
-    fig.update_layout(
-        title=dict(text=title, font=dict(size=18, color=BLOOM_TEXT)),
-        xaxis=dict(
-            title="Date",
-            gridcolor=NEUTRAL_GRAY,
-            color=BLOOM_TEXT,
-            showgrid=True,
-        ),
-        yaxis=dict(
-            title=y_label,
-            gridcolor=NEUTRAL_GRAY,
-            color=BLOOM_TEXT,
-            showgrid=True,
-            ticksuffix="%",
-            tickformat=".2f",
-        ),
-        plot_bgcolor=BLOOM_PANEL,
-        paper_bgcolor=BLOOM_BG,
-        font=dict(color=BLOOM_TEXT),
-        hovermode='x unified',
-        height=400,
-        showlegend=False,
-    )
+    combined_df = pd.concat([returns, last_prices], axis=1).dropna(subset=['Price ($)'])
     
-    return fig
+    top_gainers = combined_df.nlargest(5, "Return (%)")
+    top_losers = combined_df.nsmallest(5, "Return (%)")
+    
+    return top_gainers, top_losers
 
-def create_gdp_change_chart(df, title, change_type='YoY'):
-    """Create a chart showing YoY or QoQ percentage changes for GDP (quarterly data)."""
-    if df.empty:
-        return None
-    
-    # Calculate percentage changes
-    if change_type == 'YoY':
-        # Year-over-year: compare to 4 quarters ago
-        pct_change = df.pct_change(periods=4) * 100
-        y_label = "Year-over-Year Change (%)"
-    else:  # QoQ
-        # Quarter-over-quarter: compare to previous quarter
-        pct_change = df.pct_change(periods=1) * 100
-        y_label = "Quarter-over-Quarter Change (%)"
-    
-    # Get last 5 years of data
-    five_years_ago = datetime.now() - timedelta(days=5*365)
-    pct_filtered = pct_change[pct_change.index >= five_years_ago]
-    
-    # Use purple line chart
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatter(
-        x=pct_filtered.index,
-        y=pct_filtered.iloc[:, 0],
-        mode='lines',
-        name=title,
-        line=dict(color=ACCENT_PURPLE, width=2),
-        fill='tozeroy',
-        fillcolor=f'rgba(138, 124, 245, 0.1)',
-        hovertemplate='%{x|%Y-Q%q}<br>%{y:.2f}%<extra></extra>',
-    ))
-    
-    # Add zero line
-    fig.add_hline(y=0, line_dash="dash", line_color=NEUTRAL_GRAY, line_width=1)
-    
-    fig.update_layout(
-        title=dict(text=title, font=dict(size=18, color=BLOOM_TEXT)),
-        xaxis=dict(
-            title="Date",
-            gridcolor=NEUTRAL_GRAY,
-            color=BLOOM_TEXT,
-            showgrid=True,
-        ),
-        yaxis=dict(
-            title=y_label,
-            gridcolor=NEUTRAL_GRAY,
-            color=BLOOM_TEXT,
-            showgrid=True,
-            ticksuffix="%",
-            tickformat=".2f",
-        ),
-        plot_bgcolor=BLOOM_PANEL,
-        paper_bgcolor=BLOOM_BG,
-        font=dict(color=BLOOM_TEXT),
-        hovermode='x unified',
-        height=400,
-        showlegend=False,
-    )
-    
-    return fig
+# --------------------------------------------------------------------------------------
+# NEW: Container Rendering Functions for Auto-Update
+# --------------------------------------------------------------------------------------
+
+def render_market_kpis_in_container(container, is_open, status_text, status_color):
+    """Renders market KPIs in the provided container - enables targeted updates."""
+    with container:
+        col_spy, col_qqq, col_vix, col_time = st.columns(4)
+        
+        tickers_to_fetch = ["SPY", "QQQ", "^VIX"]
+        market_data = fetch_live_summary(tickers_to_fetch)
+        
+        def get_ticker_metric(ticker):
+            if ticker in market_data:
+                data = market_data[ticker]
+                price = data.get('lastPrice', 0.0)
+                change_pct = data.get('regularMarketChangePercent', 0.0)
+            else:
+                price = 0.0
+                change_pct = 0.0
+                try:
+                    close_data = fetch_ticker_data([ticker])
+                    if not close_data.empty and len(close_data) >= 2:
+                        close_data = close_data[ticker]
+                        price = close_data.iloc[-1]
+                        change_pct = ((close_data.iloc[-1] - close_data.iloc[-2]) / close_data.iloc[-2]) * 100
+                except Exception:
+                    pass
+            return price, change_pct
+
+        # SPY
+        spy_price, spy_change_pct = get_ticker_metric("SPY")
+        with col_spy:
+            st.markdown(get_metric_html("S&P 500 (SPY)", spy_price, spy_change_pct, "--green-accent"), 
+                       unsafe_allow_html=True)
+
+        # QQQ
+        qqq_price, qqq_change_pct = get_ticker_metric("QQQ")
+        with col_qqq:
+            st.markdown(get_metric_html("NASDAQ 100 (QQQ)", qqq_price, qqq_change_pct, "--red-neg"), 
+                       unsafe_allow_html=True)
+
+        # VIX
+        vix_price, vix_change_pct = get_ticker_metric("^VIX")
+        with col_vix:
+            st.markdown(get_metric_html("VIX Index (^VIX)", vix_price, vix_change_pct, "--purple"), 
+                       unsafe_allow_html=True)
+
+        # Time
+        now = datetime.now(pytz.timezone('America/New_York'))
+        current_time_str = now.strftime('%H:%M:%S EST')
+        
+        with col_time:
+            st.markdown(f"""
+                <div class="kpi" style="
+                     background: var(--inputlight); 
+                     border: 1px solid var(--neutral); 
+                     border-left: 5px solid {status_color};
+                     padding: 10px 14px;
+                     border-radius: 10px;
+                     box-shadow: 0 2px 5px rgba(0,0,0,0.3);">
+                    <div class="h">Current Time</div>
+                    <div class="v" style="color: {status_color};">{current_time_str}</div>
+                    <div class="text-sm font-semibold" style="color: var(--muted-text-new);">Market Status</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+
+def render_heatmap_in_container(container, return_period):
+    """Renders heatmap in the provided container."""
+    with container:
+        heatmap_df, data_loaded = generate_heatmap_data(return_period, HEATMAP_TICKERS)
+        
+        if data_loaded and not heatmap_df.empty:
+            all_tickers_data = []
+            
+            major_data = heatmap_df.loc["Major Indices"].dropna()
+            for ticker, ret in major_data.items():
+                all_tickers_data.append({"ticker": ticker, "return": ret})
+            
+            sector_data = heatmap_df.loc["Sector ETFs"].dropna()
+            for ticker, ret in sector_data.items():
+                all_tickers_data.append({"ticker": ticker, "return": ret})
+
+            country_data = heatmap_df.loc["Country ETFs"].dropna()
+            for ticker, ret in country_data.items():
+                all_tickers_data.append({"ticker": ticker, "return": ret})
+            
+            # Build HTML as a list then join
+            html_parts = ['<div class="heatmap-grid-container">']
+            
+            for item in all_tickers_data:
+                ticker = item['ticker']
+                ret = item['return']
+                box_style = get_heatmap_color_style(ret)
+                return_str = f"{'+' if ret > 0 else ''}{ret:.2f}%"
+                
+                html_parts.append(f'<div class="heatmap-box" style="{box_style}">')
+                html_parts.append(f'<span class="heatmap-box-ticker">{ticker}</span>')
+                html_parts.append(f'<span class="heatmap-box-return">{return_str}</span>')
+                html_parts.append('</div>')
+            
+            html_parts.append('</div>')
+            html_content = ''.join(html_parts)
+            
+            st.markdown(html_content, unsafe_allow_html=True)
+        else:
+            st.warning("Could not load market data for the heatmap.")
 
 # --------------------------------------------------------------------------------------
 # CSS injection
@@ -472,6 +437,7 @@ st.markdown(
           --green-accent: #26D07C;
           --red-neg: #D9534F; 
           --sidebar-bg: {BLOOM_PANEL};
+          --card-purple-shadow: rgba(138, 124, 245, 0.4); 
         }}
         html, body {{
           height:100%;
@@ -487,7 +453,21 @@ st.markdown(
         div[data-testid="stHeader"] > div:last-child > div:last-child {{
             color: var(--muted-text-new) !important;
         }}
+        div[data-testid="stAppViewContainer"] > div > div > div > div:nth-child(2) > div {{
+            color: var(--muted-text-new) !important;
+        }}
+        .kpi .h {{ 
+            color: var(--muted-text-new) !important; 
+        }}
+        .text-gray-400 {{
+            color: var(--muted-text-new) !important;
+        }}
         
+        div[data-testid="stAppViewContainer"] label {{
+            color: var(--text) !important;
+            font-weight: 600;
+        }}
+
         .stMarkdown, .stText, h1, h2, h3, h4, h5, h6 {{
             color: var(--text) !important;
         }}
@@ -521,21 +501,135 @@ st.markdown(
             color: var(--text) !important;
         }}
         
-        .metric-card {{
+        .strategy-link-card {{
             background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.00));
-            border: 1px solid var(--neutral);
+            border: 1px solid var(--neutral); 
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 5px 15px rgba(0,0,0,.4); 
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
+            height: 100%;
+            display: flex; 
+            flex-direction: column;
+            justify-content: space-between;
+        }}
+        .strategy-link-card:hover {{
+            border-color: var(--purple); 
+            transform: translateY(-5px); 
+            box-shadow: 0 15px 40px var(--card-purple-shadow); 
+        }}
+
+        .strategy-link-desc {{ color: var(--muted-text-new); font-size: 1.0rem; }} 
+
+        .strategy-link-title {{ 
+            font-weight: 800; 
+            font-size: 1.5rem; 
+            letter-spacing: .5px; 
+            display: flex;
+            align-items: center;
+            gap: 15px; 
+            margin-bottom: 10px;
+        }}
+
+        .heatmap-grid-container {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 15px;
+            background: var(--inputlight);
             border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        }}
+        .heatmap-box {{
+            flex-grow: 1; 
+            flex-basis: 120px;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+            padding: 8px;
+            font-weight: 700;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            cursor: default;
+        }}
+        .heatmap-box-ticker {{
+            font-size: 1.1rem;
+            font-weight: 900;
+            line-height: 1.2;
+            margin-bottom: 2px;
+            color: var(--text);
+        }}
+        .heatmap-box-return {{
+            font-size: 0.85rem;
+            line-height: 1.0;
+            opacity: 0.8;
+            color: var(--text);
+        }}
+        .heatmap-box:hover {{
+            transform: scale(1.03);
+            opacity: 0.95;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
         }}
         
-        .release-info {{
+        .movers-list {{
             background: var(--inputlight);
             border: 1px solid var(--neutral);
-            border-left: 4px solid var(--purple);
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 15px;
-            margin: 10px 0;
+            height: 100%;
+        }}
+        .movers-item {{
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+            font-size: 1.05rem;
+        }}
+        .movers-item:last-child {{
+            border-bottom: none;
+        }}
+        .movers-ticker {{
+            font-weight: 800;
+            flex: 0 0 25%;
+        }}
+        .movers-price {{
+            font-weight: 500;
+            flex: 0 0 35%;
+            text-align: right;
+            padding-right: 15px;
+            color: var(--muted-text-new);
+        }}
+        .movers-return {{
+            font-weight: 700;
+            flex: 0 0 40%;
+            text-align: right;
+        }}
+        
+        /* Style the navigation buttons */
+        .stButton > button {{
+            background: var(--input) !important;
+            color: var(--text) !important;
+            border: 1px solid var(--neutral) !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            padding: 10px 16px !important;
+            transition: all 0.2s !important;
+            width: 100% !important;
+        }}
+        .stButton > button:hover {{
+            background: var(--inputlight) !important;
+            border-color: var(--purple) !important;
+            color: var(--purple) !important;
+        }}
+        .stButton > button p {{
+            color: var(--text) !important;
+            margin: 0 !important;
+        }}
+        .stButton > button:hover p {{
+            color: var(--purple) !important;
         }}
         </style>
         """
@@ -551,1727 +645,300 @@ st.markdown(
     <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;margin:0 0 10px 0;border-bottom:1px solid var(--neutral);">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
         <rect x="2" y="3" width="20" height="18" rx="3" stroke="#2BB3F3" stroke-width="1.5"/>
-        <circle cx="7" cy="8" r="2" fill="#26D07C"/>
-        <circle cx="12" cy="12" r="2" fill="#8A7CF5"/>
-        <circle cx="17" cy="8" r="2" fill="#2BB3F3"/>
-        <line x1="7" y1="10" x2="7" y2="18" stroke="#26D07C" stroke-width="2"/>
-        <line x1="12" y1="14" x2="12" y2="18" stroke="#8A7CF5" stroke-width="2"/>
-        <line x1="17" y1="10" x2="17" y2="18" stroke="#2BB3F3" stroke-width="2"/>
+        <polyline points="5,15 9,11 12,13 17,7 19,9" stroke="#26D07C" stroke-width="2" fill="none" />
+        <circle cx="19" cy="9" r="1.8" fill="#26D07C"/>
       </svg>
-      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">Macro Data</div>
-      <div style="margin-left:auto;font-size:.95rem;color:rgba(255,255,255,.70);font-weight:500;">Economic Indicators & Releases</div>
+      <div style="font-weight:900;letter-spacing:.3px;font-size:1.6rem;">D-HAM</div>
+      <div style="margin-left:auto;font-size:.95rem;color:rgba(255,255,255,.70);font-weight:500;">Multi‑Strategy Workspace</div>
     </div>
     """,
     unsafe_allow_html=True
 )
 
+st.markdown(
+    """
+    <div style="text-align:center; font-size:1.05rem; font-style:italic; color:rgba(255,255,255,0.80); margin:-4px 0 18px 0;">
+      "You're either a smart-fella or fart smella" – Confucius
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Initialize Session State
+if "tickers" not in st.session_state:
+    st.session_state["tickers"] = ["SPY", "AAPL", "MSFT"]
+if "ma_window" not in st.session_state:
+    st.session_state["ma_window"] = 200
+if "lookback" not in st.session_state:
+    st.session_state["lookback"] = 200
+
 # --------------------------------------------------------------------------------------
 # Sidebar
 # --------------------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### Macro Data Dashboard")
-    st.markdown("""
+    st.markdown("### Workspace Info")
+    st.markdown(f"""
         <div style="color: var(--muted); font-size: .85rem; padding: 10px 0;">
-            <p>View key economic indicators from FRED (Federal Reserve Economic Data).</p>
+            <p>Session started <b>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b></p>
+            <p>Cache TTL: <b>{get_market_status()[4].total_seconds() / 3600:.1f} hours</b></p>
         </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
     
-    st.markdown("### Data Sources")
-    st.markdown("""
+    st.markdown("### Strategy Configuration")
+    st.markdown(f"""
         <div style="color: var(--muted); font-size: .85rem;">
-            <p><strong>Inflation Indicators:</strong></p>
-            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
-                <li><strong>CPI</strong> - Consumer Price Index for All Urban Consumers</li>
-                <li><strong>Core CPI</strong> - CPI excluding food and energy</li>
-                <li><strong>PPI</strong> - Producer Price Index for All Commodities</li>
-                <li><strong>Core PPI</strong> - PPI excluding food and energy</li>
-                <li><strong>Core PCE</strong> - Fed's preferred inflation measure</li>
+            <p>Parameters used by the pages:</p>
+            <ul style="list-style: none; padding-left: 0;">
+                <li>Tickers: {len(st.session_state['tickers'])}</li>
+                <li>MA Window: {st.session_state['ma_window']}</li>
+                <li>Lookback: {st.session_state['lookback']}</li>
             </ul>
-            <p style="margin-top: 15px;"><strong>Employment Indicators:</strong></p>
-            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
-                <li><strong>Unemployment Rate</strong> - Official unemployment rate</li>
-                <li><strong>Nonfarm Payrolls</strong> - Total employed workers (headline jobs number)</li>
-                <li><strong>Initial Claims</strong> - Weekly jobless claims (leading indicator)</li>
-                <li><strong>JOLTS</strong> - Job openings, quits, hires, and layoffs</li>
-                <li><strong>LFPR</strong> - Labor Force Participation Rate</li>
-            </ul>
-            <p style="margin-top: 15px;"><strong>Consumption Indicators:</strong></p>
-            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
-                <li><strong>Real PCE</strong> - Real Personal Consumption Expenditures</li>
-                <li><strong>PCE: Goods vs Services</strong> - Breakdown by category</li>
-                <li><strong>Real Retail Sales</strong> - Consumer retail spending</li>
-                <li><strong>Personal Saving Rate</strong> - Household savings as % of income</li>
-            </ul>
-            <p style="margin-top: 15px;"><strong>Sentiment Indicators:</strong></p>
-            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
-                <li><strong>UMich Consumer Sentiment</strong> - Consumer confidence</li>
-                <li><strong>Michigan Expectations</strong> - Future outlook</li>
-                <li><strong>NFIB Small Business</strong> - Small business optimism</li>
-                <li><strong>ISM Manufacturing PMI</strong> - Manufacturing sector health</li>
-                <li><strong>Philly Fed Outlook</strong> - Regional manufacturing outlook</li>
-            </ul>
-            <p style="margin-top: 15px;"><strong>Real Estate Indicators:</strong></p>
-            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
-                <li><strong>Housing Starts</strong> - New residential construction</li>
-                <li><strong>Building Permits</strong> - Future construction indicator</li>
-                <li><strong>Case-Shiller Index</strong> - National home prices</li>
-                <li><strong>Existing Home Sales</strong> - Home sales volume</li>
-                <li><strong>Residential Construction</strong> - Construction spending</li>
-                <li><strong>30-Year Mortgage Rate</strong> - Borrowing costs</li>
-            </ul>
-            <p style="margin-top: 15px;"><strong>GDP Indicators:</strong></p>
-            <ul style="list-style: none; padding-left: 0; margin-top: 5px;">
-                <li><strong>Gross GDP</strong> - Total economic output (nominal)</li>
-                <li><strong>Real GDP</strong> - Inflation-adjusted economic output</li>
-            </ul>
-            <p style="margin-top: 10px; font-size: 0.75rem; font-style: italic;">
-                Data provided by Federal Reserve Economic Data (FRED)
-            </p>
+            <p>Configure these values in the settings section of the strategy pages.</p>
         </div>
     """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------------------
-# Main Content
+# 🌎 Dynamic Market Summary Section (AUTO-UPDATING)
 # --------------------------------------------------------------------------------------
-st.markdown("### Key Economic Indicators")
-st.markdown("""
-<div style="background-color: rgba(138, 124, 245, 0.1); padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-    <p style="font-size: 0.85rem; color: var(--muted-text-new); margin: 0;">
-        <strong>📊 Data Note:</strong> Economic data from FRED typically updates within 1-24 hours after official release. 
-        Cache refreshes every 5 minutes. Press <strong>C</strong> to clear cache for immediate refresh.
-    </p>
-</div>
+st.markdown("### Today's Market Summary")
+st.caption("Live data summary based on US market hours (EST/EDT).")
+
+now, is_open, status_text, status_color, _ = get_market_status()
+
+st.markdown(f"""
+    <div style="margin-bottom: 5px; margin-top: -10px;">
+        <h4 style="font-size: 1.15rem; font-weight: 700; margin: 0; padding: 0;">
+            Status: <span style='color: {status_color};'>{status_text}</span>
+        </h4>
+    </div>
+    <div style="border-top: 1px solid var(--neutral); margin-bottom: 20px;"></div>
 """, unsafe_allow_html=True)
-st.caption("Data from Federal Reserve Economic Data (FRED) - Updated monthly")
 
-# Check if API key is configured and valid
-api_key_valid, api_key_message = validate_fred_api_key(FRED_API_KEY)
+# Initialize session state for tracking updates
+if 'market_last_update' not in st.session_state:
+    st.session_state.market_last_update = time.time()
 
-if not FRED_AVAILABLE:
-    st.error("""
-    ❌ **FRED API Library Not Installed**
+# Create empty container for market KPIs
+market_kpi_container = st.empty()
+
+# Initial render
+render_market_kpis_in_container(market_kpi_container, is_open, status_text, status_color)
+
+# Auto-update mechanism (only during market hours)
+if is_open:
+    current_time = time.time()
+    time_since_update = current_time - st.session_state.market_last_update
     
-    To use this page, you need to:
-    1. Add `fredapi` to your `requirements.txt` file
-    2. Redeploy your Streamlit app
-    
-    **Add this line to requirements.txt:**
-    ```
-    fredapi>=0.5.1
-    ```
-    
-    For now, showing the page layout with release dates only.
-    """)
-    
-    # Show demo layout
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("#### 📊 Consumer Price Index (CPI)")
-        next_date, days = get_next_release_date("CPI")
-        st.markdown(f"""
-        <div class="release-info">
-            <strong>Next Release:</strong> {next_date}<br>
-            <strong>Days Until Release:</strong> {days} days
+    # Update every 5 seconds
+    if time_since_update >= 5:
+        st.session_state.market_last_update = current_time
+        # Clear only the live data cache
+        fetch_live_summary.clear()
+        # Re-render the container with fresh data
+        render_market_kpis_in_container(market_kpi_container, is_open, status_text, status_color)
+        st.rerun()
+
+st.markdown("---")
+
+# --------------------------------------------------------------------------------------
+# Page navigation (FIXED - Using st.page_link)
+# --------------------------------------------------------------------------------------
+st.markdown("### Page Navigation")
+
+PAGE_MAPPING = {
+    "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Momentum and Trend Analysis"},
+    "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading"},
+    "Macro Data": {"file": "4_Macro_Data.py", "desc": "Economic Indicators & Market Data"},
+}
+pages_dir = Path("pages")
+available = []
+
+def get_card_html(label, desc):
+    """Generates the clean card HTML structure."""
+    return dedent(f"""
+        <div class="strategy-link-card">
+            <div>
+                <div class="strategy-link-title">{label}</div>
+                <div class="strategy-link-desc">{desc}</div>
+            </div>
         </div>
-        """, unsafe_allow_html=True)
-        st.info("Install fredapi library to view actual CPI data")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("#### 📈 Producer Price Index (PPI)")
-        next_date, days = get_next_release_date("PPI")
-        st.markdown(f"""
-        <div class="release-info">
-            <strong>Next Release:</strong> {next_date}<br>
-            <strong>Days Until Release:</strong> {days} days
-        </div>
-        """, unsafe_allow_html=True)
-        st.info("Install fredapi library to view actual PPI data")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-elif not api_key_valid:
-    st.error(f"""
-    ❌ **FRED API Key Issue: {api_key_message}**
-    
-    Your FRED API key must be:
-    - Exactly 32 characters long
-    - All lowercase letters and numbers only
-    - No spaces or special characters
-    
-    **How to fix:**
-    1. Go to https://fred.stlouisfed.org/docs/api/api_key.html
-    2. Sign up or log in to get your API key
-    3. Copy your API key exactly as shown (it should be 32 characters)
-    4. In the code, replace line 52:
-       ```python
-       FRED_API_KEY = "paste_your_32_character_key_here"
-       ```
-    
-    **Example of correct format:**
-    ```python
-    FRED_API_KEY = "abcd1234efgh5678ijkl9012mnop3456"
-    ```
-    (must be lowercase alphanumeric, exactly 32 characters)
     """)
 
-elif FRED_API_KEY == "your_fred_api_key_here":
-    st.warning("""
-    ⚠️ **FRED API Key Required**
-    
-    To display real economic data, you need to:
-    1. Get a free API key from [FRED](https://fred.stlouisfed.org/docs/api/api_key.html)
-    2. Replace `FRED_API_KEY` in the code with your actual key
-    
-    For now, showing demo layout with mock data.
-    """)
-    
-    # Show demo layout
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("#### 📊 Consumer Price Index (CPI)")
-        next_date, days = get_next_release_date("CPI")
-        st.markdown(f"""
-        <div class="release-info">
-            <strong>Next Release:</strong> {next_date}<br>
-            <strong>Days Until Release:</strong> {days} days
-        </div>
-        """, unsafe_allow_html=True)
-        st.info("Connect FRED API to view actual CPI data")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("#### 📈 Producer Price Index (PPI)")
-        next_date, days = get_next_release_date("PPI")
-        st.markdown(f"""
-        <div class="release-info">
-            <strong>Next Release:</strong> {next_date}<br>
-            <strong>Days Until Release:</strong> {days} days
-        </div>
-        """, unsafe_allow_html=True)
-        st.info("Connect FRED API to view actual PPI data")
-        st.markdown('</div>', unsafe_allow_html=True)
+for label, data in PAGE_MAPPING.items():
+    rel_path = pages_dir / data["file"]
+    if rel_path.exists():
+        available.append((label, data["file"], data["desc"]))
 
+if available:
+    cols = st.columns(len(available))
+    for i, (label, page_file, desc) in enumerate(available):
+        with cols[i]:
+            st.markdown(get_card_html(label, desc), unsafe_allow_html=True)
+            if st.button("Go to Page", key=f"nav_{label}", use_container_width=True):
+                st.switch_page(f"pages/{page_file}")
 else:
-    # Fetch real data
-    st.markdown("---")
+    st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
+
+st.markdown("---")
+
+# --------------------------------------------------------------------------------------
+# ♨️ Market Heatmap Section (AUTO-UPDATING)
+# --------------------------------------------------------------------------------------
+st.markdown("### Market Return Heatmap")
+
+# Create columns for the selector and update button
+col_period, col_update, col_status = st.columns([2, 1, 2])
+
+with col_period:
+    return_period = st.selectbox(
+        "Select Return Period", 
+        options=['1D', '7D', '30D', 'YTD', '1Y'], 
+        index=0, 
+        key='return_period_toggle'
+    )
+
+# Initialize session state for heatmap updates
+if 'heatmap_last_update' not in st.session_state:
+    st.session_state.heatmap_last_update = datetime.now()
+    st.session_state.heatmap_update_count = 0
+
+with col_update:
+    st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)  # Spacer for alignment
+    update_clicked = st.button("Update Heatmap", type="primary", use_container_width=True,
+                                help="Fetch the latest return data")
+
+with col_status:
+    time_since_update = datetime.now() - st.session_state.heatmap_last_update
+    minutes_ago = int(time_since_update.total_seconds() / 60)
+    if minutes_ago < 1:
+        time_str = "just now"
+    elif minutes_ago == 1:
+        time_str = "1 minute ago"
+    elif minutes_ago < 60:
+        time_str = f"{minutes_ago} minutes ago"
+    else:
+        hours_ago = minutes_ago // 60
+        time_str = f"{hours_ago} hour{'s' if hours_ago > 1 else ''} ago"
     
-    # ============================================================================
-    # INFLATION METRICS
-    # ============================================================================
-    st.markdown("## <u>Inflation Metrics</u>", unsafe_allow_html=True)
-    st.markdown("---")
-    
-    # CPI Section
-    st.markdown("### Consumer Price Index (CPI)")
-    
-    cpi_col1, cpi_col2 = st.columns([3, 1])
-    
-    with cpi_col2:
-        next_date, days = get_next_release_date("CPI")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
+    st.markdown(f"""
+        <div style="font-size: .85rem; color: var(--muted-text-new); margin-top: 10px;">
+            Last Updated: {time_str}
         </div>
-        """, unsafe_allow_html=True)
-    
-    with cpi_col1:
-        with st.spinner("Fetching CPI data from FRED..."):
-            cpi_data = fetch_fred_data("CPIAUCSL", "CPI")
-            if not cpi_data.empty:
-                # Create tabs for YoY and MoM only
-                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                
-                with tab1:
-                    cpi_yoy_chart = create_change_chart(cpi_data, "CPI Year-over-Year Change", 'YoY')
-                    if cpi_yoy_chart:
-                        st.plotly_chart(cpi_yoy_chart, use_container_width=True)
-                
-                with tab2:
-                    cpi_mom_chart = create_change_chart(cpi_data, "CPI Month-over-Month Change", 'MoM')
-                    if cpi_mom_chart:
-                        st.plotly_chart(cpi_mom_chart, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Core CPI Section
-    st.markdown("### Core Consumer Price Index (Core CPI)")
-    
-    core_cpi_col1, core_cpi_col2 = st.columns([3, 1])
-    
-    with core_cpi_col2:
-        next_date, days = get_next_release_date("CPI")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with core_cpi_col1:
-        with st.spinner("Fetching Core CPI data from FRED..."):
-            core_cpi_data = fetch_fred_data("CPILFESL", "Core CPI")
-            if not core_cpi_data.empty:
-                # Create tabs for YoY and MoM only
-                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                
-                with tab1:
-                    core_cpi_yoy_chart = create_change_chart(core_cpi_data, "Core CPI Year-over-Year Change", 'YoY')
-                    if core_cpi_yoy_chart:
-                        st.plotly_chart(core_cpi_yoy_chart, use_container_width=True)
-                
-                with tab2:
-                    core_cpi_mom_chart = create_change_chart(core_cpi_data, "Core CPI Month-over-Month Change", 'MoM')
-                    if core_cpi_mom_chart:
-                        st.plotly_chart(core_cpi_mom_chart, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # PPI Section
-    st.markdown("### Producer Price Index (PPI)")
-    
-    ppi_col1, ppi_col2 = st.columns([3, 1])
-    
-    with ppi_col2:
-        next_date, days = get_next_release_date("PPI")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--blue);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with ppi_col1:
-        with st.spinner("Fetching PPI data from FRED..."):
-            ppi_data = fetch_fred_data("PPIACO", "PPI")
-            if not ppi_data.empty:
-                # Create tabs for YoY and MoM only
-                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                
-                with tab1:
-                    ppi_yoy_chart = create_change_chart(ppi_data, "PPI Year-over-Year Change", 'YoY')
-                    if ppi_yoy_chart:
-                        st.plotly_chart(ppi_yoy_chart, use_container_width=True)
-                
-                with tab2:
-                    ppi_mom_chart = create_change_chart(ppi_data, "PPI Month-over-Month Change", 'MoM')
-                    if ppi_mom_chart:
-                        st.plotly_chart(ppi_mom_chart, use_container_width=True)
-
-    st.markdown("---")
-    
-    # Core PPI Section
-    st.markdown("### Core Producer Price Index (Core PPI)")
-    
-    core_ppi_col1, core_ppi_col2 = st.columns([3, 1])
-    
-    with core_ppi_col2:
-        next_date, days = get_next_release_date("PPI")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--blue);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with core_ppi_col1:
-        with st.spinner("Fetching Core PPI data from FRED..."):
-            core_ppi_data = fetch_fred_data("WPSFD4131", "Core PPI")
-            if not core_ppi_data.empty:
-                # Create tabs for YoY and MoM only
-                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                
-                with tab1:
-                    core_ppi_yoy_chart = create_change_chart(core_ppi_data, "Core PPI Year-over-Year Change", 'YoY')
-                    if core_ppi_yoy_chart:
-                        st.plotly_chart(core_ppi_yoy_chart, use_container_width=True)
-                
-                with tab2:
-                    core_ppi_mom_chart = create_change_chart(core_ppi_data, "Core PPI Month-over-Month Change", 'MoM')
-                    if core_ppi_mom_chart:
-                        st.plotly_chart(core_ppi_mom_chart, use_container_width=True)
-
-    st.markdown("---")
-    
-    # Core PCE Inflation Rate Section
-    st.markdown("### Core PCE Inflation Rate")
-    
-    core_pce_col1, core_pce_col2 = st.columns([3, 1])
-    
-    with core_pce_col2:
-        # PCE inflation is released monthly, last business day of month
-        next_date, days = get_next_release_date("PCE")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_date}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days} days away</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with core_pce_col1:
-        with st.spinner("Fetching Core PCE Inflation data from FRED..."):
-            core_pce_data = fetch_fred_data("PCEPILFE", "Core PCE")
-            if not core_pce_data.empty:
-                # Create tabs for YoY and MoM only
-                tab1, tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                
-                with tab1:
-                    core_pce_yoy_chart = create_change_chart(core_pce_data, "Core PCE Inflation Year-over-Year Change", 'YoY')
-                    if core_pce_yoy_chart:
-                        st.plotly_chart(core_pce_yoy_chart, use_container_width=True)
-                
-                with tab2:
-                    core_pce_mom_chart = create_change_chart(core_pce_data, "Core PCE Inflation Month-over-Month Change", 'MoM')
-                    if core_pce_mom_chart:
-                        st.plotly_chart(core_pce_mom_chart, use_container_width=True)
-
-    st.markdown("---")
-
-    # ============================================================================
-    # UNEMPLOYMENT METRICS
-    # ============================================================================
-    st.markdown("## <u>Unemployment Metrics</u>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # Unemployment Rate Section
-    st.markdown("### Unemployment Rate")
-
-    unrate_col1, unrate_col2 = st.columns([3, 1])
-
-    with unrate_col2:
-        # Unemployment data is typically released first Friday of each month
-        now = datetime.now()
-        year = now.year
-        month = now.month
-    
-        # First Friday of next month
-        if now.day > 7:  # If past first week, show next month
-            if month == 12:
-                next_month = 1
-                next_year = year + 1
-            else:
-                next_month = month + 1
-                next_year = year
-        else:
-            next_month = month
-            next_year = year
-    
-        # Find first Friday
-        first_day = datetime(next_year, next_month, 1)
-        days_until_friday = (4 - first_day.weekday()) % 7
-        first_friday = first_day + timedelta(days=days_until_friday)
-    
-        days_until = (first_friday - now).days
-        next_release_str = first_friday.strftime("%B %d, %Y")
-    
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with unrate_col1:
-        with st.spinner("Fetching Unemployment Rate from FRED..."):
-            unrate_data = fetch_fred_data("UNRATE", "UNRATE")
-            if not unrate_data.empty:
-                # Create tabs for Absolute, YoY, and MoM
-                tab1, tab2, tab3 = st.tabs(["Absolute Rate", "Year-over-Year %", "Month-over-Month %"])
-            
-                with tab1:
-                    unrate_chart = create_indicator_chart(unrate_data, "Unemployment Rate", ACCENT_PURPLE)
-                    if unrate_chart:
-                        st.plotly_chart(unrate_chart, use_container_width=True)
-            
-                with tab2:
-                    unrate_yoy_chart = create_change_chart(unrate_data, "Unemployment Rate Year-over-Year Change", 'YoY')
-                    if unrate_yoy_chart:
-                        st.plotly_chart(unrate_yoy_chart, use_container_width=True)
-            
-                with tab3:
-                    unrate_mom_chart = create_change_chart(unrate_data, "Unemployment Rate Month-over-Month Change", 'MoM')
-                    if unrate_mom_chart:
-                        st.plotly_chart(unrate_mom_chart, use_container_width=True)
-
-    st.markdown("---")
-
-    # Nonfarm Payrolls Section
-    st.markdown("### Nonfarm Payrolls")
-
-    payems_col1, payems_col2 = st.columns([3, 1])
-
-    with payems_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with payems_col1:
-        with st.spinner("Fetching Nonfarm Payrolls from FRED..."):
-            payems_data = fetch_fred_data("PAYEMS", "PAYEMS")
-            if not payems_data.empty:
-                # Create tabs for Absolute, YoY, and MoM
-                tab1, tab2, tab3 = st.tabs(["Absolute Payrolls", "Year-over-Year %", "Month-over-Month %"])
-            
-                with tab1:
-                    payems_chart = create_indicator_chart(payems_data, "Nonfarm Payrolls (Thousands)", ACCENT_PURPLE)
-                    if payems_chart:
-                        st.plotly_chart(payems_chart, use_container_width=True)
-            
-                with tab2:
-                    payems_yoy_chart = create_change_chart(payems_data, "Nonfarm Payrolls Year-over-Year Change", 'YoY')
-                    if payems_yoy_chart:
-                        st.plotly_chart(payems_yoy_chart, use_container_width=True)
-            
-                with tab3:
-                    payems_mom_chart = create_change_chart(payems_data, "Nonfarm Payrolls Month-over-Month Change", 'MoM')
-                    if payems_mom_chart:
-                        st.plotly_chart(payems_mom_chart, use_container_width=True)
-
-    st.markdown("---")
-
-    # Initial Jobless Claims Section
-    st.markdown("### Initial Jobless Claims")
-
-    icsa_col1, icsa_col2 = st.columns([3, 1])
-
-    with icsa_col2:
-        # Initial Claims are released every Thursday for the prior week
-        now = datetime.now()
-    
-        # Find next Thursday
-        days_until_thursday = (3 - now.weekday()) % 7
-        if days_until_thursday == 0 and now.hour >= 8:  # If it's Thursday after 8:30 AM ET
-            days_until_thursday = 7
-    
-        next_thursday = now + timedelta(days=days_until_thursday)
-        next_release_str = next_thursday.strftime("%B %d, %Y")
-    
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_thursday} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released weekly on Thursdays</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with icsa_col1:
-        with st.spinner("Fetching Initial Jobless Claims from FRED..."):
-            icsa_data = fetch_fred_data("ICSA", "ICSA")
-            if not icsa_data.empty:
-                # Create tabs for Absolute, YoY, and MoM
-                tab1, tab2, tab3 = st.tabs(["Absolute Claims", "Year-over-Year %", "Week-over-Week %"])
-            
-                with tab1:
-                    icsa_chart = create_indicator_chart(icsa_data, "Initial Jobless Claims (Thousands)", ACCENT_PURPLE)
-                    if icsa_chart:
-                        st.plotly_chart(icsa_chart, use_container_width=True)
-            
-                with tab2:
-                    icsa_yoy_chart = create_change_chart(icsa_data, "Initial Jobless Claims Year-over-Year Change", 'YoY')
-                    if icsa_yoy_chart:
-                        st.plotly_chart(icsa_yoy_chart, use_container_width=True)
-            
-                with tab3:
-                    icsa_wow_chart = create_change_chart(icsa_data, "Initial Jobless Claims Week-over-Week Change", 'MoM')
-                    if icsa_wow_chart:
-                        st.plotly_chart(icsa_wow_chart, use_container_width=True)
-
-    st.markdown("---")
-
-    # Job Openings (JOLTS) Section
-    st.markdown("### Job Openings and Labor Turnover Survey (JOLTS)")
-
-    jolts_col1, jolts_col2 = st.columns([3, 1])
-
-    with jolts_col2:
-        # JOLTS data is released monthly, typically around the first Tuesday
-        next_jolts_release_str, days_until = get_next_release_date("JOLTS")
-        
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_jolts_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">First Tuesday of month</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with jolts_col1:
-        with st.spinner("Fetching JOLTS data from FRED..."):
-            # Fetch all JOLTS data
-            jolts_data = fetch_fred_data("JTSJOL", "Job Openings")
-            quits_data = fetch_fred_data("JTSQUR", "Quits Rate")
-            hires_data = fetch_fred_data("JTSHIR", "Hires Rate")
-            layoffs_data = fetch_fred_data("JTSLDL", "Layoffs & Discharges")
-            
-            # Create tabs for each metric
-            tab1, tab2, tab3, tab4 = st.tabs(["Job Openings", "Quits Rate", "Hires Rate", "Layoffs & Discharges"])
-            
-            with tab1:
-                if not jolts_data.empty:
-                    jolts_chart = create_indicator_chart(jolts_data, "Job Openings (Thousands)", ACCENT_PURPLE)
-                    if jolts_chart:
-                        st.plotly_chart(jolts_chart, use_container_width=True)
-                else:
-                    st.warning("No Job Openings data available")
-            
-            with tab2:
-                if not quits_data.empty:
-                    quits_chart = create_indicator_chart(quits_data, "Quits Rate (%)", ACCENT_PURPLE)
-                    if quits_chart:
-                        st.plotly_chart(quits_chart, use_container_width=True)
-                else:
-                    st.warning("No Quits Rate data available")
-            
-            with tab3:
-                if not hires_data.empty:
-                    hires_chart = create_indicator_chart(hires_data, "Hires Rate (%)", ACCENT_PURPLE)
-                    if hires_chart:
-                        st.plotly_chart(hires_chart, use_container_width=True)
-                else:
-                    st.warning("No Hires Rate data available")
-            
-            with tab4:
-                if not layoffs_data.empty:
-                    layoffs_chart = create_indicator_chart(layoffs_data, "Layoffs & Discharges (Thousands)", ACCENT_PURPLE)
-                    if layoffs_chart:
-                        st.plotly_chart(layoffs_chart, use_container_width=True)
-                else:
-                    st.warning("No Layoffs & Discharges data available")
-
-    st.markdown("---")
-
-    # Labor Force Participation Rate Section
-    st.markdown("### Labor Force Participation Rate")
-
-    lfpr_col1, lfpr_col2 = st.columns([3, 1])
-
-    with lfpr_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with lfpr_col1:
-        with st.spinner("Fetching Labor Force Participation Rate from FRED..."):
-            lfpr_data = fetch_fred_data("CIVPART", "LFPR")
-            if not lfpr_data.empty:
-                # Create tabs for Absolute, YoY, and MoM
-                tab1, tab2, tab3 = st.tabs(["Absolute Rate", "Year-over-Year %", "Month-over-Month %"])
-            
-                with tab1:
-                    lfpr_chart = create_indicator_chart(lfpr_data, "Labor Force Participation Rate", ACCENT_PURPLE)
-                    if lfpr_chart:
-                        st.plotly_chart(lfpr_chart, use_container_width=True)
-            
-                with tab2:
-                    lfpr_yoy_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Year-over-Year Change", 'YoY')
-                    if lfpr_yoy_chart:
-                        st.plotly_chart(lfpr_yoy_chart, use_container_width=True)
-            
-                with tab3:
-                    lfpr_mom_chart = create_change_chart(lfpr_data, "Labor Force Participation Rate Month-over-Month Change", 'MoM')
-                    if lfpr_mom_chart:
-                        st.plotly_chart(lfpr_mom_chart, use_container_width=True)
-
-    st.markdown("---")
-
-    # ============================================================================
-    # CONSUMPTION METRICS
-    # ============================================================================
-    st.markdown("## <u>Consumption Metrics</u>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # Real Personal Consumption Expenditures Section
-    st.markdown("### Real Personal Consumption Expenditures (Real PCE)")
-
-    pce_col1, pce_col2 = st.columns([3, 1])
-
-    with pce_col2:
-        next_pce_release_str, days_until = get_next_release_date("PCE")
-        
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_pce_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Last business day of month</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with pce_col1:
-        with st.spinner("Fetching Real PCE data from FRED..."):
-            pce_data = fetch_fred_data("PCEC96", "Real PCE")
-            if not pce_data.empty:
-                # Create tabs for Value, MoM, and YoY
-                tab1, tab2, tab3 = st.tabs(["Real PCE Value", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    pce_chart = create_indicator_chart(pce_data, "Real Personal Consumption Expenditures (Billions, Chained 2017 Dollars)", ACCENT_PURPLE)
-                    if pce_chart:
-                        st.plotly_chart(pce_chart, use_container_width=True)
-                
-                with tab2:
-                    pce_mom_chart = create_change_chart(pce_data, "Real PCE Month-over-Month Change", 'MoM')
-                    if pce_mom_chart:
-                        st.plotly_chart(pce_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    pce_yoy_chart = create_change_chart(pce_data, "Real PCE Year-over-Year Change", 'YoY')
-                    if pce_yoy_chart:
-                        st.plotly_chart(pce_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Real PCE data available")
-
-    st.markdown("---")
-
-    # Real PCE: Goods vs. Services Section
-    st.markdown("### Real PCE: Goods vs. Services")
-
-    pce_breakdown_col1, pce_breakdown_col2 = st.columns([3, 1])
-
-    with pce_breakdown_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_pce_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with pce_breakdown_col1:
-        with st.spinner("Fetching Real PCE breakdown data from FRED..."):
-            # Fetch PCE breakdown data
-            goods_data = fetch_fred_data("PCDG", "Goods")
-            services_data = fetch_fred_data("PCES", "Services")
-            
-            # Create tabs for Goods and Services only
-            tab1, tab2 = st.tabs(["Goods", "Services"])
-            
-            with tab1:
-                if not goods_data.empty:
-                    # Create sub-tabs for YoY and MoM
-                    goods_tab1, goods_tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                    
-                    with goods_tab1:
-                        goods_yoy_chart = create_change_chart(goods_data, "Real PCE Goods Year-over-Year Change", 'YoY')
-                        if goods_yoy_chart:
-                            st.plotly_chart(goods_yoy_chart, use_container_width=True)
-                    
-                    with goods_tab2:
-                        goods_mom_chart = create_change_chart(goods_data, "Real PCE Goods Month-over-Month Change", 'MoM')
-                        if goods_mom_chart:
-                            st.plotly_chart(goods_mom_chart, use_container_width=True)
-                else:
-                    st.warning("No Goods data available")
-            
-            with tab2:
-                if not services_data.empty:
-                    # Create sub-tabs for YoY and MoM
-                    services_tab1, services_tab2 = st.tabs(["Year-over-Year %", "Month-over-Month %"])
-                    
-                    with services_tab1:
-                        services_yoy_chart = create_change_chart(services_data, "Real PCE Services Year-over-Year Change", 'YoY')
-                        if services_yoy_chart:
-                            st.plotly_chart(services_yoy_chart, use_container_width=True)
-                    
-                    with services_tab2:
-                        services_mom_chart = create_change_chart(services_data, "Real PCE Services Month-over-Month Change", 'MoM')
-                        if services_mom_chart:
-                            st.plotly_chart(services_mom_chart, use_container_width=True)
-                else:
-                    st.warning("No Services data available")
-
-    st.markdown("---")
-
-    # Real Retail Sales Section
-    st.markdown("### Real Retail Sales")
-
-    retail_col1, retail_col2 = st.columns([3, 1])
-
-    with retail_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_pce_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with retail_col1:
-        with st.spinner("Fetching Real Retail Sales data from FRED..."):
-            retail_data = fetch_fred_data("RSAFS", "Real Retail Sales")
-            if not retail_data.empty:
-                # Create tabs for Absolute, MoM, and YoY
-                tab1, tab2, tab3 = st.tabs(["Absolute Sales", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    retail_chart = create_indicator_chart(retail_data, "Real Retail Sales (Millions, Chained 2017 Dollars)", ACCENT_PURPLE)
-                    if retail_chart:
-                        st.plotly_chart(retail_chart, use_container_width=True)
-                
-                with tab2:
-                    retail_mom_chart = create_change_chart(retail_data, "Real Retail Sales Month-over-Month Change", 'MoM')
-                    if retail_mom_chart:
-                        st.plotly_chart(retail_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    retail_yoy_chart = create_change_chart(retail_data, "Real Retail Sales Year-over-Year Change", 'YoY')
-                    if retail_yoy_chart:
-                        st.plotly_chart(retail_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Real Retail Sales data available")
-
-    st.markdown("---")
-
-    # Personal Saving Rate Section
-    st.markdown("### Personal Saving Rate")
-
-    saving_col1, saving_col2 = st.columns([3, 1])
-
-    with saving_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_pce_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with saving_col1:
-        with st.spinner("Fetching Personal Saving Rate from FRED..."):
-            saving_data = fetch_fred_data("PSAVERT", "Personal Saving Rate")
-            if not saving_data.empty:
-                # Create tabs for Absolute Rate, MoM, and YoY
-                tab1, tab2, tab3 = st.tabs(["Saving Rate", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    saving_chart = create_indicator_chart(saving_data, "Personal Saving Rate (%)", ACCENT_PURPLE)
-                    if saving_chart:
-                        st.plotly_chart(saving_chart, use_container_width=True)
-                
-                with tab2:
-                    saving_mom_chart = create_change_chart(saving_data, "Personal Saving Rate Month-over-Month Change", 'MoM')
-                    if saving_mom_chart:
-                        st.plotly_chart(saving_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    saving_yoy_chart = create_change_chart(saving_data, "Personal Saving Rate Year-over-Year Change", 'YoY')
-                    if saving_yoy_chart:
-                        st.plotly_chart(saving_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Personal Saving Rate data available")
-
-    st.markdown("---")
-
-    # ============================================================================
-    # SENTIMENT METRICS
-    # ============================================================================
-    st.markdown("## <u>Sentiment Metrics</u>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # University of Michigan Consumer Sentiment Section
-    st.markdown("### University of Michigan Consumer Sentiment")
-
-    umich_col1, umich_col2 = st.columns([3, 1])
-
-    with umich_col2:
-        next_umich_str, days_until_umich = get_next_release_date("UMICH")
-        
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_umich_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_umich} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released monthly</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with umich_col1:
-        with st.spinner("Fetching UMich Consumer Sentiment from FRED..."):
-            umich_data = fetch_fred_data("UMCSENT", "UMich Sentiment")
-            if not umich_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Sentiment Index", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    umich_chart = create_indicator_chart(umich_data, "University of Michigan Consumer Sentiment Index", ACCENT_PURPLE)
-                    if umich_chart:
-                        st.plotly_chart(umich_chart, use_container_width=True)
-                
-                with tab2:
-                    umich_mom_chart = create_change_chart(umich_data, "UMich Sentiment Month-over-Month Change", 'MoM')
-                    if umich_mom_chart:
-                        st.plotly_chart(umich_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    umich_yoy_chart = create_change_chart(umich_data, "UMich Sentiment Year-over-Year Change", 'YoY')
-                    if umich_yoy_chart:
-                        st.plotly_chart(umich_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No UMich Consumer Sentiment data available")
-
-    st.markdown("---")
-
-    # Michigan Consumer Expectations Index Section
-    st.markdown("### Michigan Consumer Expectations Index")
-
-    umich_exp_col1, umich_exp_col2 = st.columns([3, 1])
-
-    with umich_exp_col2:
-        next_umich_exp_str, days_until_umich_exp = get_next_release_date("UMICH")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_umich_exp_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_umich_exp} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">2nd Friday (preliminary)</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with umich_exp_col1:
-        with st.spinner("Fetching Michigan Consumer Expectations from FRED..."):
-            umich_exp_data = fetch_fred_data("UMCSENT", "Michigan Expectations")  # Note: FRED may not have separate series
-            if not umich_exp_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Expectations Index", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    umich_exp_chart = create_indicator_chart(umich_exp_data, "Michigan Consumer Expectations Index", ACCENT_PURPLE)
-                    if umich_exp_chart:
-                        st.plotly_chart(umich_exp_chart, use_container_width=True)
-                
-                with tab2:
-                    umich_exp_mom_chart = create_change_chart(umich_exp_data, "Michigan Expectations Month-over-Month Change", 'MoM')
-                    if umich_exp_mom_chart:
-                        st.plotly_chart(umich_exp_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    umich_exp_yoy_chart = create_change_chart(umich_exp_data, "Michigan Expectations Year-over-Year Change", 'YoY')
-                    if umich_exp_yoy_chart:
-                        st.plotly_chart(umich_exp_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Michigan Consumer Expectations data available")
-
-    st.markdown("---")
-
-    # NFIB Small Business Optimism Index Section
-    st.markdown("### NFIB Small Business Optimism Index")
-
-    nfib_col1, nfib_col2 = st.columns([3, 1])
-
-    with nfib_col2:
-        next_nfib_str, days_until_nfib = get_next_release_date("NFIB")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_nfib_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_nfib} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">2nd Tuesday of month</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with nfib_col1:
-        with st.spinner("Fetching NFIB Small Business Optimism from FRED..."):
-            nfib_data = fetch_fred_data("BSCICP03USM665S", "NFIB Optimism")
-            if not nfib_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Optimism Index", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    nfib_chart = create_indicator_chart(nfib_data, "NFIB Small Business Optimism Index", ACCENT_PURPLE)
-                    if nfib_chart:
-                        st.plotly_chart(nfib_chart, use_container_width=True)
-                
-                with tab2:
-                    nfib_mom_chart = create_change_chart(nfib_data, "NFIB Optimism Month-over-Month Change", 'MoM')
-                    if nfib_mom_chart:
-                        st.plotly_chart(nfib_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    nfib_yoy_chart = create_change_chart(nfib_data, "NFIB Optimism Year-over-Year Change", 'YoY')
-                    if nfib_yoy_chart:
-                        st.plotly_chart(nfib_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No NFIB Small Business Optimism data available")
-
-    st.markdown("---")
-
-    # ISM Manufacturing PMI Section
-    st.markdown("### ISM Manufacturing PMI")
-
-    ism_mfg_col1, ism_mfg_col2 = st.columns([3, 1])
-
-    with ism_mfg_col2:
-        next_ism_str, days_until_ism = get_next_release_date("ISM")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_ism_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_ism} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">1st business day of month</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with ism_mfg_col1:
-        with st.spinner("Fetching ISM Manufacturing PMI from FRED..."):
-            ism_mfg_data = fetch_fred_data("MANEMP", "ISM Manufacturing PMI")
-            if not ism_mfg_data.empty:
-                tab1, tab2, tab3 = st.tabs(["PMI Index", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    ism_mfg_chart = create_indicator_chart(ism_mfg_data, "ISM Manufacturing PMI (>50 = Expansion)", ACCENT_PURPLE)
-                    if ism_mfg_chart:
-                        st.plotly_chart(ism_mfg_chart, use_container_width=True)
-                
-                with tab2:
-                    ism_mfg_mom_chart = create_change_chart(ism_mfg_data, "ISM Manufacturing PMI Month-over-Month Change", 'MoM')
-                    if ism_mfg_mom_chart:
-                        st.plotly_chart(ism_mfg_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    ism_mfg_yoy_chart = create_change_chart(ism_mfg_data, "ISM Manufacturing PMI Year-over-Year Change", 'YoY')
-                    if ism_mfg_yoy_chart:
-                        st.plotly_chart(ism_mfg_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No ISM Manufacturing PMI data available")
-
-    st.markdown("---")
-
-    # Philadelphia Fed Business Outlook Section
-    st.markdown("### Philadelphia Fed Business Outlook Survey")
-
-    philly_col1, philly_col2 = st.columns([3, 1])
-
-    with philly_col2:
-        next_philly_str, days_until_philly = get_next_release_date("PHILLY_FED")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_philly_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_philly} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">3rd Thursday of month</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with philly_col1:
-        with st.spinner("Fetching Philadelphia Fed Business Outlook from FRED..."):
-            philly_data = fetch_fred_data("BSCICP02USM460S", "Philly Fed Outlook")
-            if not philly_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Outlook Index", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    philly_chart = create_indicator_chart(philly_data, "Philadelphia Fed Business Outlook Index", ACCENT_PURPLE)
-                    if philly_chart:
-                        st.plotly_chart(philly_chart, use_container_width=True)
-                
-                with tab2:
-                    philly_mom_chart = create_change_chart(philly_data, "Philly Fed Outlook Month-over-Month Change", 'MoM')
-                    if philly_mom_chart:
-                        st.plotly_chart(philly_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    philly_yoy_chart = create_change_chart(philly_data, "Philly Fed Outlook Year-over-Year Change", 'YoY')
-                    if philly_yoy_chart:
-                        st.plotly_chart(philly_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Philadelphia Fed Business Outlook data available")
-
-    st.markdown("---")
-
-    # ============================================================================
-    # REAL ESTATE METRICS
-    # ============================================================================
-    st.markdown("## <u>Real Estate Metrics</u>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # Housing Starts Section
-    st.markdown("### Housing Starts")
-
-    starts_col1, starts_col2 = st.columns([3, 1])
-
-    with starts_col2:
-        next_housing_release_str, days_until_housing = get_next_release_date("HOUSING")
-        
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_housing_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_housing} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Mid-month (~17th)</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with starts_col1:
-        with st.spinner("Fetching Housing Starts from FRED..."):
-            starts_data = fetch_fred_data("HOUST", "Housing Starts")
-            if not starts_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Housing Starts", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    starts_chart = create_indicator_chart(starts_data, "Housing Starts (Thousands of Units)", ACCENT_PURPLE)
-                    if starts_chart:
-                        st.plotly_chart(starts_chart, use_container_width=True)
-                
-                with tab2:
-                    starts_mom_chart = create_change_chart(starts_data, "Housing Starts Month-over-Month Change", 'MoM')
-                    if starts_mom_chart:
-                        st.plotly_chart(starts_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    starts_yoy_chart = create_change_chart(starts_data, "Housing Starts Year-over-Year Change", 'YoY')
-                    if starts_yoy_chart:
-                        st.plotly_chart(starts_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Housing Starts data available")
-
-    st.markdown("---")
-
-    # Building Permits Section
-    st.markdown("### Building Permits")
-
-    permits_col1, permits_col2 = st.columns([3, 1])
-
-    with permits_col2:
-        next_permits_str, days_until_permits = get_next_release_date("HOUSING")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_permits_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_permits} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Mid-month (~17th)</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with permits_col1:
-        with st.spinner("Fetching Building Permits from FRED..."):
-            permits_data = fetch_fred_data("PERMIT", "Building Permits")
-            if not permits_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Building Permits", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    permits_chart = create_indicator_chart(permits_data, "Building Permits (Thousands of Units)", ACCENT_PURPLE)
-                    if permits_chart:
-                        st.plotly_chart(permits_chart, use_container_width=True)
-                
-                with tab2:
-                    permits_mom_chart = create_change_chart(permits_data, "Building Permits Month-over-Month Change", 'MoM')
-                    if permits_mom_chart:
-                        st.plotly_chart(permits_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    permits_yoy_chart = create_change_chart(permits_data, "Building Permits Year-over-Year Change", 'YoY')
-                    if permits_yoy_chart:
-                        st.plotly_chart(permits_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Building Permits data available")
-
-    st.markdown("---")
-
-    # Case-Shiller Home Price Index Section
-    st.markdown("### S&P/Case-Shiller U.S. National Home Price Index")
-
-    homeprice_col1, homeprice_col2 = st.columns([3, 1])
-
-    with homeprice_col2:
-        next_homeprice_str, days_until_homeprice = get_next_release_date("HOME_PRICES")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_homeprice_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_homeprice} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Last Tuesday (~25th)</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with homeprice_col1:
-        with st.spinner("Fetching Case-Shiller Home Price Index from FRED..."):
-            homeprice_data = fetch_fred_data("CSUSHPINSA", "Home Price Index")
-            if not homeprice_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Home Price Index", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    homeprice_chart = create_indicator_chart(homeprice_data, "S&P/Case-Shiller Home Price Index", ACCENT_PURPLE)
-                    if homeprice_chart:
-                        st.plotly_chart(homeprice_chart, use_container_width=True)
-                
-                with tab2:
-                    homeprice_mom_chart = create_change_chart(homeprice_data, "Home Price Index Month-over-Month Change", 'MoM')
-                    if homeprice_mom_chart:
-                        st.plotly_chart(homeprice_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    homeprice_yoy_chart = create_change_chart(homeprice_data, "Home Price Index Year-over-Year Change", 'YoY')
-                    if homeprice_yoy_chart:
-                        st.plotly_chart(homeprice_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Home Price Index data available")
-
-    st.markdown("---")
-
-    # Existing Home Sales Section
-    st.markdown("### Existing Home Sales")
-
-    existingsales_col1, existingsales_col2 = st.columns([3, 1])
-
-    with existingsales_col2:
-        next_existingsales_str, days_until_existingsales = get_next_release_date("EXISTING_SALES")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_existingsales_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_existingsales} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Around 20-25th of month</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with existingsales_col1:
-        with st.spinner("Fetching Existing Home Sales from FRED..."):
-            existingsales_data = fetch_fred_data("EXHOSLUSM495S", "Existing Home Sales")
-            if not existingsales_data.empty:
-                tab1, tab2 = st.tabs(["Existing Sales", "Month-over-Month %"])
-                
-                with tab1:
-                    existingsales_chart = create_indicator_chart(existingsales_data, "Existing Home Sales (Thousands of Units)", ACCENT_PURPLE)
-                    if existingsales_chart:
-                        st.plotly_chart(existingsales_chart, use_container_width=True)
-                
-                with tab2:
-                    existingsales_mom_chart = create_change_chart(existingsales_data, "Existing Home Sales Month-over-Month Change", 'MoM')
-                    if existingsales_mom_chart:
-                        st.plotly_chart(existingsales_mom_chart, use_container_width=True)
-            else:
-                st.warning("No Existing Home Sales data available")
-
-    st.markdown("---")
-
-    # Residential Construction Spending Section
-    st.markdown("### Residential Construction Spending")
-
-    rescon_col1, rescon_col2 = st.columns([3, 1])
-
-    with rescon_col2:
-        next_rescon_str, days_until_rescon = get_next_release_date("CONSTRUCTION")
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_rescon_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_rescon} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">1st business day of month</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with rescon_col1:
-        with st.spinner("Fetching Residential Construction Spending from FRED..."):
-            rescon_data = fetch_fred_data("PRRESCON", "Residential Construction")
-            if not rescon_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Construction Spending", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    rescon_chart = create_indicator_chart(rescon_data, "Residential Construction Spending (Millions of Dollars)", ACCENT_PURPLE)
-                    if rescon_chart:
-                        st.plotly_chart(rescon_chart, use_container_width=True)
-                
-                with tab2:
-                    rescon_mom_chart = create_change_chart(rescon_data, "Residential Construction Month-over-Month Change", 'MoM')
-                    if rescon_mom_chart:
-                        st.plotly_chart(rescon_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    rescon_yoy_chart = create_change_chart(rescon_data, "Residential Construction Year-over-Year Change", 'YoY')
-                    if rescon_yoy_chart:
-                        st.plotly_chart(rescon_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No Residential Construction Spending data available")
-
-    st.markdown("---")
-
-    # 30-Year Mortgage Rate Section
-    st.markdown("### 30-Year Fixed Mortgage Rate")
-
-    mortgage_col1, mortgage_col2 = st.columns([3, 1])
-
-    with mortgage_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Data Availability</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>Updates Daily</strong></p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released weekly by Freddie Mac</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with mortgage_col1:
-        with st.spinner("Fetching 30-Year Mortgage Rate from FRED..."):
-            mortgage_data = fetch_fred_data("MORTGAGE30US", "Mortgage Rate")
-            if not mortgage_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Mortgage Rate", "Month-over-Month %", "Year-over-Year %"])
-                
-                with tab1:
-                    mortgage_chart = create_indicator_chart(mortgage_data, "30-Year Fixed Mortgage Rate (%)", ACCENT_PURPLE)
-                    if mortgage_chart:
-                        st.plotly_chart(mortgage_chart, use_container_width=True)
-                
-                with tab2:
-                    mortgage_mom_chart = create_change_chart(mortgage_data, "Mortgage Rate Month-over-Month Change", 'MoM')
-                    if mortgage_mom_chart:
-                        st.plotly_chart(mortgage_mom_chart, use_container_width=True)
-                
-                with tab3:
-                    mortgage_yoy_chart = create_change_chart(mortgage_data, "Mortgage Rate Year-over-Year Change", 'YoY')
-                    if mortgage_yoy_chart:
-                        st.plotly_chart(mortgage_yoy_chart, use_container_width=True)
-            else:
-                st.warning("No 30-Year Mortgage Rate data available")
-
-    st.markdown("---")
-    # ============================================================================
-    # FINANCIAL STABILITY METRICS
-    # ============================================================================
-    st.markdown("## <u>Financial Stability Metrics</u>", unsafe_allow_html=True)
-    st.markdown("---")
-    
-    # Get next delinquency release date (used by all delinquency indicators)
-    next_delinq_str, days_until_delinq = get_next_release_date("DELINQUENCY")
-    
-    # Credit Card Delinquency Rate Section
-    st.markdown("### Credit Card Delinquency Rate")
-    
-    cc_delinq_col1, cc_delinq_col2 = st.columns([3, 1])
-    
-    with cc_delinq_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with cc_delinq_col1:
-        with st.spinner("Fetching Credit Card Delinquency Rate from FRED..."):
-            cc_delinq_data = fetch_fred_data("DRCCLACBS", "Credit Card Delinquency")
-            if not cc_delinq_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
-                
-                with tab1:
-                    cc_delinq_chart = create_indicator_chart(cc_delinq_data, "Credit Card Delinquency Rate (%)", ACCENT_PURPLE)
-                    if cc_delinq_chart:
-                        st.plotly_chart(cc_delinq_chart, use_container_width=True)
-                
-                with tab2:
-                    cc_delinq_yoy_chart = create_gdp_change_chart(cc_delinq_data, "Credit Card Delinquency Year-over-Year Change", 'YoY')
-                    if cc_delinq_yoy_chart:
-                        st.plotly_chart(cc_delinq_yoy_chart, use_container_width=True)
-                
-                with tab3:
-                    cc_delinq_qoq_chart = create_gdp_change_chart(cc_delinq_data, "Credit Card Delinquency Quarter-over-Quarter Change", 'QoQ')
-                    if cc_delinq_qoq_chart:
-                        st.plotly_chart(cc_delinq_qoq_chart, use_container_width=True)
-            else:
-                st.warning("No Credit Card Delinquency data available")
-    
-    st.markdown("---")
-    
-    # Consumer Loan Delinquency Rate Section
-    st.markdown("### Consumer Loan Delinquency Rate")
-    
-    consumer_delinq_col1, consumer_delinq_col2 = st.columns([3, 1])
-    
-    with consumer_delinq_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with consumer_delinq_col1:
-        with st.spinner("Fetching Consumer Loan Delinquency Rate from FRED..."):
-            consumer_delinq_data = fetch_fred_data("DRCLACBS", "Consumer Loan Delinquency")
-            if not consumer_delinq_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
-                
-                with tab1:
-                    consumer_delinq_chart = create_indicator_chart(consumer_delinq_data, "Consumer Loan Delinquency Rate (%)", ACCENT_PURPLE)
-                    if consumer_delinq_chart:
-                        st.plotly_chart(consumer_delinq_chart, use_container_width=True)
-                
-                with tab2:
-                    consumer_delinq_yoy_chart = create_gdp_change_chart(consumer_delinq_data, "Consumer Loan Delinquency Year-over-Year Change", 'YoY')
-                    if consumer_delinq_yoy_chart:
-                        st.plotly_chart(consumer_delinq_yoy_chart, use_container_width=True)
-                
-                with tab3:
-                    consumer_delinq_qoq_chart = create_gdp_change_chart(consumer_delinq_data, "Consumer Loan Delinquency Quarter-over-Quarter Change", 'QoQ')
-                    if consumer_delinq_qoq_chart:
-                        st.plotly_chart(consumer_delinq_qoq_chart, use_container_width=True)
-            else:
-                st.warning("No Consumer Loan Delinquency data available")
-    
-    st.markdown("---")
-    
-    # Other Consumer Loan Delinquency Rate Section (includes Auto Loans)
-    st.markdown("### Other Consumer Loan Delinquency Rate (includes Auto Loans)")
-    
-    other_delinq_col1, other_delinq_col2 = st.columns([3, 1])
-    
-    with other_delinq_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with other_delinq_col1:
-        with st.spinner("Fetching Other Consumer Loan Delinquency Rate from FRED..."):
-            other_delinq_data = fetch_fred_data("DROCLACBS", "Other Consumer Loan Delinquency")
-            if not other_delinq_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
-                
-                with tab1:
-                    other_delinq_chart = create_indicator_chart(
-                        other_delinq_data,
-                        "Other Consumer Loan Delinquency Rate (%) - Includes Auto Loans",
-                        ACCENT_PURPLE
-                    )
-                    if other_delinq_chart:
-                        st.plotly_chart(other_delinq_chart, use_container_width=True)
-                
-                with tab2:
-                    other_delinq_yoy_chart = create_gdp_change_chart(
-                        other_delinq_data,
-                        "Other Consumer Loan Delinquency Year-over-Year Change",
-                        'YoY'
-                    )
-                    if other_delinq_yoy_chart:
-                        st.plotly_chart(other_delinq_yoy_chart, use_container_width=True)
-                
-                with tab3:
-                    other_delinq_qoq_chart = create_gdp_change_chart(
-                        other_delinq_data,
-                        "Other Consumer Loan Delinquency Quarter-over-Quarter Change",
-                        'QoQ'
-                    )
-                    if other_delinq_qoq_chart:
-                        st.plotly_chart(other_delinq_qoq_chart, use_container_width=True)
-            else:
-                st.warning("No Other Consumer Loan Delinquency data available")
-    
-    st.markdown("---")
-    
-    # Mortgage Delinquency Rate Section
-    st.markdown("### Single-Family Residential Mortgage Delinquency Rate")
-    
-    mortgage_delinq_col1, mortgage_delinq_col2 = st.columns([3, 1])
-    
-    with mortgage_delinq_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with mortgage_delinq_col1:
-        with st.spinner("Fetching Mortgage Delinquency Rate from FRED..."):
-            mortgage_delinq_data = fetch_fred_data("DRSFRMACBS", "Mortgage Delinquency")
-            if not mortgage_delinq_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
-                
-                with tab1:
-                    mortgage_delinq_chart = create_indicator_chart(
-                        mortgage_delinq_data,
-                        "Single-Family Residential Mortgage Delinquency Rate (%)",
-                        ACCENT_PURPLE
-                    )
-                    if mortgage_delinq_chart:
-                        st.plotly_chart(mortgage_delinq_chart, use_container_width=True)
-                
-                with tab2:
-                    mortgage_delinq_yoy_chart = create_gdp_change_chart(
-                        mortgage_delinq_data,
-                        "Mortgage Delinquency Year-over-Year Change",
-                        'YoY'
-                    )
-                    if mortgage_delinq_yoy_chart:
-                        st.plotly_chart(mortgage_delinq_yoy_chart, use_container_width=True)
-                
-                with tab3:
-                    mortgage_delinq_qoq_chart = create_gdp_change_chart(
-                        mortgage_delinq_data,
-                        "Mortgage Delinquency Quarter-over-Quarter Change",
-                        'QoQ'
-                    )
-                    if mortgage_delinq_qoq_chart:
-                        st.plotly_chart(mortgage_delinq_qoq_chart, use_container_width=True)
-            else:
-                st.warning("No Mortgage Delinquency data available")
-    
-    st.markdown("---")
-    
-    # Commercial & Industrial Loan Delinquency Rate Section
-    st.markdown("### Delinquency Rate on Commercial & Industrial Loans")
-    
-    ci_delinq_col1, ci_delinq_col2 = st.columns([3, 1])
-    
-    with ci_delinq_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with ci_delinq_col1:
-        with st.spinner("Fetching C&I Loan Delinquency Rate from FRED..."):
-            ci_delinq_data = fetch_fred_data("DRBLACBS", "C&I Loan Delinquency")
-            if not ci_delinq_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
-                
-                with tab1:
-                    ci_delinq_chart = create_indicator_chart(
-                        ci_delinq_data,
-                        "C&I Loan Delinquency Rate (%)",
-                        ACCENT_PURPLE
-                    )
-                    if ci_delinq_chart:
-                        st.plotly_chart(ci_delinq_chart, use_container_width=True)
-                
-                with tab2:
-                    ci_delinq_yoy_chart = create_gdp_change_chart(
-                        ci_delinq_data,
-                        "C&I Loan Delinquency Year-over-Year Change",
-                        'YoY'
-                    )
-                    if ci_delinq_yoy_chart:
-                        st.plotly_chart(ci_delinq_yoy_chart, use_container_width=True)
-                
-                with tab3:
-                    ci_delinq_qoq_chart = create_gdp_change_chart(
-                        ci_delinq_data,
-                        "C&I Loan Delinquency Quarter-over-Quarter Change",
-                        'QoQ'
-                    )
-                    if ci_delinq_qoq_chart:
-                        st.plotly_chart(ci_delinq_qoq_chart, use_container_width=True)
-            else:
-                st.warning("No C&I Loan Delinquency data available")
-    
-    st.markdown("---")
-    
-    # Commercial Real Estate Loan Delinquency Rate Section
-    st.markdown("### Delinquency Rate on Commercial Real Estate Loans")
-    
-    cre_delinq_col1, cre_delinq_col2 = st.columns([3, 1])
-    
-    with cre_delinq_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_delinq_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_delinq} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with cre_delinq_col1:
-        with st.spinner("Fetching CRE Loan Delinquency Rate from FRED..."):
-            cre_delinq_data = fetch_fred_data("DRCRELEXFACBS", "CRE Loan Delinquency")
-            if not cre_delinq_data.empty:
-                tab1, tab2, tab3 = st.tabs(["Delinquency Rate", "Year-over-Year %", "Quarter-over-Quarter %"])
-                
-                with tab1:
-                    cre_delinq_chart = create_indicator_chart(
-                        cre_delinq_data,
-                        "CRE Loan Delinquency Rate (%) - Excluding Farmland",
-                        ACCENT_PURPLE
-                    )
-                    if cre_delinq_chart:
-                        st.plotly_chart(cre_delinq_chart, use_container_width=True)
-                
-                with tab2:
-                    cre_delinq_yoy_chart = create_gdp_change_chart(
-                        cre_delinq_data,
-                        "CRE Loan Delinquency Year-over-Year Change",
-                        'YoY'
-                    )
-                    if cre_delinq_yoy_chart:
-                        st.plotly_chart(cre_delinq_yoy_chart, use_container_width=True)
-                
-                with tab3:
-                    cre_delinq_qoq_chart = create_gdp_change_chart(
-                        cre_delinq_data,
-                        "CRE Loan Delinquency Quarter-over-Quarter Change",
-                        'QoQ'
-                    )
-                    if cre_delinq_qoq_chart:
-                        st.plotly_chart(cre_delinq_qoq_chart, use_container_width=True)
-            else:
-                st.warning("No CRE Loan Delinquency data available")
-    
-    st.markdown("---")
-    # ============================================================================
-    # GDP METRICS
-    # ============================================================================
-    st.markdown("## <u>GDP Metrics</u>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # Gross GDP Section
-    st.markdown("### Gross Domestic Product (GDP)")
-
-    gdp_col1, gdp_col2 = st.columns([3, 1])
-
-    with gdp_col2:
-        # GDP is released quarterly, typically around the end of the month following the quarter
-        now = datetime.now()
-        year = now.year
-        month = now.month
-    
-        # Determine which quarter we're in and next release
-        current_quarter = (month - 1) // 3 + 1
-    
-        # GDP releases are approximately: Jan 26 (Q4), Apr 25 (Q1), Jul 25 (Q2), Oct 24 (Q3)
-        release_months = [1, 4, 7, 10]  # January, April, July, October
-        release_day = 25
-    
-        # Find next release
-        next_release_month = None
-        for rm in release_months:
-            if month < rm or (month == rm and now.day < release_day):
-                next_release_month = rm
-                next_release_year = year
-                break
-    
-        if next_release_month is None:
-            next_release_month = release_months[0]
-            next_release_year = year + 1
-    
-        next_gdp_release = datetime(next_release_year, next_release_month, release_day)
-        days_until_gdp = (next_gdp_release - now).days
-        next_gdp_release_str = next_gdp_release.strftime("%B %d, %Y")
-    
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_gdp_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_gdp} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with gdp_col1:
-        with st.spinner("Fetching Gross GDP data from FRED..."):
-            gdp_data = fetch_fred_data("GDP", "GDP")
-            if not gdp_data.empty:
-                # Create tabs for Absolute, YoY, QoQ, and MoM
-                tab1, tab2, tab3 = st.tabs(["Absolute GDP", "Year-over-Year %", "Quarter-over-Quarter %"])
-            
-                with tab1:
-                    gdp_chart = create_indicator_chart(gdp_data, "Gross Domestic Product (Billions)", ACCENT_PURPLE)
-                    if gdp_chart:
-                        st.plotly_chart(gdp_chart, use_container_width=True)
-            
-                with tab2:
-                    # YoY: compare to 4 quarters ago
-                    gdp_yoy_chart = create_gdp_change_chart(gdp_data, "Gross GDP Year-over-Year Change", 'YoY')
-                    if gdp_yoy_chart:
-                        st.plotly_chart(gdp_yoy_chart, use_container_width=True)
-            
-                with tab3:
-                    # QoQ: compare to previous quarter
-                    gdp_qoq_chart = create_gdp_change_chart(gdp_data, "Gross GDP Quarter-over-Quarter Change", 'QoQ')
-                    if gdp_qoq_chart:
-                        st.plotly_chart(gdp_qoq_chart, use_container_width=True)
-
-    st.markdown("---")
-
-    # Real GDP Section
-    st.markdown("### Real Gross Domestic Product (Real GDP)")
-
-    real_gdp_col1, real_gdp_col2 = st.columns([3, 1])
-
-    with real_gdp_col2:
-        st.markdown(f"""
-        <div class="release-info">
-            <h4 style="margin-top: 0; color: var(--purple);">Next Release</h4>
-            <p style="font-size: 1.1rem; margin: 5px 0;"><strong>{next_gdp_release_str}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--muted-text-new);">{days_until_gdp} days away</p>
-            <p style="font-size: 0.75rem; color: var(--muted-text-new); margin-top: 5px;">Released quarterly</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with real_gdp_col1:
-        with st.spinner("Fetching Real GDP data from FRED..."):
-            real_gdp_data = fetch_fred_data("GDPC1", "Real GDP")
-            if not real_gdp_data.empty:
-                # Create tabs for Absolute, YoY, QoQ
-                tab1, tab2, tab3 = st.tabs(["Absolute Real GDP", "Year-over-Year %", "Quarter-over-Quarter %"])
-            
-                with tab1:
-                    real_gdp_chart = create_indicator_chart(real_gdp_data, "Real Gross Domestic Product (Billions, Chained 2017 Dollars)", ACCENT_PURPLE)
-                    if real_gdp_chart:
-                        st.plotly_chart(real_gdp_chart, use_container_width=True)
-            
-                with tab2:
-                    # YoY: compare to 4 quarters ago
-                    real_gdp_yoy_chart = create_gdp_change_chart(real_gdp_data, "Real GDP Year-over-Year Change", 'YoY')
-                    if real_gdp_yoy_chart:
-                        st.plotly_chart(real_gdp_yoy_chart, use_container_width=True)
-            
-                with tab3:
-                    # QoQ: compare to previous quarter
-                    real_gdp_qoq_chart = create_gdp_change_chart(real_gdp_data, "Real GDP Quarter-over-Quarter Change", 'QoQ')
-                    if real_gdp_qoq_chart:
-                        st.plotly_chart(real_gdp_qoq_chart, use_container_width=True)
-
-    st.markdown("---")
-
-
-
-    st.markdown("""
-        <style>
-        div[data-testid="stButton"] > button {
-            background: var(--panel) !important;
-            border: 1px solid var(--neutral) !important;
-            color: var(--text) !important;
-        }
-        div[data-testid="stButton"] > button:hover {
-            background: var(--inputlight) !important;
-            border-color: var(--purple) !important;
-        }
-        </style>
     """, unsafe_allow_html=True)
+
+# Handle update button click
+if update_clicked:
+    st.session_state.heatmap_last_update = datetime.now()
+    # Clear heatmap-related caches
+    fetch_ticker_data.clear()
+    generate_heatmap_data.clear()
+    st.success("Heatmap data refreshed!")
+    st.rerun()
+
+# Create empty container for heatmap
+heatmap_container = st.empty()
+
+# Initial render
+render_heatmap_in_container(heatmap_container, return_period)
+
+st.markdown("---")
+
+# --------------------------------------------------------------------------------------
+# 📈 Top Movers Section (Manually Triggered)
+# --------------------------------------------------------------------------------------
+st.markdown(f"### Top Movers (S&P 500 Scan)")
+
+if 'movers_run' not in st.session_state:
+    st.session_state['movers_run'] = datetime.min
+    st.session_state['gainer_df'] = pd.DataFrame()
+    st.session_state['loser_df'] = pd.DataFrame()
+
+col_btn, col_status = st.columns([1, 1.5])
+
+with col_btn:
+    run_clicked = st.button("Run S&P 500 Scan", type="primary", use_container_width=True, 
+                            help="Fetch and analyze the latest data for all S&P 500 tickers.")
+
+with col_status:
+    st.markdown(f"""
+        <div style="font-size: .85rem; color: var(--muted-text-new); margin-top: 10px; text-align: right;">
+            Last Scan Time: {st.session_state['movers_run'].strftime('%Y-%m-%d %H:%M:%S')}
+        </div>
+    """, unsafe_allow_html=True)
+
+if run_clicked:
+    fetch_ticker_data.clear()
+    get_top_movers_uncached.clear() 
+    st.session_state['movers_run'] = datetime.now()
     
-    if st.button("← Back to Home", use_container_width=True):
-        st.switch_page("Home.py")
+    # Create a progress bar
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    status_text.text(f"Downloading data for {len(SPX_MOVER_TICKERS)} tickers...")
+    progress_bar.progress(25)
+    
+    gainer_df, loser_df = get_top_movers_uncached(SPX_MOVER_TICKERS, return_period, st.session_state['movers_run'])
+    
+    progress_bar.progress(75)
+    status_text.text("Processing results...")
+    
+    st.session_state['gainer_df'] = gainer_df
+    st.session_state['loser_df'] = loser_df
+    
+    progress_bar.progress(100)
+    status_text.text("Scan complete!")
+    
+    # Clean up progress indicators
+    time.sleep(0.5)
+    progress_bar.empty()
+    status_text.empty()
+    
+    st.success("S&P 500 scan complete!")
+    st.rerun()
+    
+gainer_df = st.session_state['gainer_df']
+loser_df = st.session_state['loser_df']
+
+col_gainers, col_losers = st.columns(2)
+
+with col_gainers:
+    st.markdown("#### Top 5 Gainers", unsafe_allow_html=True)
+    if not gainer_df.empty:
+        gainer_list_html = '<div class="movers-list">'
+        for ticker, row in gainer_df.iterrows():
+            return_str = f"+{row['Return (%)']:.2f}%"
+            price_str = f"{row['Price ($)']:.2f}"
+            
+            gainer_list_html += dedent(f"""
+                <div class="movers-item">
+                    <span class="movers-ticker" style="color: var(--green-accent);">{ticker}</span>
+                    <span class="movers-price">${price_str}</span>
+                    <span class="movers-return" style="color: var(--green-accent);">{return_str}</span>
+                </div>
+            """)
+        gainer_list_html += '</div>'
+        st.markdown(gainer_list_html, unsafe_allow_html=True)
+    else:
+        st.info("Click 'Run S&P 500 Scan' to fetch data.")
+
+with col_losers:
+    st.markdown("#### Top 5 Losers", unsafe_allow_html=True)
+    if not loser_df.empty:
+        loser_list_html = '<div class="movers-list">'
+        for ticker, row in loser_df.iterrows():
+            return_str = f"{row['Return (%)']:.2f}%"
+            price_str = f"{row['Price ($)']:.2f}"
+            
+            loser_list_html += dedent(f"""
+                <div class="movers-item">
+                    <span class="movers-ticker" style="color: var(--red-neg);">{ticker}</span>
+                    <span class="movers-price">${price_str}</span>
+                    <span class="movers-return" style="color: var(--red-neg);">{return_str}</span>
+                </div>
+            """)
+        loser_list_html += '</div>'
+        st.markdown(loser_list_html, unsafe_allow_html=True)
+    else:
+        st.info("Click 'Run S&P 500 Scan' to fetch data.")
