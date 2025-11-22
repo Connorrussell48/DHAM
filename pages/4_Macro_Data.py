@@ -635,14 +635,6 @@ with st.sidebar:
 # Main Content
 # --------------------------------------------------------------------------------------
 st.markdown("### Key Economic Indicators")
-st.markdown("""
-<div style="background-color: rgba(138, 124, 245, 0.1); padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-    <p style="font-size: 0.85rem; color: var(--muted-text-new); margin: 0;">
-        <strong>📊 Data Note:</strong> Economic data from FRED typically updates within 1-24 hours after official release. 
-        Cache refreshes every 5 minutes. Press <strong>C</strong> to clear cache for immediate refresh.
-    </p>
-</div>
-""", unsafe_allow_html=True)
 st.caption("Data from Federal Reserve Economic Data (FRED) - Updated monthly")
 
 # Check if API key is configured and valid
