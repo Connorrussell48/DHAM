@@ -194,6 +194,52 @@ def get_next_release_date(indicator_name):
         days_until = (next_release - now).days
         return next_release.strftime("%B %d, %Y"), days_until
     
+    elif indicator_name == "EMPLOYMENT":
+        # Employment Report (Unemployment, Payrolls, LFPR): First Friday of month
+        # Find first Friday
+        first_day = datetime(year, month, 1)
+        days_until_friday = (4 - first_day.weekday()) % 7
+        first_friday = first_day + timedelta(days=days_until_friday)
+        
+        if now > first_friday:
+            # Move to next month
+            if month == 12:
+                first_day = datetime(year + 1, 1, 1)
+            else:
+                first_day = datetime(year, month + 1, 1)
+            days_until_friday = (4 - first_day.weekday()) % 7
+            first_friday = first_day + timedelta(days=days_until_friday)
+        
+        days_until = (first_friday - now).days
+        return first_friday.strftime("%B %d, %Y"), days_until
+    
+    elif indicator_name == "INITIAL_CLAIMS":
+        # Initial Claims: Every Thursday
+        days_until_thursday = (3 - now.weekday()) % 7
+        if days_until_thursday == 0 and now.hour >= 8:  # If it's Thursday after 8:30 AM
+            days_until_thursday = 7
+        
+        next_thursday = now + timedelta(days=days_until_thursday)
+        return next_thursday.strftime("%B %d, %Y"), days_until_thursday
+    
+    elif indicator_name == "GDP":
+        # GDP: Released quarterly (end of Jan, Apr, Jul, Oct)
+        release_months = [1, 4, 7, 10]
+        release_day = 25
+        
+        next_release = None
+        for y in (year, year + 1):
+            for rm in release_months:
+                candidate = datetime(y, rm, release_day)
+                if candidate > now:
+                    next_release = candidate
+                    break
+            if next_release is not None:
+                break
+        
+        days_until = (next_release - now).days
+        return next_release.strftime("%B %d, %Y"), days_until
+    
     else:
         return None, None
     
@@ -772,20 +818,49 @@ else:
         """Get all indicator releases that fall within the date range."""
         releases = []
         indicators = [
-            ("CPI", "Consumer Price Index"),
-            ("PPI", "Producer Price Index"),
-            ("PCE", "Personal Consumption Expenditures"),
+            # Inflation
+            ("CPI", "Consumer Price Index (CPI)"),
+            ("CPI", "Core CPI"),  # Same release day
+            ("PPI", "Producer Price Index (PPI)"),
+            ("PPI", "Core PPI"),  # Same release day
+            ("PCE", "Core PCE Inflation"),
+            
+            # Employment (all release first Friday)
+            ("EMPLOYMENT", "Unemployment Rate & Nonfarm Payrolls"),
+            ("EMPLOYMENT", "Labor Force Participation Rate"),
+            
+            # Weekly
+            ("INITIAL_CLAIMS", "Initial Jobless Claims"),
+            
+            # JOLTS
             ("JOLTS", "Job Openings (JOLTS)"),
-            ("HOUSING", "Housing Starts & Building Permits"),
-            ("HOME_PRICES", "Case-Shiller Home Price Index"),
-            ("EXISTING_SALES", "Existing Home Sales"),
-            ("CONSTRUCTION", "Construction Spending"),
+            
+            # Consumption
+            ("PCE", "Real Personal Consumption Expenditures"),
+            ("PCE", "Real Retail Sales"),
+            ("PCE", "Personal Saving Rate"),
+            
+            # Sentiment
             ("UMICH", "UMich Consumer Sentiment"),
             ("NFIB", "NFIB Small Business Optimism"),
             ("ISM", "ISM Manufacturing PMI"),
             ("PHILLY_FED", "Philadelphia Fed Business Outlook"),
-            ("DELINQUENCY", "Delinquency Rates (Quarterly)"),
+            
+            # Real Estate
+            ("HOUSING", "Housing Starts & Building Permits"),
+            ("HOME_PRICES", "Case-Shiller Home Price Index"),
+            ("EXISTING_SALES", "Existing Home Sales"),
+            ("CONSTRUCTION", "Residential Construction Spending"),
+            
+            # Financial Stability
+            ("DELINQUENCY", "Delinquency Rates (All Categories)"),
+            
+            # GDP
+            ("GDP", "Gross GDP & Real GDP"),
         ]
+        
+        # Track which dates we've already added to avoid duplicates
+        added_dates = {}
         
         for code, name in indicators:
             release_str, days_until = get_next_release_date(code)
@@ -795,12 +870,18 @@ else:
                 
                 # Check if it falls within our range
                 if start_date <= release_date <= end_date:
-                    releases.append({
-                        "date": release_date,
-                        "name": name,
-                        "code": code,
-                        "days_until": days_until
-                    })
+                    # Create a unique key for date + code combo
+                    date_key = (release_date.date(), code)
+                    
+                    # Only add if we haven't added this date/code combo yet
+                    if date_key not in added_dates:
+                        releases.append({
+                            "date": release_date,
+                            "name": name,
+                            "code": code,
+                            "days_until": days_until
+                        })
+                        added_dates[date_key] = True
         
         # Sort by date
         releases.sort(key=lambda x: x["date"])
@@ -857,7 +938,7 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("📭 No scheduled releases this week")
+            st.info("No scheduled releases this week")
     
     with week_tab2:
         next_week_releases = get_releases_in_range(next_week_monday, next_week_friday)
@@ -887,7 +968,7 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("📭 No scheduled releases next week")
+            st.info("No scheduled releases next week")
     
     st.markdown("---")
     
