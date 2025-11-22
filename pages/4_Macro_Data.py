@@ -755,6 +755,143 @@ else:
     st.markdown("---")
     
     # ============================================================================
+    # WEEKLY RELEASE CALENDAR
+    # ============================================================================
+    st.markdown("## 📅 Upcoming Data Releases")
+    
+    # Get current week Monday and calculate week ranges
+    now = datetime.now()
+    current_weekday = now.weekday()  # Monday = 0, Sunday = 6
+    this_week_monday = now - timedelta(days=current_weekday)
+    this_week_friday = this_week_monday + timedelta(days=4)
+    next_week_monday = this_week_monday + timedelta(days=7)
+    next_week_friday = next_week_monday + timedelta(days=4)
+    
+    # Function to get all releases in a date range
+    def get_releases_in_range(start_date, end_date):
+        """Get all indicator releases that fall within the date range."""
+        releases = []
+        indicators = [
+            ("CPI", "Consumer Price Index"),
+            ("PPI", "Producer Price Index"),
+            ("PCE", "Personal Consumption Expenditures"),
+            ("JOLTS", "Job Openings (JOLTS)"),
+            ("HOUSING", "Housing Starts & Building Permits"),
+            ("HOME_PRICES", "Case-Shiller Home Price Index"),
+            ("EXISTING_SALES", "Existing Home Sales"),
+            ("CONSTRUCTION", "Construction Spending"),
+            ("UMICH", "UMich Consumer Sentiment"),
+            ("NFIB", "NFIB Small Business Optimism"),
+            ("ISM", "ISM Manufacturing PMI"),
+            ("PHILLY_FED", "Philadelphia Fed Business Outlook"),
+            ("DELINQUENCY", "Delinquency Rates (Quarterly)"),
+        ]
+        
+        for code, name in indicators:
+            release_str, days_until = get_next_release_date(code)
+            if release_str:
+                # Parse the release date
+                release_date = datetime.strptime(release_str, "%B %d, %Y")
+                
+                # Check if it falls within our range
+                if start_date <= release_date <= end_date:
+                    releases.append({
+                        "date": release_date,
+                        "name": name,
+                        "code": code,
+                        "days_until": days_until
+                    })
+        
+        # Sort by date
+        releases.sort(key=lambda x: x["date"])
+        return releases
+    
+    # Create tabs for this week and next week
+    week_tab1, week_tab2 = st.tabs([
+        f"This Week ({this_week_monday.strftime('%b %d')} - {this_week_friday.strftime('%b %d')})",
+        f"Next Week ({next_week_monday.strftime('%b %d')} - {next_week_friday.strftime('%b %d')})"
+    ])
+    
+    with week_tab1:
+        this_week_releases = get_releases_in_range(this_week_monday, this_week_friday)
+        
+        if this_week_releases:
+            st.markdown("""
+                <style>
+                .release-calendar-item {
+                    background: linear-gradient(180deg, rgba(138, 124, 245, 0.08), rgba(138, 124, 245, 0.02));
+                    border-left: 3px solid var(--purple);
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin: 8px 0;
+                    transition: all 0.2s;
+                }
+                .release-calendar-item:hover {
+                    background: linear-gradient(180deg, rgba(138, 124, 245, 0.15), rgba(138, 124, 245, 0.05));
+                    border-left-color: var(--blue);
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            for release in this_week_releases:
+                day_name = release["date"].strftime("%A")
+                date_str = release["date"].strftime("%B %d")
+                
+                st.markdown(f"""
+                <div class="release-calendar-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.85rem; color: var(--purple); font-weight: 600;">
+                                {day_name}, {date_str}
+                            </div>
+                            <div style="font-size: 1.05rem; font-weight: 500; margin-top: 4px;">
+                                {release["name"]}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.9rem; color: var(--muted-text-new);">
+                                {release["days_until"]} days away
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("📭 No scheduled releases this week")
+    
+    with week_tab2:
+        next_week_releases = get_releases_in_range(next_week_monday, next_week_friday)
+        
+        if next_week_releases:
+            for release in next_week_releases:
+                day_name = release["date"].strftime("%A")
+                date_str = release["date"].strftime("%B %d")
+                
+                st.markdown(f"""
+                <div class="release-calendar-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.85rem; color: var(--purple); font-weight: 600;">
+                                {day_name}, {date_str}
+                            </div>
+                            <div style="font-size: 1.05rem; font-weight: 500; margin-top: 4px;">
+                                {release["name"]}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.9rem; color: var(--muted-text-new);">
+                                {release["days_until"]} days away
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("📭 No scheduled releases next week")
+    
+    st.markdown("---")
+    
+    # ============================================================================
     # INFLATION METRICS
     # ============================================================================
     st.markdown("## <u>Inflation Metrics</u>", unsafe_allow_html=True)
