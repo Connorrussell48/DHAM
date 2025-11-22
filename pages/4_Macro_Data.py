@@ -866,7 +866,7 @@ else:
                 "api_key": FRED_API_KEY,
                 "realtime_start": start_str,
                 "realtime_end": end_str,
-                "include_release_dates_with_no_data": "false",
+                "include_release_dates_with_no_data": "true",  # Required for future dates
                 "file_type": "json",
                 "limit": 1000
             }
@@ -941,9 +941,9 @@ else:
                 "api_key": FRED_API_KEY,
                 "realtime_start": start_str,
                 "realtime_end": end_str,
-                "include_release_dates_with_no_data": "true",  # Changed to true for future dates
+                "include_release_dates_with_no_data": "true",  # Required for future dates
                 "file_type": "json",
-                "limit": 10000  # Higher limit for all releases
+                "limit": 1000  # FRED API max is 1000
             }
             
             response = requests.get(url, params=params)
