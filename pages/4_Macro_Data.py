@@ -815,7 +815,7 @@ else:
     
     # Function to get all releases from FRED API in a date range
     @st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
-    def get_fred_releases_in_range(start_date, end_date):
+    def get_fred_releases_in_range(start_date, end_date, _cache_version=2):
         """Get all indicator releases from FRED API that fall within the date range."""
         if not FRED_AVAILABLE:
             return []
@@ -925,7 +925,7 @@ else:
     
     # Function to get ALL releases without filtering
     @st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
-    def get_all_fred_releases_in_range(start_date, end_date):
+    def get_all_fred_releases_in_range(start_date, end_date, _cache_version=2):
         """Get ALL releases from FRED API without any filtering."""
         if not FRED_AVAILABLE:
             return []
