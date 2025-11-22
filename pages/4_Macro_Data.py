@@ -827,6 +827,39 @@ else:
             start_str = start_date.strftime("%Y-%m-%d")
             end_str = end_date.strftime("%Y-%m-%d")
             
+            # Define which FRED releases we care about (matching page categories)
+            relevant_releases = {
+                # Inflation
+                "Consumer Price Index": "Consumer Price Index (CPI)",
+                "Producer Price Index": "Producer Price Index (PPI)",
+                
+                # Employment
+                "Employment Situation": "Employment Report (Jobs & Unemployment)",
+                "Unemployment Insurance Weekly Claims Report": "Initial Jobless Claims",
+                "Job Openings and Labor Turnover Survey": "Job Openings (JOLTS)",
+                
+                # Consumption & Income
+                "Personal Income and Outlays": "Personal Income & Spending (PCE)",
+                "Advance Monthly Sales for Retail and Food Services": "Retail Sales",
+                
+                # Sentiment
+                "University of Michigan: Consumer Survey": "UMich Consumer Sentiment",
+                "ISM Manufacturing": "ISM Manufacturing PMI",
+                "Business Outlook Survey": "Philadelphia Fed Business Outlook",
+                
+                # Housing
+                "New Residential Construction": "Housing Starts & Building Permits",
+                "S&P/Case-Shiller Home Price Indices": "Case-Shiller Home Price Index",
+                "Existing Home Sales": "Existing Home Sales",
+                "Construction Spending": "Construction Spending",
+                
+                # Financial Stability
+                "Charge-Off and Delinquency Rates": "Delinquency Rates",
+                
+                # GDP
+                "Gross Domestic Product": "GDP Report",
+            }
+            
             # Call FRED releases/dates API
             url = "https://api.stlouisfed.org/fred/releases/dates"
             params = {
@@ -836,6 +869,80 @@ else:
                 "include_release_dates_with_no_data": "false",
                 "file_type": "json",
                 "limit": 1000
+            }
+            
+            response = requests.get(url, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                releases = []
+                
+                # Track which releases we've already added (to avoid duplicates)
+                seen_releases = set()
+                
+                for item in data.get("release_dates", []):
+                    release_date_str = item.get("date")
+                    release_name = item.get("release_name", "Unknown Release")
+                    release_id = item.get("release_id")
+                    
+                    # Only include if it matches one of our relevant releases
+                    if release_name in relevant_releases:
+                        # Parse the date
+                        release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
+                        
+                        # Check if it falls within our range
+                        if start_date <= release_date <= end_date:
+                            # Create unique key to avoid duplicates
+                            release_key = (release_date.date(), release_name)
+                            
+                            if release_key not in seen_releases:
+                                days_until = (release_date - now).days
+                                
+                                # Use our friendly name
+                                friendly_name = relevant_releases[release_name]
+                                
+                                releases.append({
+                                    "date": release_date,
+                                    "name": friendly_name,
+                                    "release_id": release_id,
+                                    "days_until": days_until
+                                })
+                                seen_releases.add(release_key)
+                
+                # Sort by date
+                releases.sort(key=lambda x: x["date"])
+                return releases
+            else:
+                st.warning(f"Could not fetch FRED release calendar: HTTP {response.status_code}")
+                return []
+                
+        except Exception as e:
+            st.warning(f"Error fetching release calendar: {str(e)}")
+            return []
+    
+    # Function to get ALL releases without filtering
+    @st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
+    def get_all_fred_releases_in_range(start_date, end_date):
+        """Get ALL releases from FRED API without any filtering."""
+        if not FRED_AVAILABLE:
+            return []
+        
+        try:
+            import requests
+            
+            # Format dates for FRED API (YYYY-MM-DD)
+            start_str = start_date.strftime("%Y-%m-%d")
+            end_str = end_date.strftime("%Y-%m-%d")
+            
+            # Call FRED releases/dates API
+            url = "https://api.stlouisfed.org/fred/releases/dates"
+            params = {
+                "api_key": FRED_API_KEY,
+                "realtime_start": start_str,
+                "realtime_end": end_str,
+                "include_release_dates_with_no_data": "false",
+                "file_type": "json",
+                "limit": 10000  # Higher limit for all releases
             }
             
             response = requests.get(url, params=params)
@@ -883,9 +990,11 @@ else:
             return []
     
     # Create tabs for this week and next week
-    week_tab1, week_tab2 = st.tabs([
+    week_tab1, week_tab2, week_tab3, week_tab4 = st.tabs([
         f"This Week ({this_week_monday.strftime('%b %d')} - {this_week_friday.strftime('%b %d')})",
-        f"Next Week ({next_week_monday.strftime('%b %d')} - {next_week_friday.strftime('%b %d')})"
+        f"Next Week ({next_week_monday.strftime('%b %d')} - {next_week_friday.strftime('%b %d')})",
+        f"All Releases This Week",
+        f"All Releases Next Week"
     ])
     
     with week_tab1:
@@ -940,6 +1049,70 @@ else:
         
         if next_week_releases:
             for release in next_week_releases:
+                day_name = release["date"].strftime("%A")
+                date_str = release["date"].strftime("%B %d")
+                
+                st.markdown(f"""
+                <div class="release-calendar-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.85rem; color: var(--purple); font-weight: 600;">
+                                {day_name}, {date_str}
+                            </div>
+                            <div style="font-size: 1.05rem; font-weight: 500; margin-top: 4px;">
+                                {release["name"]}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.9rem; color: var(--muted-text-new);">
+                                {release["days_until"]} days away
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No scheduled releases next week")
+    
+    with week_tab3:
+        all_this_week_releases = get_all_fred_releases_in_range(this_week_monday, this_week_friday)
+        
+        if all_this_week_releases:
+            st.caption(f"Showing {len(all_this_week_releases)} total releases this week")
+            
+            for release in all_this_week_releases:
+                day_name = release["date"].strftime("%A")
+                date_str = release["date"].strftime("%B %d")
+                
+                st.markdown(f"""
+                <div class="release-calendar-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.85rem; color: var(--purple); font-weight: 600;">
+                                {day_name}, {date_str}
+                            </div>
+                            <div style="font-size: 1.05rem; font-weight: 500; margin-top: 4px;">
+                                {release["name"]}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.9rem; color: var(--muted-text-new);">
+                                {abs(release["days_until"])} days {"ago" if release["days_until"] < 0 else "away"}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No scheduled releases this week")
+    
+    with week_tab4:
+        all_next_week_releases = get_all_fred_releases_in_range(next_week_monday, next_week_friday)
+        
+        if all_next_week_releases:
+            st.caption(f"Showing {len(all_next_week_releases)} total releases next week")
+            
+            for release in all_next_week_releases:
                 day_name = release["date"].strftime("%A")
                 date_str = release["date"].strftime("%B %d")
                 
