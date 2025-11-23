@@ -803,7 +803,7 @@ else:
     # ============================================================================
     # WEEKLY RELEASE CALENDAR
     # ============================================================================
-    st.markdown("## 📅 Upcoming Data Releases")
+    st.markdown("## Upcoming Data Releases")
     
     # Get current week Monday and calculate week ranges
     now = datetime.now()
