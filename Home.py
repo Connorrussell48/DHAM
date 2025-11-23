@@ -772,12 +772,17 @@ for label, data in PAGE_MAPPING.items():
         available.append((label, data["file"], data["desc"]))
 
 if available:
-    cols = st.columns(len(available))
-    for i, (label, page_file, desc) in enumerate(available):
-        with cols[i]:
-            st.markdown(get_card_html(label, desc), unsafe_allow_html=True)
-            if st.button("Go to Page", key=f"nav_{label}", use_container_width=True):
-                st.switch_page(f"pages/{page_file}")
+    # Display navigation cards in rows of 3
+    cards_per_row = 3
+    for row_start in range(0, len(available), cards_per_row):
+        row_items = available[row_start:row_start + cards_per_row]
+        cols = st.columns(cards_per_row)
+        
+        for i, (label, page_file, desc) in enumerate(row_items):
+            with cols[i]:
+                st.markdown(get_card_html(label, desc), unsafe_allow_html=True)
+                if st.button("Go to Page", key=f"nav_{label}", use_container_width=True):
+                    st.switch_page(f"pages/{page_file}")
 else:
     st.info("No pages detected in `pages/` yet. Add files like `1_Slope_Convexity.py` to enable navigation.")
 
