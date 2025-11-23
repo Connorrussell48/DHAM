@@ -750,6 +750,7 @@ PAGE_MAPPING = {
     "Slope Convexity": {"file": "1_Slope_Convexity.py", "desc": "Momentum and Trend Analysis"},
     "Mean Reversion (draft)": {"file": "2_Mean_Reversion.py", "desc": "Z-Score-based Statistical Trading"},
     "Macro Data": {"file": "4_Macro_Data.py", "desc": "Economic Indicators & Market Data"},
+    "Seasonality": {"file": "5_Seasonality.py", "desc": "Seasonal Patterns & Calendar Effects"},
 }
 pages_dir = Path("pages")
 available = []
