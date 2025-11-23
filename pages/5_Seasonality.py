@@ -31,60 +31,106 @@ ACCENT_GREEN   = "#26D07C"
 ACCENT_PURPLE  = "#8A7CF5"    
 DARK_PURPLE    = "#3A2A6A"
 
-st.markdown(dedent(f"""
+st.markdown(
+    f"""
     <style>
     :root {{
-        --bg: {BLOOM_BG};
-        --panel: {BLOOM_PANEL};
-        --text: {BLOOM_TEXT};
-        --muted-text-new: {BLOOM_MUTED};
-        --neutral: {NEUTRAL_GRAY};
-        --input: {INPUT_BG};
-        --inputlight: {INPUT_BG_LIGHT};
-        --blue: {ACCENT_BLUE};
-        --green: {ACCENT_GREEN};
-        --purple: {ACCENT_PURPLE};
-        --darkpurple: {DARK_PURPLE};
+      --bg:{BLOOM_BG}; --panel:{BLOOM_PANEL}; --text:{BLOOM_TEXT}; --muted:{BLOOM_MUTED};
+      --muted-text-new: rgba(255, 255, 255, 0.75);
+      --neutral:{NEUTRAL_GRAY}; --input:{INPUT_BG}; --inputlight:{INPUT_BG_LIGHT};
+      --blue:{ACCENT_BLUE}; --green:{ACCENT_GREEN}; --purple:{ACCENT_PURPLE};
+      --green-accent: #26D07C;
+      --red-neg: #D9534F; 
+      --sidebar-bg: {BLOOM_PANEL};
+      --card-purple-shadow: rgba(138, 124, 245, 0.4); 
     }}
-    /* Global Background */
-    .stApp {{
-        background: var(--bg);
-        color: var(--text);
-        font-family: "Inter", sans-serif;
+    html, body {{
+      height:100%;
+      background: radial-gradient(1200px 600px at 15% -10%, rgba(43,179,243,0.15), transparent 60%),
+                  radial-gradient(1200px 600px at 85% 110%, rgba(138,124,245,0.15), transparent 60%),
+                  linear-gradient(135deg, var(--bg) 0%, {DARK_PURPLE} 100%) fixed !important;
     }}
-    /* Headers and Text */
-    h1, h2, h3, h4, h5, h6 {{
+    .stApp {{ background:transparent!important; color:var(--text); }}
+    .block-container {{ max-width: 1500px; padding-top: .6rem; padding-bottom: 2rem; }}
+    header[data-testid="stHeader"] {{ background:transparent!important; height:2.5rem!important; }}
+    [data-testid="stDecoration"] {{ background:transparent!important; }}
+
+    div[data-testid="stHeader"] > div:last-child > div:last-child {{
+        color: var(--muted-text-new) !important;
+    }}
+    div[data-testid="stAppViewContainer"] > div > div > div > div:nth-child(2) > div {{
+        color: var(--muted-text-new) !important;
+    }}
+    .kpi .h {{ 
+        color: var(--muted-text-new) !important; 
+    }}
+    .text-gray-400 {{
+        color: var(--muted-text-new) !important;
+    }}
+    
+    div[data-testid="stAppViewContainer"] label {{
+        color: var(--text) !important;
+        font-weight: 600;
+    }}
+
+    .stMarkdown, .stText, h1, h2, h3, h4, h5, h6 {{
         color: var(--text) !important;
     }}
-    /* Sidebar Styling */
-    [data-testid="stSidebar"] {{
-        background: var(--panel);
-        border-right: 1px solid var(--neutral);
+
+    section[data-testid="stSidebar"], aside[data-testid="stSidebar"] {{
+      background: var(--sidebar-bg) !important;
+      box-shadow: 4px 0 10px rgba(0,0,0,0.4);
     }}
-    /* Input Fields */
-    .stTextInput input, .stNumberInput input, .stSelectbox select {{
+    
+    [data-testid="stSidebar"] .stMarkdown > div {{
+        color: var(--muted) !important; 
+    }}
+    
+    [data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] svg {{
+        color: var(--text) !important;
+        fill: var(--text) !important;
+        transition: all 0.2s;
+    }}
+    [data-testid="stSidebarNav"] a:hover {{
+        color: var(--green-accent) !important;
+    }}
+    
+    /* Make sidebar navigation links text white */
+    [data-testid="stSidebarNav"] li a span {{
+        color: var(--text) !important;
+    }}
+    [data-testid="stSidebarNav"] li a:hover span {{
+        color: var(--green-accent) !important;
+    }}
+    [data-testid="stSidebarNav"] ul li {{
+        color: var(--text) !important;
+    }}
+    
+    /* Buttons */
+    .stButton > button {{
         background: var(--input) !important;
         color: var(--text) !important;
         border: 1px solid var(--neutral) !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        padding: 10px 16px !important;
+        transition: all 0.2s !important;
+        width: 100% !important;
     }}
-    /* Buttons */
-    div[data-testid="stButton"] > button {{
-        background: var(--panel) !important;
-        border: 1px solid var(--neutral) !important;
-        color: var(--text) !important;
-    }}
-    div[data-testid="stButton"] > button:hover {{
+    .stButton > button:hover {{
         background: var(--inputlight) !important;
         border-color: var(--purple) !important;
+        color: var(--purple) !important;
     }}
-    /* Cards and Containers */
-    div[data-testid="stVerticalBlock"] > div {{
-        background: var(--panel);
-        border-radius: 8px;
-        padding: 15px;
+    .stButton > button p {{
+        color: var(--text) !important;
+        margin: 0 !important;
+    }}
+    .stButton > button:hover p {{
+        color: var(--purple) !important;
     }}
     </style>
-"""), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------------------
 # Page Header
@@ -131,19 +177,5 @@ st.markdown("---")
 # --------------------------------------------------------------------------------------
 # Back Button
 # --------------------------------------------------------------------------------------
-st.markdown("""
-    <style>
-    div[data-testid="stButton"] > button {
-        background: var(--panel) !important;
-        border: 1px solid var(--neutral) !important;
-        color: var(--text) !important;
-    }
-    div[data-testid="stButton"] > button:hover {
-        background: var(--inputlight) !important;
-        border-color: var(--purple) !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 if st.button("← Back to Home", use_container_width=True):
     st.switch_page("Home.py")
