@@ -179,12 +179,12 @@ def load_and_update_sp500_data():
             if df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
             last_date_in_csv = df.index[-1].strftime('%Y-%m-%d')
-            st.success(f"✓ Loaded {len(df):,} days from CSV (through {last_date_in_csv})")
+            st.success(f"Loaded {len(df):,} days from CSV (through {last_date_in_csv})")
         else:
-            st.warning(f"⚠️ CSV not found at {csv_path}. Fetching full history from Yahoo Finance...")
+            st.warning(f"CSV not found at {csv_path}. Fetching full history from Yahoo Finance...")
             df = pd.DataFrame()
     except Exception as e:
-        st.error(f"❌ Error loading CSV: {str(e)}")
+        st.error(f"Error loading CSV: {str(e)}")
         df = pd.DataFrame()
     
     # Check if we need to update with recent data
@@ -221,10 +221,10 @@ def load_and_update_sp500_data():
         if last_date.date() < expected_last_date:
             days_behind = (expected_last_date - last_date.date()).days
             needs_update = True
-            st.info(f"📅 Data is {days_behind} day(s) behind. Fetching updates from Yahoo Finance...")
+            st.info(f"Data is {days_behind} day(s) behind. Fetching updates from Yahoo Finance...")
     else:
         needs_update = True
-        st.info("📥 No local CSV found. Fetching complete S&P 500 history...")
+        st.info("No local CSV found. Fetching complete S&P 500 history...")
     
     # Fetch recent data if needed
     if needs_update:
@@ -247,27 +247,27 @@ def load_and_update_sp500_data():
                 # Combine with existing data
                 if df.empty:
                     df = new_data
-                    st.success(f"✓ Downloaded {len(df):,} days of S&P 500 history")
+                    st.success(f"Downloaded {len(df):,} days of S&P 500 history")
                 else:
                     df = pd.concat([df, new_data])
                     df = df[~df.index.duplicated(keep='last')]  # Remove any duplicates
                     df = df.sort_index()  # Ensure chronological order
-                    st.success(f"✓ Added {len(new_data)} new day(s) to dataset (in memory)")
+                    st.success(f"Added {len(new_data)} new day(s) to dataset (in memory)")
                 
                 # Try to save updated data back to CSV (works locally, not on deployed apps)
                 try:
                     os.makedirs(os.path.dirname(csv_path), exist_ok=True)
                     df.to_csv(csv_path)
-                    st.success(f"💾 Updated CSV file: {csv_path}")
+                    st.success(f"Updated CSV file: {csv_path}")
                 except (PermissionError, OSError) as e:
                     # Expected on deployed apps - CSV is read-only
-                    st.info(f"ℹ️ Updates cached in memory (CSV is read-only in deployment)")
+                    st.info(f"Updates cached in memory (CSV is read-only in deployment)")
                     st.caption("To permanently update CSV: Run update_sp500_data.py locally or use GitHub Actions")
             else:
-                st.info("📊 No new data available (markets closed or data is current)")
+                st.info("No new data available (markets closed or data is current)")
                 
         except Exception as e:
-            st.error(f"❌ Error fetching updates from Yahoo Finance: {str(e)}")
+            st.error(f"Error fetching updates from Yahoo Finance: {str(e)}")
             if df.empty:
                 return pd.DataFrame()
     
@@ -283,7 +283,7 @@ def load_and_update_sp500_data():
         elif 'Close' in df.columns:
             df['Price'] = df['Close']
         else:
-            st.error("❌ CSV must contain 'Close' or 'Adj Close' column")
+            st.error("CSV must contain 'Close' or 'Adj Close' column")
             return pd.DataFrame()
         
         # Calculate daily returns
@@ -470,10 +470,10 @@ def create_election_cycle_chart(election_stats):
 # Main Content
 # --------------------------------------------------------------------------------------
 
-# Add refresh button
+# Add refresh button with consistent styling
 col1, col2 = st.columns([4, 1])
 with col2:
-    if st.button("🔄 Refresh Data", use_container_width=True, help="Check for latest S&P 500 data"):
+    if st.button("Refresh Data", use_container_width=True, help="Check for latest S&P 500 data", key="refresh_btn"):
         st.cache_data.clear()
         st.rerun()
 
@@ -489,21 +489,21 @@ if not sp500_data.empty:
     # Determine data freshness status
     if days_old == 0:
         status_color = "var(--green)"
-        status_text = "✓ Current (today's data)"
+        status_text = "Current (today's data)"
     elif days_old == 1:
         status_color = "var(--blue)"
-        status_text = "⏰ 1 day old"
+        status_text = "1 day old"
     elif days_old <= 3:
         status_color = "#FFA500"
-        status_text = f"⏰ {days_old} days old"
+        status_text = f"{days_old} days old"
     else:
         status_color = "#D9534F"
-        status_text = f"⚠️ {days_old} days old"
+        status_text = f"{days_old} days old"
     
     st.markdown(f"""
         <div style="background: var(--inputlight); padding: 15px; border-radius: 10px; border: 1px solid var(--neutral); margin-bottom: 20px;">
             <p style="margin: 0 0 8px 0; color: var(--muted-text-new);">
-                📊 <strong>Data Range:</strong> {sp500_data.index[0].strftime('%B %d, %Y')} to {sp500_data.index[-1].strftime('%B %d, %Y')} 
+                <strong>Data Range:</strong> {sp500_data.index[0].strftime('%B %d, %Y')} to {sp500_data.index[-1].strftime('%B %d, %Y')} 
                 ({len(sp500_data):,} trading days)
             </p>
             <p style="margin: 0; color: {status_color}; font-weight: 600;">
@@ -541,7 +541,7 @@ if not sp500_data.empty:
         - Win Rate: {worst_month['Win Rate']:.1f}%
         """)
     
-    with st.expander("📊 View Detailed Monthly Statistics"):
+    with st.expander("View Detailed Monthly Statistics"):
         display_monthly = monthly_stats[['Month Name', 'Mean Return', 'Median Return', 'Std Dev', 'Win Rate', 'Count']].copy()
         display_monthly['Mean Return'] = display_monthly['Mean Return'].apply(lambda x: f"{x:.3f}%")
         display_monthly['Median Return'] = display_monthly['Median Return'].apply(lambda x: f"{x:.3f}%")
@@ -580,7 +580,7 @@ if not sp500_data.empty:
         - Win Rate: {worst_day['Win Rate']:.1f}%
         """)
     
-    with st.expander("📊 View Detailed Weekly Statistics"):
+    with st.expander("View Detailed Weekly Statistics"):
         display_weekly = weekly_stats[['Day Name', 'Mean Return', 'Median Return', 'Std Dev', 'Win Rate', 'Count']].copy()
         display_weekly['Mean Return'] = display_weekly['Mean Return'].apply(lambda x: f"{x:.4f}%")
         display_weekly['Median Return'] = display_weekly['Median Return'].apply(lambda x: f"{x:.4f}%")
@@ -621,7 +621,7 @@ if not sp500_data.empty:
         **Current Year:** 2025 (Post-Election)
         """)
     
-    with st.expander("📊 View Detailed Election Cycle Statistics"):
+    with st.expander("View Detailed Election Cycle Statistics"):
         display_election = election_stats[['Cycle Phase', 'Mean Return', 'Median Return', 'Std Dev', 'Win Rate', 'Count']].copy()
         display_election['Mean Return'] = display_election['Mean Return'].apply(lambda x: f"{x:.4f}%")
         display_election['Median Return'] = display_election['Median Return'].apply(lambda x: f"{x:.4f}%")
