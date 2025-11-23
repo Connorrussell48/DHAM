@@ -147,26 +147,112 @@ st.markdown(f"""
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# Data Fetching Functions (with caching)
+# Data Fetching Functions (CSV-based with auto-update)
 # --------------------------------------------------------------------------------------
 
-@st.cache_data(ttl=86400, show_spinner=False)  # Cache for 24 hours (1 day)
-def fetch_sp500_historical_data():
+@st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
+def load_and_update_sp500_data():
     """
-    Fetches comprehensive S&P 500 historical data.
-    Cached for 24 hours to avoid repeated API calls.
+    Loads S&P 500 data from CSV and updates with latest data if needed.
+    This function:
+    1. Loads historical data from CSV (fast)
+    2. Checks if today's data is missing
+    3. Fetches only recent data if needed (efficient)
+    4. Appends new data in memory (works with read-only GitHub files)
+    5. Returns complete dataset
+    
+    Note: When deployed, CSV in GitHub is read-only. Updates are kept in memory
+    and cached. To permanently update the CSV, run update_sp500_data.py locally
+    or use GitHub Actions.
     """
+    import os
+    
+    # Path to CSV file in GitHub repo
+    csv_path = "data/sp500_daily_full_history.csv"
+    
+    # Try to load existing CSV
     try:
-        # Fetch maximum available history for S&P 500
-        sp500 = yf.Ticker("^GSPC")
-        df = sp500.history(period="max", auto_adjust=True)
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path, parse_dates=['Date'], index_col='Date')
+            last_date_in_csv = df.index[-1].strftime('%Y-%m-%d')
+            st.success(f"✓ Loaded {len(df):,} days from CSV (through {last_date_in_csv})")
+        else:
+            st.warning(f"⚠️ CSV not found at {csv_path}. Fetching full history from Yahoo Finance...")
+            df = pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Error loading CSV: {str(e)}")
+        df = pd.DataFrame()
+    
+    # Check if we need to update with recent data
+    needs_update = False
+    if not df.empty:
+        last_date = df.index[-1]
+        today = pd.Timestamp.now().normalize()
         
-        if df.empty:
-            st.error("Failed to fetch S&P 500 data")
+        # Check if we're missing recent data (markets are open Mon-Fri)
+        if last_date.date() < today.date():
+            days_behind = (today - last_date).days
+            if days_behind >= 1:
+                needs_update = True
+                st.info(f"📅 Data is {days_behind} day(s) behind. Fetching updates from Yahoo Finance...")
+    else:
+        needs_update = True
+        st.info("📥 No local CSV found. Fetching complete S&P 500 history...")
+    
+    # Fetch recent data if needed
+    if needs_update:
+        try:
+            sp500 = yf.Ticker("^GSPC")
+            
+            if df.empty:
+                # Fetch full history if CSV doesn't exist
+                new_data = sp500.history(period="max", auto_adjust=False)
+            else:
+                # Fetch only recent data (more efficient)
+                start_date = (last_date + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+                new_data = sp500.history(start=start_date, auto_adjust=False)
+            
+            if not new_data.empty:
+                # Combine with existing data
+                if df.empty:
+                    df = new_data
+                    st.success(f"✓ Downloaded {len(df):,} days of S&P 500 history")
+                else:
+                    df = pd.concat([df, new_data])
+                    df = df[~df.index.duplicated(keep='last')]  # Remove any duplicates
+                    df = df.sort_index()  # Ensure chronological order
+                    st.success(f"✓ Added {len(new_data)} new day(s) to dataset (in memory)")
+                
+                # Try to save updated data back to CSV (works locally, not on deployed apps)
+                try:
+                    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+                    df.to_csv(csv_path)
+                    st.success(f"💾 Updated CSV file: {csv_path}")
+                except (PermissionError, OSError) as e:
+                    # Expected on deployed apps - CSV is read-only
+                    st.info(f"ℹ️ Updates cached in memory (CSV is read-only in deployment)")
+                    st.caption("To permanently update CSV: Run update_sp500_data.py locally or use GitHub Actions")
+            else:
+                st.info("📊 No new data available (markets may be closed or data is current)")
+                
+        except Exception as e:
+            st.error(f"❌ Error fetching updates from Yahoo Finance: {str(e)}")
+            if df.empty:
+                return pd.DataFrame()
+    
+    # Process the data
+    if not df.empty:
+        # Use Adj Close if available, otherwise Close
+        if 'Adj Close' in df.columns:
+            df['Price'] = df['Adj Close']
+        elif 'Close' in df.columns:
+            df['Price'] = df['Close']
+        else:
+            st.error("❌ CSV must contain 'Close' or 'Adj Close' column")
             return pd.DataFrame()
         
         # Calculate daily returns
-        df['Returns'] = df['Close'].pct_change() * 100
+        df['Returns'] = df['Price'].pct_change() * 100
         
         # Add time-based columns
         df['Year'] = df.index.year
@@ -179,11 +265,9 @@ def fetch_sp500_historical_data():
         
         return df
     
-    except Exception as e:
-        st.error(f"Error fetching data: {str(e)}")
-        return pd.DataFrame()
+    return pd.DataFrame()
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def calculate_monthly_seasonality(df):
     """Calculate average returns by month."""
     if df.empty:
@@ -205,7 +289,7 @@ def calculate_monthly_seasonality(df):
     
     return monthly_stats
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def calculate_weekly_seasonality(df):
     """Calculate average returns by day of week."""
     if df.empty:
@@ -226,7 +310,7 @@ def calculate_weekly_seasonality(df):
     
     return weekly_stats
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def calculate_election_cycle_seasonality(df):
     """Calculate returns based on presidential election cycle (4-year cycle)."""
     if df.empty:
@@ -250,7 +334,7 @@ def calculate_election_cycle_seasonality(df):
     
     return election_stats
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def create_monthly_chart(monthly_stats):
     """Create bar chart for monthly seasonality."""
     import plotly.graph_objects as go
@@ -351,17 +435,44 @@ def create_election_cycle_chart(election_stats):
 # Main Content
 # --------------------------------------------------------------------------------------
 
+# Add refresh button
+col1, col2 = st.columns([4, 1])
+with col2:
+    if st.button("🔄 Refresh Data", use_container_width=True, help="Check for latest S&P 500 data"):
+        st.cache_data.clear()
+        st.rerun()
+
 # Fetch data with loading indicator
-with st.spinner("Loading S&P 500 historical data..."):
-    sp500_data = fetch_sp500_historical_data()
+with st.spinner("Loading S&P 500 data..."):
+    sp500_data = load_and_update_sp500_data()
 
 if not sp500_data.empty:
-    # Data info
+    # Data info with last update date
+    last_date = sp500_data.index[-1]
+    days_old = (pd.Timestamp.now().normalize() - last_date).days
+    
+    # Determine data freshness status
+    if days_old == 0:
+        status_color = "var(--green)"
+        status_text = "✓ Current (today's data)"
+    elif days_old == 1:
+        status_color = "var(--blue)"
+        status_text = "⏰ 1 day old"
+    elif days_old <= 3:
+        status_color = "#FFA500"
+        status_text = f"⏰ {days_old} days old"
+    else:
+        status_color = "#D9534F"
+        status_text = f"⚠️ {days_old} days old"
+    
     st.markdown(f"""
         <div style="background: var(--inputlight); padding: 15px; border-radius: 10px; border: 1px solid var(--neutral); margin-bottom: 20px;">
-            <p style="margin: 0; color: var(--muted-text-new);">
+            <p style="margin: 0 0 8px 0; color: var(--muted-text-new);">
                 📊 <strong>Data Range:</strong> {sp500_data.index[0].strftime('%B %d, %Y')} to {sp500_data.index[-1].strftime('%B %d, %Y')} 
                 ({len(sp500_data):,} trading days)
+            </p>
+            <p style="margin: 0; color: {status_color}; font-weight: 600;">
+                {status_text}
             </p>
         </div>
     """, unsafe_allow_html=True)
