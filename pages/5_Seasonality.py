@@ -166,6 +166,7 @@ def load_and_update_sp500_data():
     or use GitHub Actions.
     """
     import os
+    import pytz
     
     # Path to CSV file in GitHub repo
     csv_path = "data/sp500_daily_full_history.csv"
@@ -174,6 +175,9 @@ def load_and_update_sp500_data():
     try:
         if os.path.exists(csv_path):
             df = pd.read_csv(csv_path, parse_dates=['Date'], index_col='Date')
+            # Ensure timezone-naive for comparison
+            if df.index.tz is not None:
+                df.index = df.index.tz_localize(None)
             last_date_in_csv = df.index[-1].strftime('%Y-%m-%d')
             st.success(f"✓ Loaded {len(df):,} days from CSV (through {last_date_in_csv})")
         else:
@@ -187,14 +191,37 @@ def load_and_update_sp500_data():
     needs_update = False
     if not df.empty:
         last_date = df.index[-1]
-        today = pd.Timestamp.now().normalize()
+        # Make sure last_date is timezone-naive
+        if hasattr(last_date, 'tz') and last_date.tz is not None:
+            last_date = last_date.tz_localize(None)
         
-        # Check if we're missing recent data (markets are open Mon-Fri)
-        if last_date.date() < today.date():
-            days_behind = (today - last_date).days
-            if days_behind >= 1:
-                needs_update = True
-                st.info(f"📅 Data is {days_behind} day(s) behind. Fetching updates from Yahoo Finance...")
+        # Get current time in ET (market timezone)
+        et_tz = pytz.timezone('America/New_York')
+        now_et = datetime.now(et_tz)
+        today = now_et.date()
+        
+        # Markets are open Mon-Fri, close at 4 PM ET
+        is_weekday = now_et.weekday() < 5  # 0=Mon, 4=Fri
+        market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+        is_after_close = now_et >= market_close_time
+        
+        # Determine what date we should have data through
+        if is_weekday and is_after_close:
+            # It's a weekday after close - should have today's data
+            expected_last_date = today
+        elif is_weekday and not is_after_close:
+            # It's a weekday before close - should have yesterday's data
+            expected_last_date = (now_et - timedelta(days=1)).date()
+        else:
+            # It's a weekend - should have Friday's data
+            days_back = now_et.weekday() - 4  # Days since Friday
+            expected_last_date = (now_et - timedelta(days=days_back)).date()
+        
+        # Check if we're missing data
+        if last_date.date() < expected_last_date:
+            days_behind = (expected_last_date - last_date.date()).days
+            needs_update = True
+            st.info(f"📅 Data is {days_behind} day(s) behind. Fetching updates from Yahoo Finance...")
     else:
         needs_update = True
         st.info("📥 No local CSV found. Fetching complete S&P 500 history...")
@@ -211,6 +238,10 @@ def load_and_update_sp500_data():
                 # Fetch only recent data (more efficient)
                 start_date = (last_date + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
                 new_data = sp500.history(start=start_date, auto_adjust=False)
+            
+            # Make sure new_data index is timezone-naive
+            if not new_data.empty and new_data.index.tz is not None:
+                new_data.index = new_data.index.tz_localize(None)
             
             if not new_data.empty:
                 # Combine with existing data
@@ -233,7 +264,7 @@ def load_and_update_sp500_data():
                     st.info(f"ℹ️ Updates cached in memory (CSV is read-only in deployment)")
                     st.caption("To permanently update CSV: Run update_sp500_data.py locally or use GitHub Actions")
             else:
-                st.info("📊 No new data available (markets may be closed or data is current)")
+                st.info("📊 No new data available (markets closed or data is current)")
                 
         except Exception as e:
             st.error(f"❌ Error fetching updates from Yahoo Finance: {str(e)}")
@@ -242,6 +273,10 @@ def load_and_update_sp500_data():
     
     # Process the data
     if not df.empty:
+        # Ensure index is timezone-naive DatetimeIndex
+        if df.index.tz is not None:
+            df.index = df.index.tz_localize(None)
+        
         # Use Adj Close if available, otherwise Close
         if 'Adj Close' in df.columns:
             df['Price'] = df['Adj Close']
