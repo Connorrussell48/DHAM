@@ -470,6 +470,27 @@ def create_election_cycle_chart(election_stats):
 # Main Content
 # --------------------------------------------------------------------------------------
 
+# Add specific styling for refresh button
+st.markdown("""
+    <style>
+    /* Force refresh button to match theme */
+    button[key="refresh_btn"], 
+    div[data-testid="column"] button,
+    .stButton button {
+        background: var(--input) !important;
+        color: var(--text) !important;
+        border: 1px solid var(--neutral) !important;
+    }
+    button[key="refresh_btn"]:hover,
+    div[data-testid="column"] button:hover,
+    .stButton button:hover {
+        background: var(--inputlight) !important;
+        border-color: var(--purple) !important;
+        color: var(--purple) !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # Add refresh button with consistent styling
 col1, col2 = st.columns([4, 1])
 with col2:
