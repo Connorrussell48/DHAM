@@ -1402,40 +1402,176 @@ if not sp500_data.empty:
     # Election Cycle Seasonality
     # --------------------------------------------------------------------------------------
     st.markdown("## Presidential Election Cycle")
+    st.markdown("Monthly returns by election cycle year")
     
-    election_stats = calculate_election_cycle_seasonality(filtered_data)
+    # Calculate monthly returns for each election cycle year type
+    df_with_cycle = filtered_data.copy()
+    df_with_cycle['Years_Since_Election'] = (df_with_cycle.index.year - 2024) % 4
     
-    col1, col2 = st.columns([2, 1])
+    cycle_labels = {
+        0: 'Election Year',
+        1: 'Post-Election Year', 
+        2: 'Mid-Term Year',
+        3: 'Pre-Election Year'
+    }
     
-    with col1:
-        election_chart = create_election_cycle_chart(election_stats)
-        st.plotly_chart(election_chart, use_container_width=True)
-    
-    with col2:
-        st.markdown("### Key Insights")
+    # Calculate monthly stats for each cycle type
+    for cycle_year in [0, 1, 2, 3]:
+        cycle_data = df_with_cycle[df_with_cycle['Years_Since_Election'] == cycle_year].copy()
         
-        best_phase = election_stats.loc[election_stats['Mean Return'].idxmax()]
-        worst_phase = election_stats.loc[election_stats['Mean Return'].idxmin()]
-        
-        st.markdown(f"""
-        **Best Phase:**
-        - {best_phase['Cycle Phase']}: **{best_phase['Mean Return']:.3f}%**
-        - Win Rate: {best_phase['Win Rate']:.1f}%
-        
-        **Worst Phase:**
-        - {worst_phase['Cycle Phase']}: **{worst_phase['Mean Return']:.3f}%**
-        - Win Rate: {worst_phase['Win Rate']:.1f}%
-        
-        **Current Year:** 2025 (Post-Election)
-        """)
+        if not cycle_data.empty:
+            st.markdown(f"### {cycle_labels[cycle_year]}")
+            
+            # Calculate monthly returns for this cycle type
+            cycle_data['Month'] = cycle_data.index.month
+            cycle_data['Year'] = cycle_data.index.year
+            
+            monthly_returns = []
+            for (year, month), group in cycle_data.groupby(['Year', 'Month']):
+                if len(group) > 0:
+                    first_price = group['Price'].iloc[0]
+                    last_price = group['Price'].iloc[-1]
+                    monthly_return = ((last_price - first_price) / first_price) * 100
+                    monthly_returns.append({
+                        'Year': year,
+                        'Month': month,
+                        'Return': monthly_return
+                    })
+            
+            if len(monthly_returns) > 0:
+                monthly_df = pd.DataFrame(monthly_returns)
+                
+                # Calculate stats by month
+                monthly_stats = monthly_df.groupby('Month')['Return'].agg([
+                    ('Mean Return', 'mean'),
+                    ('Std Dev', 'std'),
+                    ('Win Rate', lambda x: (x > 0).sum() / len(x) * 100),
+                    ('Count', 'count')
+                ]).reset_index()
+                
+                # Build heatmap HTML
+                html_content_cycle = '''
+                <style>
+                .cycle-month-container {
+                    display: grid;
+                    grid-template-columns: repeat(12, 1fr);
+                    gap: 10px;
+                    margin: 20px 0;
+                }
+                .cycle-month-box {
+                    border-radius: 8px;
+                    padding: 15px 10px;
+                    text-align: center;
+                    transition: all 0.3s;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    min-height: 120px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                }
+                .cycle-month-box:hover {
+                    transform: scale(1.05);
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+                }
+                .cycle-month-name {
+                    font-size: 0.9rem;
+                    font-weight: 700;
+                    margin-bottom: 8px;
+                    color: #FFFFFF;
+                }
+                .cycle-month-return {
+                    font-size: 1.1rem;
+                    font-weight: 800;
+                    margin-bottom: 5px;
+                    color: #FFFFFF;
+                }
+                .cycle-month-std {
+                    font-size: 0.75rem;
+                    color: rgba(255,255,255,0.75);
+                    margin-bottom: 3px;
+                }
+                .cycle-month-win {
+                    font-size: 0.75rem;
+                    color: rgba(255,255,255,0.75);
+                }
+                </style>
+                <div class="cycle-month-container">
+                '''
+                
+                month_abbrev = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                
+                # Color function (same as monthly)
+                def get_color(return_val):
+                    max_saturation = 4.0
+                    if return_val > 0:
+                        alpha = min(0.9, 0.1 + (return_val / max_saturation) * 0.8)
+                        return f'rgba(38, 208, 124, {alpha})'
+                    elif return_val < 0:
+                        alpha = min(0.9, 0.1 + (abs(return_val) / max_saturation) * 0.8)
+                        return f'rgba(217, 83, 79, {alpha})'
+                    else:
+                        return f'rgba(138, 124, 245, 0.1)'
+                
+                for month in range(1, 13):
+                    month_data = monthly_stats[monthly_stats['Month'] == month]
+                    if len(month_data) > 0:
+                        mean_return = month_data['Mean Return'].iloc[0]
+                        std_dev = month_data['Std Dev'].iloc[0]
+                        win_rate = month_data['Win Rate'].iloc[0]
+                        bg_color = get_color(mean_return)
+                        
+                        html_content_cycle += f'''
+                        <div class="cycle-month-box" style="background: {bg_color};">
+                            <div class="cycle-month-name">{month_abbrev[month-1]}</div>
+                            <div class="cycle-month-return">{mean_return:+.2f}%</div>
+                            <div class="cycle-month-std">σ: {std_dev:.2f}%</div>
+                            <div class="cycle-month-win">{win_rate:.0f}% ↑</div>
+                        </div>
+                        '''
+                    else:
+                        # No data for this month
+                        html_content_cycle += f'''
+                        <div class="cycle-month-box" style="background: rgba(138, 124, 245, 0.1); opacity: 0.3;">
+                            <div class="cycle-month-name">{month_abbrev[month-1]}</div>
+                            <div class="cycle-month-return">-</div>
+                            <div class="cycle-month-std">No data</div>
+                            <div class="cycle-month-win">-</div>
+                        </div>
+                        '''
+                
+                html_content_cycle += '</div>'
+                
+                import streamlit.components.v1 as components
+                components.html(html_content_cycle, height=180)
+                
+                # Calculate total year return for this cycle type
+                if len(monthly_df) > 0:
+                    # Get average annual return
+                    years = monthly_df['Year'].unique()
+                    annual_returns = []
+                    for year in years:
+                        year_data = cycle_data[cycle_data['Year'] == year]
+                        if len(year_data) > 0:
+                            year_return = ((year_data['Price'].iloc[-1] - year_data['Price'].iloc[0]) / 
+                                         year_data['Price'].iloc[0]) * 100
+                            annual_returns.append(year_return)
+                    
+                    if len(annual_returns) > 0:
+                        avg_annual = np.mean(annual_returns)
+                        median_annual = np.median(annual_returns)
+                        win_rate_annual = (np.array(annual_returns) > 0).sum() / len(annual_returns) * 100
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.markdown(f"**Avg Annual Return:** {avg_annual:+.2f}%")
+                        with col2:
+                            st.markdown(f"**Median Annual Return:** {median_annual:+.2f}%")
+                        with col3:
+                            st.markdown(f"**Win Rate:** {win_rate_annual:.0f}% ({len(annual_returns)} years)")
+                
+                st.markdown("")  # Spacing
     
-    with st.expander("View Detailed Election Cycle Statistics"):
-        display_election = election_stats[['Cycle Phase', 'Mean Return', 'Median Return', 'Std Dev', 'Win Rate', 'Count']].copy()
-        display_election['Mean Return'] = display_election['Mean Return'].apply(lambda x: f"{x:.4f}%")
-        display_election['Median Return'] = display_election['Median Return'].apply(lambda x: f"{x:.4f}%")
-        display_election['Std Dev'] = display_election['Std Dev'].apply(lambda x: f"{x:.3f}%")
-        display_election['Win Rate'] = display_election['Win Rate'].apply(lambda x: f"{x:.1f}%")
-        st.dataframe(display_election, use_container_width=True, hide_index=True)
+    st.markdown("---")
 
 else:
     st.error("Unable to load S&P 500 data. Please check your internet connection and try again.")
