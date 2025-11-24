@@ -1183,16 +1183,18 @@ if not sp500_data.empty:
             plot_bgcolor='rgba(0,0,0,0)',
             font=dict(color='#FFFFFF', size=12),
             xaxis=dict(
-                title='Week of Year',
+                title=dict(text='Week of Year', font=dict(color='#FFFFFF')),
                 gridcolor='rgba(255,255,255,0.1)',
                 showgrid=True,
                 dtick=4,  # Show every 4th week
-                range=[0, 53]
+                range=[0, 53],
+                tickfont=dict(color='#FFFFFF')
             ),
             yaxis=dict(
-                title='Index (Base 100 = Year Start)',
+                title=dict(text='Index (Base 100 = Year Start)', font=dict(color='#FFFFFF')),
                 gridcolor='rgba(255,255,255,0.1)',
-                showgrid=True
+                showgrid=True,
+                tickfont=dict(color='#FFFFFF')
             ),
             hovermode='x unified',
             height=500,
@@ -1204,7 +1206,8 @@ if not sp500_data.empty:
                 x=0.01,
                 bgcolor='rgba(0,0,0,0.5)',
                 bordercolor='rgba(255,255,255,0.2)',
-                borderwidth=1
+                borderwidth=1,
+                font=dict(color='#FFFFFF')
             )
         )
         
