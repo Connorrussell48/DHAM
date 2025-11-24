@@ -861,6 +861,32 @@ if not sp500_data.empty:
         
         components.html(html_content_year, height=180)
         
+        # Best/worst months for current year (above YTD)
+        completed_month_data = [m for m in current_year_returns if m['Return'] is not None]
+        if len(completed_month_data) > 0:
+            month_names = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December']
+            
+            best_month_idx = max(range(len(completed_month_data)), 
+                               key=lambda i: completed_month_data[i]['Return'])
+            worst_month_idx = min(range(len(completed_month_data)), 
+                                key=lambda i: completed_month_data[i]['Return'])
+            
+            best = completed_month_data[best_month_idx]
+            worst = completed_month_data[worst_month_idx]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(f"""
+                **Best Month:** {month_names[best['Month']-1]} ({best['Return']:+.2f}%, {best['Win Rate']:.0f}% win rate)
+                """)
+            
+            with col2:
+                st.markdown(f"""
+                **Worst Month:** {month_names[worst['Month']-1]} ({worst['Return']:+.2f}%, {worst['Win Rate']:.0f}% win rate)
+                """)
+        
         # Calculate YTD return
         if len(current_year_data) > 0:
             ytd_return = ((current_year_data['Price'].iloc[-1] - current_year_data['Price'].iloc[0]) / 
@@ -875,7 +901,8 @@ if not sp500_data.empty:
     else:
         st.info(f"No data available for {current_year} in the selected lookback period.")
     
-    # Key insights below heatmap
+    # Key insights for historical averages (below everything)
+    st.markdown("### Historical Averages")
     col1, col2 = st.columns(2)
     
     with col1:
