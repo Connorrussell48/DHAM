@@ -1708,7 +1708,10 @@ if not sp500_data.empty:
                     if len(annual_returns) > 0:
                         avg_annual = np.mean(annual_returns)
                         median_annual = np.median(annual_returns)
+                        std_annual = np.std(annual_returns)
                         win_rate_annual = (np.array(annual_returns) > 0).sum() / len(annual_returns) * 100
+                        plus_1std_annual = avg_annual + std_annual
+                        minus_1std_annual = avg_annual - std_annual
                         
                         col1, col2, col3 = st.columns(3)
                         with col1:
@@ -1717,6 +1720,113 @@ if not sp500_data.empty:
                             st.markdown(f"**Median Annual Return:** {median_annual:+.2f}%")
                         with col3:
                             st.markdown(f"**Win Rate:** {win_rate_annual:.0f}% ({len(annual_returns)} years)")
+                        
+                        # Add expandable histogram for annual returns
+                        with st.expander(f"View Annual Return Distribution ({cycle_labels[cycle_year]})", expanded=False):
+                            import plotly.graph_objects as go
+                            
+                            fig = go.Figure()
+                            
+                            # Add histogram
+                            fig.add_trace(go.Histogram(
+                                x=annual_returns,
+                                nbinsx=12,
+                                marker_color='rgba(138, 124, 245, 0.7)',
+                                marker_line_color='rgba(255,255,255,0.3)',
+                                marker_line_width=1.5,
+                                name='Annual Returns'
+                            ))
+                            
+                            # Add vertical lines
+                            fig.add_vline(x=avg_annual, line_dash="solid", line_color="#FFFFFF", 
+                                        line_width=3, annotation_text="Mean", 
+                                        annotation_position="top right",
+                                        annotation_font_size=12)
+                            
+                            fig.add_vline(x=median_annual, line_dash="dot", line_color="#8A7CF5", 
+                                        line_width=2.5, annotation_text="Median", 
+                                        annotation_position="top left",
+                                        annotation_font_size=11)
+                            
+                            fig.add_vline(x=plus_1std_annual, line_dash="dash", line_color="rgba(38, 208, 124, 0.9)", 
+                                        line_width=2, annotation_text="+1σ", 
+                                        annotation_position="bottom right", 
+                                        annotation_font_size=11)
+                            
+                            fig.add_vline(x=minus_1std_annual, line_dash="dash", line_color="rgba(217, 83, 79, 0.9)", 
+                                        line_width=2, annotation_text="-1σ", 
+                                        annotation_position="bottom left", 
+                                        annotation_font_size=11)
+                            
+                            fig.update_layout(
+                                template='plotly_dark',
+                                paper_bgcolor='rgba(0,0,0,0)',
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                font=dict(color='#FFFFFF', size=12),
+                                xaxis=dict(
+                                    title=dict(text='Annual Return (%)', font=dict(color='#FFFFFF', size=13)),
+                                    gridcolor='rgba(255,255,255,0.1)',
+                                    showgrid=True,
+                                    tickfont=dict(color='#FFFFFF', size=11)
+                                ),
+                                yaxis=dict(
+                                    title=dict(text='Number of Years', font=dict(color='#FFFFFF', size=13)),
+                                    gridcolor='rgba(255,255,255,0.1)',
+                                    showgrid=True,
+                                    tickfont=dict(color='#FFFFFF', size=11)
+                                ),
+                                height=400,
+                                margin=dict(l=60, r=40, t=50, b=60),
+                                showlegend=False
+                            )
+                            
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Statistics summary below chart
+                            stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+                            
+                            with stat_col1:
+                                st.markdown(f"""
+                                <div style="text-align: center; padding: 15px; background: var(--inputlight); border-radius: 8px;">
+                                    <div style="color: var(--muted-text-new); font-size: 0.85rem; margin-bottom: 5px;">Mean</div>
+                                    <div style="color: #FFFFFF; font-size: 1.3rem; font-weight: 700;">{avg_annual:+.2f}%</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            
+                            with stat_col2:
+                                st.markdown(f"""
+                                <div style="text-align: center; padding: 15px; background: var(--inputlight); border-radius: 8px;">
+                                    <div style="color: var(--muted-text-new); font-size: 0.85rem; margin-bottom: 5px;">Median</div>
+                                    <div style="color: #8A7CF5; font-size: 1.3rem; font-weight: 700;">{median_annual:+.2f}%</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            
+                            with stat_col3:
+                                st.markdown(f"""
+                                <div style="text-align: center; padding: 15px; background: var(--inputlight); border-radius: 8px;">
+                                    <div style="color: var(--muted-text-new); font-size: 0.85rem; margin-bottom: 5px;">+1 Std Dev</div>
+                                    <div style="color: #26D07C; font-size: 1.3rem; font-weight: 700;">{plus_1std_annual:+.2f}%</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            
+                            with stat_col4:
+                                st.markdown(f"""
+                                <div style="text-align: center; padding: 15px; background: var(--inputlight); border-radius: 8px;">
+                                    <div style="color: var(--muted-text-new); font-size: 0.85rem; margin-bottom: 5px;">-1 Std Dev</div>
+                                    <div style="color: #D9534F; font-size: 1.3rem; font-weight: 700;">{minus_1std_annual:+.2f}%</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            
+                            # Additional stats
+                            st.markdown(f"""
+                            <div style="margin-top: 15px; padding: 12px; background: rgba(138, 124, 245, 0.1); border-radius: 8px; border: 1px solid rgba(138, 124, 245, 0.3);">
+                                <div style="font-size: 0.9rem; color: var(--text);">
+                                    <strong>Standard Deviation:</strong> {std_annual:.2f}% &nbsp;|&nbsp; 
+                                    <strong>Range:</strong> {min(annual_returns):+.2f}% to {max(annual_returns):+.2f}% &nbsp;|&nbsp; 
+                                    <strong>Observations:</strong> {len(annual_returns)} years
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
                 
                 st.markdown("")  # Spacing
     
