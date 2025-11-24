@@ -534,11 +534,58 @@ if not sp500_data.empty:
     """, unsafe_allow_html=True)
     
     # --------------------------------------------------------------------------------------
+    # Lookback Period Selector
+    # --------------------------------------------------------------------------------------
+    st.markdown("### Analysis Period")
+    
+    lookback_options = {
+        "1 Year": 1,
+        "5 Years": 5,
+        "10 Years": 10,
+        "20 Years": 20,
+        "Max (All Data)": None
+    }
+    
+    selected_lookback = st.selectbox(
+        "Select time period for seasonality analysis:",
+        options=list(lookback_options.keys()),
+        index=4,  # Default to "Max (All Data)"
+        key="lookback_selector"
+    )
+    
+    # Filter data based on lookback period
+    years_back = lookback_options[selected_lookback]
+    if years_back is not None:
+        # Calculate cutoff date
+        cutoff_date = sp500_data.index[-1] - pd.DateOffset(years=years_back)
+        filtered_data = sp500_data[sp500_data.index >= cutoff_date]
+        
+        # Display filtered range
+        st.markdown(f"""
+            <div style="background: var(--panel); padding: 12px; border-radius: 8px; border: 1px solid var(--neutral); margin-top: 10px; margin-bottom: 20px;">
+                <p style="margin: 0; color: var(--muted-text-new); font-size: 0.9rem;">
+                    <strong>Analyzing:</strong> {filtered_data.index[0].strftime('%B %d, %Y')} to {filtered_data.index[-1].strftime('%B %d, %Y')} 
+                    ({len(filtered_data):,} trading days)
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Use all data
+        filtered_data = sp500_data
+        st.markdown(f"""
+            <div style="background: var(--panel); padding: 12px; border-radius: 8px; border: 1px solid var(--neutral); margin-top: 10px; margin-bottom: 20px;">
+                <p style="margin: 0; color: var(--muted-text-new); font-size: 0.9rem;">
+                    <strong>Analyzing:</strong> Complete historical dataset ({len(filtered_data):,} trading days)
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # --------------------------------------------------------------------------------------
     # Monthly Seasonality
     # --------------------------------------------------------------------------------------
     st.markdown("## Monthly Seasonality")
     
-    monthly_stats = calculate_monthly_seasonality(sp500_data)
+    monthly_stats = calculate_monthly_seasonality(filtered_data)
     
     col1, col2 = st.columns([2, 1])
     
@@ -577,7 +624,7 @@ if not sp500_data.empty:
     # --------------------------------------------------------------------------------------
     st.markdown("## Day of Week Seasonality")
     
-    weekly_stats = calculate_weekly_seasonality(sp500_data)
+    weekly_stats = calculate_weekly_seasonality(filtered_data)
     
     col1, col2 = st.columns([2, 1])
     
@@ -616,7 +663,7 @@ if not sp500_data.empty:
     # --------------------------------------------------------------------------------------
     st.markdown("## Presidential Election Cycle")
     
-    election_stats = calculate_election_cycle_seasonality(sp500_data)
+    election_stats = calculate_election_cycle_seasonality(filtered_data)
     
     col1, col2 = st.columns([2, 1])
     
