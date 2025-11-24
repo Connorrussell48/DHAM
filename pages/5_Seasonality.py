@@ -1546,16 +1546,88 @@ if not sp500_data.empty:
                 import streamlit.components.v1 as components
                 components.html(html_content_cycle, height=180)
                 
-                # Add expandable histograms for each month
+                # Add expandable histograms for each month in 2 rows
                 st.markdown("**Monthly Return Distributions:**")
-                hist_cols = st.columns(6)
                 
-                for idx, month in enumerate(range(1, 13)):
+                # First row - months 1-6
+                hist_cols_row1 = st.columns(6)
+                for idx, month in enumerate(range(1, 7)):
                     month_returns = monthly_df[monthly_df['Month'] == month]['Return'].values
                     
                     if len(month_returns) > 0:
-                        col_idx = idx % 6
-                        with hist_cols[col_idx]:
+                        with hist_cols_row1[idx]:
+                            with st.expander(f"{month_abbrev[month-1]}", expanded=False):
+                                # Calculate stats
+                                mean_val = np.mean(month_returns)
+                                std_val = np.std(month_returns)
+                                plus_1std = mean_val + std_val
+                                minus_1std = mean_val - std_val
+                                
+                                # Create histogram
+                                import plotly.graph_objects as go
+                                
+                                fig = go.Figure()
+                                
+                                fig.add_trace(go.Histogram(
+                                    x=month_returns,
+                                    nbinsx=10,
+                                    marker_color='rgba(138, 124, 245, 0.7)',
+                                    marker_line_color='rgba(255,255,255,0.2)',
+                                    marker_line_width=1,
+                                    name='Returns'
+                                ))
+                                
+                                # Add vertical lines for mean and std
+                                fig.add_vline(x=mean_val, line_dash="solid", line_color="#FFFFFF", 
+                                            line_width=2, annotation_text="Mean", 
+                                            annotation_position="top")
+                                fig.add_vline(x=plus_1std, line_dash="dash", line_color="rgba(38, 208, 124, 0.8)", 
+                                            line_width=1.5, annotation_text="+1σ", 
+                                            annotation_position="top", annotation_font_size=10)
+                                fig.add_vline(x=minus_1std, line_dash="dash", line_color="rgba(217, 83, 79, 0.8)", 
+                                            line_width=1.5, annotation_text="-1σ", 
+                                            annotation_position="top", annotation_font_size=10)
+                                
+                                fig.update_layout(
+                                    template='plotly_dark',
+                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    font=dict(color='#FFFFFF', size=10),
+                                    xaxis=dict(
+                                        title='Return (%)',
+                                        gridcolor='rgba(255,255,255,0.1)',
+                                        tickfont=dict(size=9)
+                                    ),
+                                    yaxis=dict(
+                                        title='Count',
+                                        gridcolor='rgba(255,255,255,0.1)',
+                                        tickfont=dict(size=9)
+                                    ),
+                                    height=250,
+                                    margin=dict(l=40, r=20, t=40, b=40),
+                                    showlegend=False
+                                )
+                                
+                                st.plotly_chart(fig, use_container_width=True, key=f"hist_{cycle_year}_{month}")
+                                
+                                # Stats below histogram
+                                st.markdown(f"""
+                                <div style="font-size: 0.85rem; color: rgba(255,255,255,0.8);">
+                                    <strong>Mean:</strong> {mean_val:+.2f}%<br>
+                                    <strong>Std Dev:</strong> {std_val:.2f}%<br>
+                                    <strong>+1σ:</strong> {plus_1std:+.2f}%<br>
+                                    <strong>-1σ:</strong> {minus_1std:+.2f}%<br>
+                                    <strong>Count:</strong> {len(month_returns)}
+                                </div>
+                                """, unsafe_allow_html=True)
+                
+                # Second row - months 7-12
+                hist_cols_row2 = st.columns(6)
+                for idx, month in enumerate(range(7, 13)):
+                    month_returns = monthly_df[monthly_df['Month'] == month]['Return'].values
+                    
+                    if len(month_returns) > 0:
+                        with hist_cols_row2[idx]:
                             with st.expander(f"{month_abbrev[month-1]}", expanded=False):
                                 # Calculate stats
                                 mean_val = np.mean(month_returns)
