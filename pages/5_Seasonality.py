@@ -1829,6 +1829,179 @@ if not sp500_data.empty:
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
+                        
+                        # Add YTD comparison chart for current year if this is the current cycle type
+                        current_year = pd.Timestamp.now().year
+                        current_cycle = (current_year - 2024) % 4
+                        
+                        if cycle_year == current_cycle:
+                            st.markdown(f"### {current_year} YTD vs Historical Average ({cycle_labels[cycle_year]})")
+                            st.markdown(f"Current year performance compared to average {cycle_labels[cycle_year].lower()} pattern")
+                            
+                            # Get current year data
+                            current_year_data = filtered_data[filtered_data.index.year == current_year].copy()
+                            
+                            if not current_year_data.empty:
+                                # Calculate week numbers
+                                current_year_data['WeekNum'] = current_year_data.index.isocalendar().week
+                                
+                                # Calculate base 100 index for current year
+                                base_price = current_year_data['Price'].iloc[0]
+                                current_year_data['Index'] = (current_year_data['Price'] / base_price) * 100
+                                
+                                # Group by week
+                                current_weekly = current_year_data.groupby('WeekNum').agg({
+                                    'Index': 'last',
+                                    'Price': 'last'
+                                }).reset_index()
+                                current_weekly['Week_Label'] = current_weekly['WeekNum'].astype(int)
+                                
+                                # Get historical data for this cycle type
+                                historical_cycle = df_with_cycle[df_with_cycle['Years_Since_Election'] == cycle_year].copy()
+                                historical_cycle['WeekNum'] = historical_cycle.index.isocalendar().week
+                                historical_cycle['Year'] = historical_cycle.index.year
+                                
+                                # Calculate base 100 indices for historical years of same cycle type
+                                historical_indices = []
+                                
+                                for year in historical_cycle['Year'].unique():
+                                    if year != current_year:  # Exclude current year
+                                        year_data = historical_cycle[historical_cycle['Year'] == year]
+                                        if len(year_data) > 10:
+                                            base_price_year = year_data['Price'].iloc[0]
+                                            year_data = year_data.copy()
+                                            year_data['Index'] = (year_data['Price'] / base_price_year) * 100
+                                            
+                                            year_weekly = year_data.groupby('WeekNum')['Index'].last().reset_index()
+                                            year_weekly['Year'] = year
+                                            historical_indices.append(year_weekly)
+                                
+                                if len(historical_indices) > 0:
+                                    historical_df = pd.concat(historical_indices, ignore_index=True)
+                                    
+                                    # Calculate mean and std by week
+                                    weekly_stats_hist = historical_df.groupby('WeekNum')['Index'].agg(['mean', 'std']).reset_index()
+                                    weekly_stats_hist['upper_band'] = weekly_stats_hist['mean'] + weekly_stats_hist['std']
+                                    weekly_stats_hist['lower_band'] = weekly_stats_hist['mean'] - weekly_stats_hist['std']
+                                    weekly_stats_hist['Week_Label'] = weekly_stats_hist['WeekNum'].astype(int)
+                                    
+                                    # Create chart
+                                    import plotly.graph_objects as go
+                                    
+                                    fig_ytd = go.Figure()
+                                    
+                                    # Add upper band
+                                    fig_ytd.add_trace(go.Scatter(
+                                        x=weekly_stats_hist['Week_Label'],
+                                        y=weekly_stats_hist['upper_band'],
+                                        mode='lines',
+                                        name='Avg +1σ',
+                                        line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                                        fill=None,
+                                        showlegend=True,
+                                        hovertemplate='Week %{x}<br>Upper Band: %{y:.2f}<extra></extra>'
+                                    ))
+                                    
+                                    # Add lower band with fill
+                                    fig_ytd.add_trace(go.Scatter(
+                                        x=weekly_stats_hist['Week_Label'],
+                                        y=weekly_stats_hist['lower_band'],
+                                        mode='lines',
+                                        name='Avg -1σ',
+                                        line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                                        fill='tonexty',
+                                        fillcolor='rgba(138, 124, 245, 0.15)',
+                                        showlegend=True,
+                                        hovertemplate='Week %{x}<br>Lower Band: %{y:.2f}<extra></extra>'
+                                    ))
+                                    
+                                    # Add historical average
+                                    fig_ytd.add_trace(go.Scatter(
+                                        x=weekly_stats_hist['Week_Label'],
+                                        y=weekly_stats_hist['mean'],
+                                        mode='lines',
+                                        name=f'Avg {cycle_labels[cycle_year]}',
+                                        line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
+                                        showlegend=True,
+                                        hovertemplate='Week %{x}<br>Historical Avg: %{y:.2f}<extra></extra>'
+                                    ))
+                                    
+                                    # Add current year
+                                    fig_ytd.add_trace(go.Scatter(
+                                        x=current_weekly['Week_Label'],
+                                        y=current_weekly['Index'],
+                                        mode='lines+markers',
+                                        name=f'{current_year} YTD',
+                                        line=dict(color='#26D07C', width=3),
+                                        marker=dict(size=4, color='#26D07C'),
+                                        showlegend=True,
+                                        hovertemplate='Week %{x}<br>' + f'{current_year}: ' + '%{y:.2f}<extra></extra>'
+                                    ))
+                                    
+                                    # Add horizontal line at 100
+                                    fig_ytd.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.3)", 
+                                                  annotation_text="Start", annotation_position="right")
+                                    
+                                    fig_ytd.update_layout(
+                                        template='plotly_dark',
+                                        paper_bgcolor='rgba(0,0,0,0)',
+                                        plot_bgcolor='rgba(0,0,0,0)',
+                                        font=dict(color='#FFFFFF', size=12),
+                                        xaxis=dict(
+                                            title=dict(text='Week of Year', font=dict(color='#FFFFFF')),
+                                            gridcolor='rgba(255,255,255,0.1)',
+                                            showgrid=True,
+                                            dtick=4,
+                                            range=[0, 53],
+                                            tickfont=dict(color='#FFFFFF')
+                                        ),
+                                        yaxis=dict(
+                                            title=dict(text='Index (Base 100 = Year Start)', font=dict(color='#FFFFFF')),
+                                            gridcolor='rgba(255,255,255,0.1)',
+                                            showgrid=True,
+                                            tickfont=dict(color='#FFFFFF')
+                                        ),
+                                        hovermode='x unified',
+                                        height=500,
+                                        margin=dict(l=50, r=50, t=30, b=50),
+                                        legend=dict(
+                                            yanchor="top",
+                                            y=0.99,
+                                            xanchor="left",
+                                            x=0.01,
+                                            bgcolor='rgba(0,0,0,0.5)',
+                                            bordercolor='rgba(255,255,255,0.2)',
+                                            borderwidth=1,
+                                            font=dict(color='#FFFFFF')
+                                        )
+                                    )
+                                    
+                                    st.plotly_chart(fig_ytd, use_container_width=True)
+                                    
+                                    # Statistics below chart
+                                    col_stat1, col_stat2, col_stat3 = st.columns(3)
+                                    
+                                    with col_stat1:
+                                        current_index = current_weekly['Index'].iloc[-1]
+                                        current_return = current_index - 100
+                                        st.markdown(f"**{current_year} Performance:** {current_return:+.2f}% (Index: {current_index:.2f})")
+                                    
+                                    with col_stat2:
+                                        current_week = current_weekly['WeekNum'].max()
+                                        hist_week_data = weekly_stats_hist[weekly_stats_hist['WeekNum'] == current_week]
+                                        if len(hist_week_data) > 0:
+                                            hist_index = hist_week_data['mean'].iloc[0]
+                                            hist_return = hist_index - 100
+                                            st.markdown(f"**Avg {cycle_labels[cycle_year]} (Week {int(current_week)}):** {hist_return:+.2f}% (Index: {hist_index:.2f})")
+                                        else:
+                                            st.markdown(f"**Avg {cycle_labels[cycle_year]}:** N/A")
+                                    
+                                    with col_stat3:
+                                        if len(hist_week_data) > 0:
+                                            difference = current_return - hist_return
+                                            st.markdown(f"**Outperformance:** {difference:+.2f}%")
+                                        else:
+                                            st.markdown(f"**Outperformance:** N/A")
                 
                 st.markdown("")  # Spacing
     
