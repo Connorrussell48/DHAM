@@ -174,7 +174,28 @@ def load_and_update_sp500_data():
     # Try to load existing CSV
     try:
         if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path, parse_dates=['Date'], index_col='Date')
+            # Load CSV with custom date parsing for 2-digit years
+            # Format: mm/dd/yy where yy < 70 = 20xx, yy >= 70 = 19xx
+            df = pd.read_csv(csv_path)
+            
+            # Parse dates manually to handle 2-digit years correctly
+            def parse_date(date_str):
+                try:
+                    # Try parsing as-is first
+                    parsed = pd.to_datetime(date_str)
+                    # If year is > 2030, it's probably 19xx not 20xx
+                    if parsed.year > 2030:
+                        # Subtract 100 years
+                        parsed = parsed - pd.DateOffset(years=100)
+                    return parsed
+                except:
+                    return pd.NaT
+            
+            df['Date'] = df['Date'].apply(parse_date)
+            df = df.set_index('Date')
+            df = df.dropna()  # Remove any rows with bad dates
+            df = df.sort_index()  # Ensure chronological order
+            
             # Ensure timezone-naive for comparison
             if df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
@@ -503,8 +524,21 @@ with st.spinner("Loading S&P 500 data..."):
     sp500_data = load_and_update_sp500_data()
 
 if not sp500_data.empty:
-    # Data info with last update date
+    # Validate data dates
+    first_date = sp500_data.index[0]
     last_date = sp500_data.index[-1]
+    current_year = pd.Timestamp.now().year
+    
+    # Check for obviously bad dates (future dates or way too old)
+    if last_date.year > current_year + 1:
+        st.error(f"Error: CSV contains future dates (last date: {last_date.strftime('%Y-%m-%d')}). Please check your CSV file.")
+        st.stop()
+    
+    if first_date.year < 1900 or first_date.year > current_year:
+        st.error(f"Error: CSV contains invalid dates (first date: {first_date.strftime('%Y-%m-%d')}). Please check your CSV file.")
+        st.stop()
+    
+    # Data info with last update date
     days_old = (pd.Timestamp.now().normalize() - last_date).days
     
     # Determine data freshness status
