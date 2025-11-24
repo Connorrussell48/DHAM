@@ -1212,7 +1212,149 @@ if not sp500_data.empty:
         
         st.plotly_chart(fig, use_container_width=True)
         
+        # Get current week number
+        current_week_num = current_weekly['WeekNum'].max()
+        next_week_num = current_week_num + 1
+        
+        # Calculate current week's actual return
+        if len(current_weekly) >= 2:
+            current_week_start_index = current_weekly[current_weekly['WeekNum'] == current_week_num]['Index'].iloc[0] if current_week_num in current_weekly['WeekNum'].values else current_weekly['Index'].iloc[-2]
+            current_week_end_index = current_weekly['Index'].iloc[-1]
+            current_week_return = ((current_week_end_index - current_week_start_index) / current_week_start_index) * 100
+        else:
+            current_week_return = 0
+        
+        # Get historical stats for current week
+        current_week_hist = historical_df[historical_df['WeekNum'] == current_week_num]
+        if len(current_week_hist) > 0:
+            # Calculate weekly returns for historical data
+            hist_weekly_returns = []
+            for year in current_week_hist['Year'].unique():
+                year_all_data = historical_data[historical_data['Year'] == year]
+                week_data = year_all_data[year_all_data['WeekNum'] == current_week_num]
+                
+                if len(week_data) > 1:
+                    week_start = week_data['Price'].iloc[0]
+                    week_end = week_data['Price'].iloc[-1]
+                    weekly_return = ((week_end - week_start) / week_start) * 100
+                    hist_weekly_returns.append(weekly_return)
+                    
+                    # Daily volatility
+                    daily_returns = week_data['Returns'].dropna()
+            
+            if len(hist_weekly_returns) > 0:
+                avg_week_return = np.mean(hist_weekly_returns)
+                win_rate_week = (np.array(hist_weekly_returns) > 0).sum() / len(hist_weekly_returns) * 100
+            else:
+                avg_week_return = 0
+                win_rate_week = 0
+            
+            # Get average daily volatility for this week
+            daily_vols = []
+            for year in current_week_hist['Year'].unique():
+                year_all_data = historical_data[historical_data['Year'] == year]
+                week_data = year_all_data[year_all_data['WeekNum'] == current_week_num]
+                if len(week_data) > 1:
+                    daily_vol = week_data['Returns'].std()
+                    if not np.isnan(daily_vol):
+                        daily_vols.append(daily_vol)
+            
+            avg_daily_vol = np.mean(daily_vols) if len(daily_vols) > 0 else 0
+        else:
+            avg_week_return = 0
+            win_rate_week = 0
+            avg_daily_vol = 0
+        
+        # Get historical stats for next week
+        next_week_hist = historical_df[historical_df['WeekNum'] == next_week_num]
+        if len(next_week_hist) > 0:
+            # Calculate weekly returns for next week
+            hist_next_weekly_returns = []
+            for year in next_week_hist['Year'].unique():
+                year_all_data = historical_data[historical_data['Year'] == year]
+                week_data = year_all_data[year_all_data['WeekNum'] == next_week_num]
+                
+                if len(week_data) > 1:
+                    week_start = week_data['Price'].iloc[0]
+                    week_end = week_data['Price'].iloc[-1]
+                    weekly_return = ((week_end - week_start) / week_start) * 100
+                    hist_next_weekly_returns.append(weekly_return)
+            
+            if len(hist_next_weekly_returns) > 0:
+                avg_next_week_return = np.mean(hist_next_weekly_returns)
+                win_rate_next_week = (np.array(hist_next_weekly_returns) > 0).sum() / len(hist_next_weekly_returns) * 100
+            else:
+                avg_next_week_return = 0
+                win_rate_next_week = 0
+            
+            # Get average daily volatility for next week
+            daily_vols_next = []
+            for year in next_week_hist['Year'].unique():
+                year_all_data = historical_data[historical_data['Year'] == year]
+                week_data = year_all_data[year_all_data['WeekNum'] == next_week_num]
+                if len(week_data) > 1:
+                    daily_vol = week_data['Returns'].std()
+                    if not np.isnan(daily_vol):
+                        daily_vols_next.append(daily_vol)
+            
+            avg_daily_vol_next = np.mean(daily_vols_next) if len(daily_vols_next) > 0 else 0
+        else:
+            avg_next_week_return = 0
+            win_rate_next_week = 0
+            avg_daily_vol_next = 0
+        
+        # Display info boxes
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown(f"""
+                <div style="background: var(--inputlight); padding: 20px; border-radius: 10px; border: 1px solid var(--neutral); margin-bottom: 15px;">
+                    <h4 style="color: var(--purple); margin-top: 0;">Current Week {current_week_num}</h4>
+                    <div style="margin: 10px 0;">
+                        <span style="color: var(--muted-text-new); font-size: 0.9rem;">This Week's Return:</span><br>
+                        <span style="color: var(--text); font-size: 1.3rem; font-weight: 700;">{current_week_return:+.2f}%</span>
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <span style="color: var(--muted-text-new); font-size: 0.9rem;">Historical Avg (Week {current_week_num}):</span><br>
+                        <span style="color: var(--text); font-size: 1.3rem; font-weight: 700;">{avg_week_return:+.2f}%</span>
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <span style="color: var(--muted-text-new); font-size: 0.9rem;">Avg Daily Volatility:</span><br>
+                        <span style="color: var(--text); font-size: 1.1rem; font-weight: 600;">{avg_daily_vol:.2f}%</span>
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <span style="color: var(--muted-text-new); font-size: 0.9rem;">Historical Win Rate:</span><br>
+                        <span style="color: var(--text); font-size: 1.1rem; font-weight: 600;">{win_rate_week:.1f}%</span>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+                <div style="background: var(--inputlight); padding: 20px; border-radius: 10px; border: 1px solid var(--neutral); margin-bottom: 15px;">
+                    <h4 style="color: var(--purple); margin-top: 0;">Next Week {next_week_num}</h4>
+                    <div style="margin: 10px 0;">
+                        <span style="color: var(--muted-text-new); font-size: 0.9rem;">Expected Return:</span><br>
+                        <span style="color: var(--text); font-size: 1.3rem; font-weight: 700;">{avg_next_week_return:+.2f}%</span>
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <span style="color: var(--muted-text-new); font-size: 0.9rem;">Expected Daily Volatility:</span><br>
+                        <span style="color: var(--text); font-size: 1.1rem; font-weight: 600;">{avg_daily_vol_next:.2f}%</span>
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <span style="color: var(--muted-text-new); font-size: 0.9rem;">Historical Win Rate:</span><br>
+                        <span style="color: var(--text); font-size: 1.1rem; font-weight: 600;">{win_rate_next_week:.1f}%</span>
+                    </div>
+                    <div style="margin: 10px 0;">
+                        <span style="color: var(--muted-text-new); font-size: 0.85rem; font-style: italic;">
+                            Based on {len(hist_next_weekly_returns) if len(next_week_hist) > 0 else 0} historical observations
+                        </span>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        
         # Key statistics
+        st.markdown("### Year-to-Date Performance")
         col1, col2, col3 = st.columns(3)
         
         with col1:
