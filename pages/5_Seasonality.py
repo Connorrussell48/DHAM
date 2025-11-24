@@ -650,17 +650,20 @@ if not sp500_data.empty:
     max_return = monthly_stats['Mean Return'].max()
     
     def get_month_color(return_val):
-        """Generate color based on return value - green for positive, red for negative"""
+        """Generate color based on return value - matches Home page heatmap"""
+        max_saturation = 4.0
+        
         if return_val > 0:
-            # Positive returns - shades of green
-            intensity = min(return_val / max(abs(max_return), 0.1), 1.0)
-            green_val = int(50 + (155 * intensity))  # 50-205
-            return f"rgba(38, {green_val}, 124, 0.3)"
+            # Green for positive - same as Home page
+            alpha = min(0.9, 0.1 + (return_val / max_saturation) * 0.8)
+            return f'rgba(38, 208, 124, {alpha})'
+        elif return_val < 0:
+            # Red for negative - same as Home page
+            alpha = min(0.9, 0.1 + (abs(return_val) / max_saturation) * 0.8)
+            return f'rgba(217, 83, 79, {alpha})'
         else:
-            # Negative returns - shades of red
-            intensity = min(abs(return_val) / max(abs(min_return), 0.1), 1.0)
-            red_val = int(150 + (67 * intensity))  # 150-217
-            return f"rgba({red_val}, 83, 79, 0.3)"
+            # Neutral for zero
+            return f'rgba(138, 124, 245, 0.1)'
     
     # Build HTML for month grid
     html_content = '''
