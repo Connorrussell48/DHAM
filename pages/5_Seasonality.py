@@ -1216,11 +1216,16 @@ if not sp500_data.empty:
         current_week_num = current_weekly['WeekNum'].max()
         next_week_num = current_week_num + 1
         
-        # Calculate current week's actual return (cumulative compounded from week start to now)
+        # Calculate current week's actual return (from previous Friday close to current price)
         current_week_data = current_year_data[current_year_data['WeekNum'] == current_week_num]
         if len(current_week_data) > 0:
-            # Get week start price (first price of the week)
-            week_start_price = current_week_data['Price'].iloc[0]
+            # Get the close of the last day of the previous week
+            prev_week_data = current_year_data[current_year_data['WeekNum'] == (current_week_num - 1)]
+            if len(prev_week_data) > 0:
+                week_start_price = prev_week_data['Price'].iloc[-1]  # Last close of previous week
+            else:
+                # If no previous week (week 1), use first price of current week
+                week_start_price = current_week_data['Price'].iloc[0]
             
             # Get current price (last available price, which could be intraday)
             try:
@@ -1237,7 +1242,7 @@ if not sp500_data.empty:
                 # Fallback to last close if real-time fetch fails
                 current_price = current_week_data['Price'].iloc[-1]
             
-            # Calculate cumulative return from week start to now
+            # Calculate cumulative return from previous week close to now
             current_week_return = ((current_price - week_start_price) / week_start_price) * 100
         else:
             current_week_return = 0
