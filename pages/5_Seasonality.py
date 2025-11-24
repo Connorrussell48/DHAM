@@ -1116,9 +1116,8 @@ if not sp500_data.empty:
         weekly_stats_hist['lower_band'] = weekly_stats_hist['mean'] - weekly_stats_hist['std']
         weekly_stats_hist['Week_Label'] = weekly_stats_hist['WeekNum'].astype(int)
         
-        # Limit to weeks we have current data for
-        max_week = current_weekly['WeekNum'].max()
-        weekly_stats_hist = weekly_stats_hist[weekly_stats_hist['WeekNum'] <= max_week]
+        # Keep full year of historical data (don't limit to current week)
+        # This shows where the year typically goes even if we're not there yet
         
         # Create Plotly chart
         import plotly.graph_objects as go
