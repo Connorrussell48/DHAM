@@ -1073,93 +1073,52 @@ if not sp500_data.empty:
     historical_data = filtered_data[filtered_data.index.year < current_year].copy()
     
     if not current_year_data.empty and not historical_data.empty:
-        # Calculate week of year for current year
-        current_year_data['Week'] = current_year_data.index.isocalendar().week
-        current_year_data['Month'] = current_year_data.index.month
+        # Calculate week number within the year (1-52)
+        current_year_data['WeekNum'] = current_year_data.index.isocalendar().week
         
-        # Calculate cumulative returns for current year by week
-        current_year_weekly = []
-        start_price = current_year_data['Price'].iloc[0]
+        # Calculate base 100 index for current year
+        base_price = current_year_data['Price'].iloc[0]
+        current_year_data['Index'] = (current_year_data['Price'] / base_price) * 100
         
-        for week in range(1, current_year_data['Week'].max() + 1):
-            week_data = current_year_data[current_year_data['Week'] == week]
-            if len(week_data) > 0:
-                # Get the last price of the week
-                week_end_price = week_data['Price'].iloc[-1]
-                cumulative_return = ((week_end_price - start_price) / start_price) * 100
-                
-                # Get month for labeling
-                month = week_data['Month'].iloc[0]
-                
-                current_year_weekly.append({
-                    'Week': week,
-                    'Month': month,
-                    'Cumulative_Return': cumulative_return
-                })
+        # Group by week and take last value of each week
+        current_weekly = current_year_data.groupby('WeekNum').agg({
+            'Index': 'last',
+            'Price': 'last'
+        }).reset_index()
         
-        current_df = pd.DataFrame(current_year_weekly)
+        # Add week labels
+        current_weekly['Week_Label'] = current_weekly['WeekNum'].astype(int)
         
-        # Calculate historical average cumulative returns by week
-        historical_data['Week'] = historical_data.index.isocalendar().week
+        # Calculate historical base 100 indices
+        historical_data['WeekNum'] = historical_data.index.isocalendar().week
         historical_data['Year'] = historical_data.index.year
-        historical_data['Month'] = historical_data.index.month
         
-        # Get cumulative returns for each historical year
-        historical_weekly = []
+        # For each historical year, calculate base 100 index
+        historical_indices = []
         
         for year in historical_data['Year'].unique():
             year_data = historical_data[historical_data['Year'] == year]
-            if len(year_data) > 0:
-                start_price_year = year_data['Price'].iloc[0]
+            if len(year_data) > 10:  # Only include years with reasonable data
+                base_price_year = year_data['Price'].iloc[0]
+                year_data = year_data.copy()
+                year_data['Index'] = (year_data['Price'] / base_price_year) * 100
                 
-                for week in range(1, min(53, year_data['Week'].max() + 1)):
-                    week_data = year_data[year_data['Week'] == week]
-                    if len(week_data) > 0:
-                        week_end_price = week_data['Price'].iloc[-1]
-                        cumulative_return = ((week_end_price - start_price_year) / start_price_year) * 100
-                        month = week_data['Month'].iloc[0]
-                        
-                        historical_weekly.append({
-                            'Year': year,
-                            'Week': week,
-                            'Month': month,
-                            'Cumulative_Return': cumulative_return
-                        })
+                # Group by week
+                year_weekly = year_data.groupby('WeekNum')['Index'].last().reset_index()
+                year_weekly['Year'] = year
+                historical_indices.append(year_weekly)
         
-        historical_df = pd.DataFrame(historical_weekly)
+        historical_df = pd.concat(historical_indices, ignore_index=True)
         
-        # Calculate mean and std by week
-        weekly_stats_hist = historical_df.groupby('Week')['Cumulative_Return'].agg(['mean', 'std']).reset_index()
+        # Calculate mean and std by week number
+        weekly_stats_hist = historical_df.groupby('WeekNum')['Index'].agg(['mean', 'std']).reset_index()
         weekly_stats_hist['upper_band'] = weekly_stats_hist['mean'] + weekly_stats_hist['std']
         weekly_stats_hist['lower_band'] = weekly_stats_hist['mean'] - weekly_stats_hist['std']
+        weekly_stats_hist['Week_Label'] = weekly_stats_hist['WeekNum'].astype(int)
         
-        # Create proper x-axis labels based on actual week starts
-        def get_week_label_from_data(week_num, year_data):
-            """Get the proper label for a week based on when it actually starts"""
-            week_data = year_data[year_data['Week'] == week_num]
-            if len(week_data) == 0:
-                return f"W{week_num}"
-            
-            # Get first date of this week
-            first_date = week_data.index[0]
-            month = first_date.month
-            day = first_date.day
-            
-            month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            
-            # Determine which week of the month (1-5)
-            week_of_month = (day - 1) // 7 + 1
-            
-            return f"W{week_of_month} {month_names[month]}"
-        
-        # Apply labels to current year data
-        current_df['Label'] = current_df['Week'].apply(lambda w: get_week_label_from_data(w, current_year_data))
-        
-        # For historical averages, use first available year for labeling
-        first_hist_year = historical_data['Year'].min()
-        first_year_data = historical_data[historical_data['Year'] == first_hist_year]
-        weekly_stats_hist['Label'] = weekly_stats_hist['Week'].apply(lambda w: get_week_label_from_data(w, first_year_data))
+        # Limit to weeks we have current data for
+        max_week = current_weekly['WeekNum'].max()
+        weekly_stats_hist = weekly_stats_hist[weekly_stats_hist['WeekNum'] <= max_week]
         
         # Create Plotly chart
         import plotly.graph_objects as go
@@ -1168,46 +1127,55 @@ if not sp500_data.empty:
         
         # Add upper band
         fig.add_trace(go.Scatter(
-            x=weekly_stats_hist['Label'],
+            x=weekly_stats_hist['Week_Label'],
             y=weekly_stats_hist['upper_band'],
             mode='lines',
-            name='Avg +1 Std',
+            name='Avg +1σ',
             line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
             fill=None,
-            showlegend=True
+            showlegend=True,
+            hovertemplate='Week %{x}<br>Upper Band: %{y:.2f}<extra></extra>'
         ))
         
-        # Add lower band
+        # Add lower band with fill
         fig.add_trace(go.Scatter(
-            x=weekly_stats_hist['Label'],
+            x=weekly_stats_hist['Week_Label'],
             y=weekly_stats_hist['lower_band'],
             mode='lines',
-            name='Avg -1 Std',
+            name='Avg -1σ',
             line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
             fill='tonexty',
-            fillcolor='rgba(138, 124, 245, 0.1)',
-            showlegend=True
+            fillcolor='rgba(138, 124, 245, 0.15)',
+            showlegend=True,
+            hovertemplate='Week %{x}<br>Lower Band: %{y:.2f}<extra></extra>'
         ))
         
         # Add historical average
         fig.add_trace(go.Scatter(
-            x=weekly_stats_hist['Label'],
+            x=weekly_stats_hist['Week_Label'],
             y=weekly_stats_hist['mean'],
             mode='lines',
             name='Historical Avg',
             line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
-            showlegend=True
+            showlegend=True,
+            hovertemplate='Week %{x}<br>Historical Avg: %{y:.2f}<extra></extra>'
         ))
         
         # Add current year
         fig.add_trace(go.Scatter(
-            x=current_df['Label'],
-            y=current_df['Cumulative_Return'],
-            mode='lines',
+            x=current_weekly['Week_Label'],
+            y=current_weekly['Index'],
+            mode='lines+markers',
             name=f'{current_year} YTD',
             line=dict(color='#26D07C', width=3),
-            showlegend=True
+            marker=dict(size=4, color='#26D07C'),
+            showlegend=True,
+            hovertemplate='Week %{x}<br>' + f'{current_year}: ' + '%{y:.2f}<extra></extra>'
         ))
+        
+        # Add horizontal line at 100
+        fig.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.3)", 
+                      annotation_text="Start", annotation_position="right")
         
         fig.update_layout(
             template='plotly_dark',
@@ -1215,17 +1183,16 @@ if not sp500_data.empty:
             plot_bgcolor='rgba(0,0,0,0)',
             font=dict(color='#FFFFF5', size=12),
             xaxis=dict(
-                title='Week',
-                gridcolor='rgba(255,255,255,0.1)',
-                showgrid=True
-            ),
-            yaxis=dict(
-                title='Cumulative Return (%)',
+                title='Week of Year',
                 gridcolor='rgba(255,255,255,0.1)',
                 showgrid=True,
-                zeroline=True,
-                zerolinecolor='rgba(255,255,255,0.3)',
-                zerolinewidth=1
+                dtick=4,  # Show every 4th week
+                range=[0, 53]
+            ),
+            yaxis=dict(
+                title='Index (Base 100 = Year Start)',
+                gridcolor='rgba(255,255,255,0.1)',
+                showgrid=True
             ),
             hovermode='x unified',
             height=500,
@@ -1247,16 +1214,18 @@ if not sp500_data.empty:
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            current_return = current_df['Cumulative_Return'].iloc[-1]
-            st.markdown(f"**{current_year} YTD Return:** {current_return:+.2f}%")
+            current_index = current_weekly['Index'].iloc[-1]
+            current_return = current_index - 100
+            st.markdown(f"**{current_year} Performance:** {current_return:+.2f}% (Index: {current_index:.2f})")
         
         with col2:
-            avg_return = weekly_stats_hist[weekly_stats_hist['Week'] == current_df['Week'].max()]['mean'].iloc[0] if len(weekly_stats_hist[weekly_stats_hist['Week'] == current_df['Week'].max()]) > 0 else 0
-            st.markdown(f"**Historical Avg (Same Week):** {avg_return:+.2f}%")
+            hist_index = weekly_stats_hist[weekly_stats_hist['WeekNum'] == current_weekly['WeekNum'].max()]['mean'].iloc[0]
+            hist_return = hist_index - 100
+            st.markdown(f"**Historical Avg (Week {int(current_weekly['WeekNum'].max())}):** {hist_return:+.2f}% (Index: {hist_index:.2f})")
         
         with col3:
-            difference = current_return - avg_return
-            st.markdown(f"**Difference:** {difference:+.2f}%")
+            difference = current_return - hist_return
+            st.markdown(f"**Outperformance:** {difference:+.2f}%")
     else:
         st.info("Insufficient data to create weekly comparison chart.")
     
