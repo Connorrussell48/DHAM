@@ -1133,22 +1133,33 @@ if not sp500_data.empty:
         weekly_stats_hist['upper_band'] = weekly_stats_hist['mean'] + weekly_stats_hist['std']
         weekly_stats_hist['lower_band'] = weekly_stats_hist['mean'] - weekly_stats_hist['std']
         
-        # Merge month info for x-axis labels
-        month_mapping = current_df.groupby('Week')['Month'].first().to_dict()
-        weekly_stats_hist['Month'] = weekly_stats_hist['Week'].map(month_mapping)
-        
-        # Create x-axis labels (week of month)
-        def get_week_label(row):
-            if pd.isna(row['Month']):
-                return f"W{int(row['Week'])}"
+        # Create proper x-axis labels based on actual week starts
+        def get_week_label_from_data(week_num, year_data):
+            """Get the proper label for a week based on when it actually starts"""
+            week_data = year_data[year_data['Week'] == week_num]
+            if len(week_data) == 0:
+                return f"W{week_num}"
+            
+            # Get first date of this week
+            first_date = week_data.index[0]
+            month = first_date.month
+            day = first_date.day
+            
             month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            # Calculate which week of the month
-            week_of_month = ((row['Week'] - 1) % 4) + 1
-            return f"W{int(week_of_month)} {month_names[int(row['Month'])]}"
+            
+            # Determine which week of the month (1-5)
+            week_of_month = (day - 1) // 7 + 1
+            
+            return f"W{week_of_month} {month_names[month]}"
         
-        current_df['Label'] = current_df.apply(get_week_label, axis=1)
-        weekly_stats_hist['Label'] = weekly_stats_hist.apply(get_week_label, axis=1)
+        # Apply labels to current year data
+        current_df['Label'] = current_df['Week'].apply(lambda w: get_week_label_from_data(w, current_year_data))
+        
+        # For historical averages, use first available year for labeling
+        first_hist_year = historical_data['Year'].min()
+        first_year_data = historical_data[historical_data['Year'] == first_hist_year]
+        weekly_stats_hist['Label'] = weekly_stats_hist['Week'].apply(lambda w: get_week_label_from_data(w, first_year_data))
         
         # Create Plotly chart
         import plotly.graph_objects as go
