@@ -23,7 +23,7 @@ st.set_page_config(
 # --------------------------------------------------------------------------------------
 BLOOM_BG       = "#0B0F14"    
 BLOOM_PANEL    = "#121820"    
-BLOOM_TEXT     = "#FFFFF5"
+BLOOM_TEXT     = "#FFFFFF"
 BLOOM_MUTED    = "rgba(255,255,255,0.45)"
 NEUTRAL_GRAY   = "#4A5B6E"    
 INPUT_BG       = "#2E3A46"    
@@ -707,13 +707,13 @@ if not sp500_data.empty:
         font-size: 0.9rem;
         font-weight: 700;
         margin-bottom: 8px;
-        color: #FFFFF5;
+        color: #FFFFFF;
     }
     .month-return {
         font-size: 1.1rem;
         font-weight: 800;
         margin-bottom: 5px;
-        color: #FFFFF5;
+        color: #FFFFFF;
     }
     .month-std {
         font-size: 0.75rem;
@@ -816,13 +816,13 @@ if not sp500_data.empty:
             font-size: 0.9rem;
             font-weight: 700;
             margin-bottom: 8px;
-            color: #FFFFF5;
+            color: #FFFFFF;
         }
         .month-return-year {
             font-size: 1.1rem;
             font-weight: 800;
             margin-bottom: 5px;
-            color: #FFFFF5;
+            color: #FFFFFF;
         }
         .month-std-year {
             font-size: 0.75rem;
@@ -977,7 +977,7 @@ if not sp500_data.empty:
         font-size: 1.1rem;
         font-weight: 700;
         margin-bottom: 12px;
-        color: #FFFFF5;
+        color: #FFFFFF;
         text-transform: uppercase;
         letter-spacing: 1px;
     }
@@ -985,7 +985,7 @@ if not sp500_data.empty:
         font-size: 1.4rem;
         font-weight: 800;
         margin-bottom: 10px;
-        color: #FFFFF5;
+        color: #FFFFFF;
     }
     .day-stat {
         font-size: 0.85rem;
@@ -1181,7 +1181,7 @@ if not sp500_data.empty:
             template='plotly_dark',
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#FFFFF5', size=12),
+            font=dict(color='#FFFFFF', size=12),
             xaxis=dict(
                 title='Week of Year',
                 gridcolor='rgba(255,255,255,0.1)',
