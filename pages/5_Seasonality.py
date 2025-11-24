@@ -1693,11 +1693,6 @@ if not sp500_data.empty:
                                 </div>
                                 """, unsafe_allow_html=True)
                 
-                html_content_cycle += '</div>'
-                
-                import streamlit.components.v1 as components
-                components.html(html_content_cycle, height=180)
-                
                 # Calculate total year return for this cycle type
                 if len(monthly_df) > 0:
                     # Get average annual return
