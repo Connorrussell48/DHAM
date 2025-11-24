@@ -1216,11 +1216,29 @@ if not sp500_data.empty:
         current_week_num = current_weekly['WeekNum'].max()
         next_week_num = current_week_num + 1
         
-        # Calculate current week's actual return
-        if len(current_weekly) >= 2:
-            current_week_start_index = current_weekly[current_weekly['WeekNum'] == current_week_num]['Index'].iloc[0] if current_week_num in current_weekly['WeekNum'].values else current_weekly['Index'].iloc[-2]
-            current_week_end_index = current_weekly['Index'].iloc[-1]
-            current_week_return = ((current_week_end_index - current_week_start_index) / current_week_start_index) * 100
+        # Calculate current week's actual return (cumulative compounded from week start to now)
+        current_week_data = current_year_data[current_year_data['WeekNum'] == current_week_num]
+        if len(current_week_data) > 0:
+            # Get week start price (first price of the week)
+            week_start_price = current_week_data['Price'].iloc[0]
+            
+            # Get current price (last available price, which could be intraday)
+            try:
+                # Try to get latest intraday price from Yahoo Finance
+                import yfinance as yf
+                ticker = yf.Ticker("^GSPC")
+                latest_data = ticker.history(period="1d", interval="1m")
+                if not latest_data.empty:
+                    current_price = latest_data['Close'].iloc[-1]
+                else:
+                    # Fallback to last close
+                    current_price = current_week_data['Price'].iloc[-1]
+            except:
+                # Fallback to last close if real-time fetch fails
+                current_price = current_week_data['Price'].iloc[-1]
+            
+            # Calculate cumulative return from week start to now
+            current_week_return = ((current_price - week_start_price) / week_start_price) * 100
         else:
             current_week_return = 0
         
