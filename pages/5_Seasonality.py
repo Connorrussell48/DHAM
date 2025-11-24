@@ -587,54 +587,6 @@ if not sp500_data.empty:
     
     monthly_stats = calculate_monthly_seasonality(filtered_data)
     
-    # Create heatmap-style grid for monthly seasonality
-    st.markdown("""
-        <style>
-        .month-heatmap-container {
-            display: grid;
-            grid-template-columns: repeat(12, 1fr);
-            gap: 10px;
-            margin: 20px 0;
-        }
-        .month-box {
-            border-radius: 8px;
-            padding: 15px 10px;
-            text-align: center;
-            transition: all 0.3s;
-            border: 1px solid rgba(255,255,255,0.1);
-            min-height: 120px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        .month-box:hover {
-            transform: scale(1.05);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }
-        .month-name {
-            font-size: 0.9rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-            color: var(--text);
-        }
-        .month-return {
-            font-size: 1.1rem;
-            font-weight: 800;
-            margin-bottom: 5px;
-            color: var(--text);
-        }
-        .month-std {
-            font-size: 0.75rem;
-            color: var(--muted-text-new);
-            margin-bottom: 3px;
-        }
-        .month-win {
-            font-size: 0.75rem;
-            color: var(--muted-text-new);
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
     # Calculate color for each month based on return
     min_return = monthly_stats['Mean Return'].min()
     max_return = monthly_stats['Mean Return'].max()
@@ -653,7 +605,53 @@ if not sp500_data.empty:
             return f"rgba({red_val}, 83, 79, 0.3)"
     
     # Build HTML for month grid
-    html_content = '<div class="month-heatmap-container">'
+    html_content = '''
+    <style>
+    .month-heatmap-container {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 10px;
+        margin: 20px 0;
+    }
+    .month-box {
+        border-radius: 8px;
+        padding: 15px 10px;
+        text-align: center;
+        transition: all 0.3s;
+        border: 1px solid rgba(255,255,255,0.1);
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .month-box:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    }
+    .month-name {
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #FFFFF5;
+    }
+    .month-return {
+        font-size: 1.1rem;
+        font-weight: 800;
+        margin-bottom: 5px;
+        color: #FFFFF5;
+    }
+    .month-std {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.75);
+        margin-bottom: 3px;
+    }
+    .month-win {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.75);
+    }
+    </style>
+    <div class="month-heatmap-container">
+    '''
     
     for _, row in monthly_stats.iterrows():
         month_name = row['Month Name'][:3]  # Abbreviated month name
@@ -664,17 +662,18 @@ if not sp500_data.empty:
         bg_color = get_month_color(mean_return)
         
         html_content += f'''
-            <div class="month-box" style="background: {bg_color};">
-                <div class="month-name">{month_name}</div>
-                <div class="month-return">{mean_return:+.2f}%</div>
-                <div class="month-std">σ: {std_dev:.2f}%</div>
-                <div class="month-win">{win_rate:.0f}% ↑</div>
-            </div>
+        <div class="month-box" style="background: {bg_color};">
+            <div class="month-name">{month_name}</div>
+            <div class="month-return">{mean_return:+.2f}%</div>
+            <div class="month-std">σ: {std_dev:.2f}%</div>
+            <div class="month-win">{win_rate:.0f}% ↑</div>
+        </div>
         '''
     
     html_content += '</div>'
     
-    st.markdown(html_content, unsafe_allow_html=True)
+    import streamlit.components.v1 as components
+    components.html(html_content, height=180)
     
     # Key insights below heatmap
     col1, col2 = st.columns(2)
