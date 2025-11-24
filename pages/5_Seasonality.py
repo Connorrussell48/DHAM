@@ -1059,6 +1059,199 @@ if not sp500_data.empty:
     st.markdown("---")
     
     # --------------------------------------------------------------------------------------
+    # YTD Weekly Performance vs Historical Average
+    # --------------------------------------------------------------------------------------
+    st.markdown("## YTD Weekly Performance Comparison")
+    st.markdown("Current year weekly returns vs. historical average with ±1 standard deviation bands")
+    
+    current_year = pd.Timestamp.now().year
+    
+    # Get current year data
+    current_year_data = filtered_data[filtered_data.index.year == current_year].copy()
+    
+    # Get historical data (all years except current)
+    historical_data = filtered_data[filtered_data.index.year < current_year].copy()
+    
+    if not current_year_data.empty and not historical_data.empty:
+        # Calculate week of year for current year
+        current_year_data['Week'] = current_year_data.index.isocalendar().week
+        current_year_data['Month'] = current_year_data.index.month
+        
+        # Calculate cumulative returns for current year by week
+        current_year_weekly = []
+        start_price = current_year_data['Price'].iloc[0]
+        
+        for week in range(1, current_year_data['Week'].max() + 1):
+            week_data = current_year_data[current_year_data['Week'] == week]
+            if len(week_data) > 0:
+                # Get the last price of the week
+                week_end_price = week_data['Price'].iloc[-1]
+                cumulative_return = ((week_end_price - start_price) / start_price) * 100
+                
+                # Get month for labeling
+                month = week_data['Month'].iloc[0]
+                
+                current_year_weekly.append({
+                    'Week': week,
+                    'Month': month,
+                    'Cumulative_Return': cumulative_return
+                })
+        
+        current_df = pd.DataFrame(current_year_weekly)
+        
+        # Calculate historical average cumulative returns by week
+        historical_data['Week'] = historical_data.index.isocalendar().week
+        historical_data['Year'] = historical_data.index.year
+        historical_data['Month'] = historical_data.index.month
+        
+        # Get cumulative returns for each historical year
+        historical_weekly = []
+        
+        for year in historical_data['Year'].unique():
+            year_data = historical_data[historical_data['Year'] == year]
+            if len(year_data) > 0:
+                start_price_year = year_data['Price'].iloc[0]
+                
+                for week in range(1, min(53, year_data['Week'].max() + 1)):
+                    week_data = year_data[year_data['Week'] == week]
+                    if len(week_data) > 0:
+                        week_end_price = week_data['Price'].iloc[-1]
+                        cumulative_return = ((week_end_price - start_price_year) / start_price_year) * 100
+                        month = week_data['Month'].iloc[0]
+                        
+                        historical_weekly.append({
+                            'Year': year,
+                            'Week': week,
+                            'Month': month,
+                            'Cumulative_Return': cumulative_return
+                        })
+        
+        historical_df = pd.DataFrame(historical_weekly)
+        
+        # Calculate mean and std by week
+        weekly_stats_hist = historical_df.groupby('Week')['Cumulative_Return'].agg(['mean', 'std']).reset_index()
+        weekly_stats_hist['upper_band'] = weekly_stats_hist['mean'] + weekly_stats_hist['std']
+        weekly_stats_hist['lower_band'] = weekly_stats_hist['mean'] - weekly_stats_hist['std']
+        
+        # Merge month info for x-axis labels
+        month_mapping = current_df.groupby('Week')['Month'].first().to_dict()
+        weekly_stats_hist['Month'] = weekly_stats_hist['Week'].map(month_mapping)
+        
+        # Create x-axis labels (week of month)
+        def get_week_label(row):
+            if pd.isna(row['Month']):
+                return f"W{int(row['Week'])}"
+            month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            # Calculate which week of the month
+            week_of_month = ((row['Week'] - 1) % 4) + 1
+            return f"W{int(week_of_month)} {month_names[int(row['Month'])]}"
+        
+        current_df['Label'] = current_df.apply(get_week_label, axis=1)
+        weekly_stats_hist['Label'] = weekly_stats_hist.apply(get_week_label, axis=1)
+        
+        # Create Plotly chart
+        import plotly.graph_objects as go
+        
+        fig = go.Figure()
+        
+        # Add upper band
+        fig.add_trace(go.Scatter(
+            x=weekly_stats_hist['Label'],
+            y=weekly_stats_hist['upper_band'],
+            mode='lines',
+            name='Avg +1 Std',
+            line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+            fill=None,
+            showlegend=True
+        ))
+        
+        # Add lower band
+        fig.add_trace(go.Scatter(
+            x=weekly_stats_hist['Label'],
+            y=weekly_stats_hist['lower_band'],
+            mode='lines',
+            name='Avg -1 Std',
+            line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+            fill='tonexty',
+            fillcolor='rgba(138, 124, 245, 0.1)',
+            showlegend=True
+        ))
+        
+        # Add historical average
+        fig.add_trace(go.Scatter(
+            x=weekly_stats_hist['Label'],
+            y=weekly_stats_hist['mean'],
+            mode='lines',
+            name='Historical Avg',
+            line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
+            showlegend=True
+        ))
+        
+        # Add current year
+        fig.add_trace(go.Scatter(
+            x=current_df['Label'],
+            y=current_df['Cumulative_Return'],
+            mode='lines',
+            name=f'{current_year} YTD',
+            line=dict(color='#26D07C', width=3),
+            showlegend=True
+        ))
+        
+        fig.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#FFFFF5', size=12),
+            xaxis=dict(
+                title='Week',
+                gridcolor='rgba(255,255,255,0.1)',
+                showgrid=True
+            ),
+            yaxis=dict(
+                title='Cumulative Return (%)',
+                gridcolor='rgba(255,255,255,0.1)',
+                showgrid=True,
+                zeroline=True,
+                zerolinecolor='rgba(255,255,255,0.3)',
+                zerolinewidth=1
+            ),
+            hovermode='x unified',
+            height=500,
+            margin=dict(l=50, r=50, t=30, b=50),
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01,
+                bgcolor='rgba(0,0,0,0.5)',
+                bordercolor='rgba(255,255,255,0.2)',
+                borderwidth=1
+            )
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Key statistics
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            current_return = current_df['Cumulative_Return'].iloc[-1]
+            st.markdown(f"**{current_year} YTD Return:** {current_return:+.2f}%")
+        
+        with col2:
+            avg_return = weekly_stats_hist[weekly_stats_hist['Week'] == current_df['Week'].max()]['mean'].iloc[0] if len(weekly_stats_hist[weekly_stats_hist['Week'] == current_df['Week'].max()]) > 0 else 0
+            st.markdown(f"**Historical Avg (Same Week):** {avg_return:+.2f}%")
+        
+        with col3:
+            difference = current_return - avg_return
+            st.markdown(f"**Difference:** {difference:+.2f}%")
+    else:
+        st.info("Insufficient data to create weekly comparison chart.")
+    
+    st.markdown("---")
+    
+    # --------------------------------------------------------------------------------------
     # Election Cycle Seasonality
     # --------------------------------------------------------------------------------------
     st.markdown("## Presidential Election Cycle")
