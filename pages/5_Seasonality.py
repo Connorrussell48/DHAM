@@ -653,7 +653,7 @@ if not sp500_data.empty:
             return f"rgba({red_val}, 83, 79, 0.3)"
     
     # Build HTML for month grid
-    html_parts = ['<div class="month-heatmap-container">']
+    html_content = '<div class="month-heatmap-container">'
     
     for _, row in monthly_stats.iterrows():
         month_name = row['Month Name'][:3]  # Abbreviated month name
@@ -663,18 +663,18 @@ if not sp500_data.empty:
         
         bg_color = get_month_color(mean_return)
         
-        html_parts.append(f"""
+        html_content += f'''
             <div class="month-box" style="background: {bg_color};">
                 <div class="month-name">{month_name}</div>
                 <div class="month-return">{mean_return:+.2f}%</div>
                 <div class="month-std">σ: {std_dev:.2f}%</div>
                 <div class="month-win">{win_rate:.0f}% ↑</div>
             </div>
-        """)
+        '''
     
-    html_parts.append('</div>')
+    html_content += '</div>'
     
-    st.markdown(''.join(html_parts), unsafe_allow_html=True)
+    st.markdown(html_content, unsafe_allow_html=True)
     
     # Key insights below heatmap
     col1, col2 = st.columns(2)
