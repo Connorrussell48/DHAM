@@ -587,26 +587,108 @@ if not sp500_data.empty:
     
     monthly_stats = calculate_monthly_seasonality(filtered_data)
     
-    col1, col2 = st.columns([2, 1])
+    # Create heatmap-style grid for monthly seasonality
+    st.markdown("""
+        <style>
+        .month-heatmap-container {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .month-box {
+            border-radius: 8px;
+            padding: 15px 10px;
+            text-align: center;
+            transition: all 0.3s;
+            border: 1px solid rgba(255,255,255,0.1);
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .month-box:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .month-name {
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+        .month-return {
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 5px;
+            color: var(--text);
+        }
+        .month-std {
+            font-size: 0.75rem;
+            color: var(--muted-text-new);
+            margin-bottom: 3px;
+        }
+        .month-win {
+            font-size: 0.75rem;
+            color: var(--muted-text-new);
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Calculate color for each month based on return
+    min_return = monthly_stats['Mean Return'].min()
+    max_return = monthly_stats['Mean Return'].max()
+    
+    def get_month_color(return_val):
+        """Generate color based on return value - green for positive, red for negative"""
+        if return_val > 0:
+            # Positive returns - shades of green
+            intensity = min(return_val / max(abs(max_return), 0.1), 1.0)
+            green_val = int(50 + (155 * intensity))  # 50-205
+            return f"rgba(38, {green_val}, 124, 0.3)"
+        else:
+            # Negative returns - shades of red
+            intensity = min(abs(return_val) / max(abs(min_return), 0.1), 1.0)
+            red_val = int(150 + (67 * intensity))  # 150-217
+            return f"rgba({red_val}, 83, 79, 0.3)"
+    
+    # Build HTML for month grid
+    html_parts = ['<div class="month-heatmap-container">']
+    
+    for _, row in monthly_stats.iterrows():
+        month_name = row['Month Name'][:3]  # Abbreviated month name
+        mean_return = row['Mean Return']
+        std_dev = row['Std Dev']
+        win_rate = row['Win Rate']
+        
+        bg_color = get_month_color(mean_return)
+        
+        html_parts.append(f"""
+            <div class="month-box" style="background: {bg_color};">
+                <div class="month-name">{month_name}</div>
+                <div class="month-return">{mean_return:+.2f}%</div>
+                <div class="month-std">σ: {std_dev:.2f}%</div>
+                <div class="month-win">{win_rate:.0f}% ↑</div>
+            </div>
+        """)
+    
+    html_parts.append('</div>')
+    
+    st.markdown(''.join(html_parts), unsafe_allow_html=True)
+    
+    # Key insights below heatmap
+    col1, col2 = st.columns(2)
     
     with col1:
-        monthly_chart = create_monthly_chart(monthly_stats)
-        st.plotly_chart(monthly_chart, use_container_width=True)
+        best_month = monthly_stats.loc[monthly_stats['Mean Return'].idxmax()]
+        st.markdown(f"""
+        **Best Month:** {best_month['Month Name']} ({best_month['Mean Return']:+.2f}% avg, {best_month['Win Rate']:.0f}% win rate)
+        """)
     
     with col2:
-        st.markdown("### Key Insights")
-        
-        best_month = monthly_stats.loc[monthly_stats['Mean Return'].idxmax()]
         worst_month = monthly_stats.loc[monthly_stats['Mean Return'].idxmin()]
-        
         st.markdown(f"""
-        **Best Month:**
-        - {best_month['Month Name']}: **{best_month['Mean Return']:.2f}%**
-        - Win Rate: {best_month['Win Rate']:.1f}%
-        
-        **Worst Month:**
-        - {worst_month['Month Name']}: **{worst_month['Mean Return']:.2f}%**
-        - Win Rate: {worst_month['Win Rate']:.1f}%
+        **Worst Month:** {worst_month['Month Name']} ({worst_month['Mean Return']:+.2f}% avg, {worst_month['Win Rate']:.0f}% win rate)
         """)
     
     with st.expander("View Detailed Monthly Statistics"):
