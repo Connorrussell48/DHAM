@@ -1388,12 +1388,12 @@ if not sp500_data.empty:
         with col1:
             current_index = current_weekly['Index'].iloc[-1]
             current_return = current_index - 100
-            st.markdown(f"**{current_year} Performance:** {current_return:+.2f}% (Index: {current_index:.2f})")
+            st.markdown(f"**{current_year} Performance:** {current_return:+.2f}%")
         
         with col2:
             hist_index = weekly_stats_hist[weekly_stats_hist['WeekNum'] == current_weekly['WeekNum'].max()]['mean'].iloc[0]
             hist_return = hist_index - 100
-            st.markdown(f"**Historical Avg (Week {int(current_weekly['WeekNum'].max())}):** {hist_return:+.2f}% (Index: {hist_index:.2f})")
+            st.markdown(f"**Historical Avg (Week {int(current_weekly['WeekNum'].max())}):** {hist_return:+.2f}%")
         
         with col3:
             difference = current_return - hist_return
@@ -2007,7 +2007,7 @@ if not sp500_data.empty:
             with col_stat1:
                 current_index = current_weekly['Index'].iloc[-1]
                 current_return = current_index - 100
-                st.markdown(f"**{current_year} Performance:** {current_return:+.2f}% (Index: {current_index:.2f})")
+                st.markdown(f"**{current_year} Performance:** {current_return:+.2f}%")
             
             with col_stat2:
                 current_week = current_weekly['WeekNum'].max()
@@ -2015,7 +2015,7 @@ if not sp500_data.empty:
                 if len(hist_week_data) > 0:
                     hist_index = hist_week_data['mean'].iloc[0]
                     hist_return = hist_index - 100
-                    st.markdown(f"**Avg {cycle_labels[current_cycle]} (Week {int(current_week)}):** {hist_return:+.2f}% (Index: {hist_index:.2f})")
+                    st.markdown(f"**Avg {cycle_labels[current_cycle]} (Week {int(current_week)}):** {hist_return:+.2f}%")
                 else:
                     st.markdown(f"**Avg {cycle_labels[current_cycle]}:** N/A")
             
