@@ -736,6 +736,145 @@ if not sp500_data.empty:
     import streamlit.components.v1 as components
     components.html(html_content, height=180)
     
+    # Current year monthly performance
+    st.markdown("### This Year's Monthly Performance")
+    
+    current_year = pd.Timestamp.now().year
+    current_year_data = filtered_data[filtered_data.index.year == current_year].copy()
+    
+    if not current_year_data.empty:
+        # Calculate monthly returns for current year
+        current_year_data['Year'] = current_year_data.index.year
+        current_year_data['Month'] = current_year_data.index.month
+        
+        current_year_returns = []
+        for month in range(1, 13):
+            month_data = current_year_data[current_year_data['Month'] == month]
+            if len(month_data) > 0:
+                first_price = month_data['Price'].iloc[0]
+                last_price = month_data['Price'].iloc[-1]
+                monthly_return = ((last_price - first_price) / first_price) * 100
+                
+                # Calculate stats for the month
+                daily_returns = month_data['Returns'].dropna()
+                win_rate = (daily_returns > 0).sum() / len(daily_returns) * 100 if len(daily_returns) > 0 else 0
+                std_dev = daily_returns.std() if len(daily_returns) > 1 else 0
+                
+                current_year_returns.append({
+                    'Month': month,
+                    'Return': monthly_return,
+                    'Std Dev': std_dev,
+                    'Win Rate': win_rate
+                })
+            else:
+                current_year_returns.append({
+                    'Month': month,
+                    'Return': None,
+                    'Std Dev': None,
+                    'Win Rate': None
+                })
+        
+        # Build HTML for current year grid
+        html_content_year = '''
+        <style>
+        .month-heatmap-container-year {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .month-box-year {
+            border-radius: 8px;
+            padding: 15px 10px;
+            text-align: center;
+            transition: all 0.3s;
+            border: 1px solid rgba(255,255,255,0.1);
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .month-box-year:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .month-name-year {
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #FFFFF5;
+        }
+        .month-return-year {
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 5px;
+            color: #FFFFF5;
+        }
+        .month-std-year {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.75);
+            margin-bottom: 3px;
+        }
+        .month-win-year {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.75);
+        }
+        .month-empty {
+            opacity: 0.3;
+        }
+        </style>
+        <div class="month-heatmap-container-year">
+        '''
+        
+        month_abbrev = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        for i, month_data in enumerate(current_year_returns):
+            month_name = month_abbrev[i]
+            
+            if month_data['Return'] is not None:
+                return_val = month_data['Return']
+                std_val = month_data['Std Dev']
+                win_val = month_data['Win Rate']
+                
+                bg_color = get_month_color(return_val)
+                
+                html_content_year += f'''
+                <div class="month-box-year" style="background: {bg_color};">
+                    <div class="month-name-year">{month_name}</div>
+                    <div class="month-return-year">{return_val:+.2f}%</div>
+                    <div class="month-std-year">σ: {std_val:.2f}%</div>
+                    <div class="month-win-year">{win_val:.0f}% ↑</div>
+                </div>
+                '''
+            else:
+                # Month hasn't happened yet
+                html_content_year += f'''
+                <div class="month-box-year month-empty" style="background: rgba(138, 124, 245, 0.1);">
+                    <div class="month-name-year">{month_name}</div>
+                    <div class="month-return-year">-</div>
+                    <div class="month-std-year">Not yet</div>
+                    <div class="month-win-year">-</div>
+                </div>
+                '''
+        
+        html_content_year += '</div>'
+        
+        components.html(html_content_year, height=180)
+        
+        # Calculate YTD return
+        if len(current_year_data) > 0:
+            ytd_return = ((current_year_data['Price'].iloc[-1] - current_year_data['Price'].iloc[0]) / 
+                         current_year_data['Price'].iloc[0]) * 100
+            completed_months = sum(1 for m in current_year_returns if m['Return'] is not None)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**YTD Return ({current_year}):** {ytd_return:+.2f}%")
+            with col2:
+                st.markdown(f"**Completed Months:** {completed_months}/12")
+    else:
+        st.info(f"No data available for {current_year} in the selected lookback period.")
+    
     # Key insights below heatmap
     col1, col2 = st.columns(2)
     
