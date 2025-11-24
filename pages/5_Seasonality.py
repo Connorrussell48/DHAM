@@ -131,6 +131,20 @@ st.markdown(
     .stButton > button:hover p {{
         color: var(--purple) !important;
     }}
+    
+    /* Expander styling */
+    div[data-testid="stExpander"] {{
+        background: var(--inputlight) !important;
+        border: 1px solid var(--neutral) !important;
+        border-radius: 8px !important;
+    }}
+    div[data-testid="stExpander"] details {{
+        background: var(--inputlight) !important;
+    }}
+    div[data-testid="stExpander"] summary {{
+        background: var(--inputlight) !important;
+        color: var(--text) !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
