@@ -325,11 +325,35 @@ def load_and_update_sp500_data():
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def calculate_monthly_seasonality(df):
-    """Calculate average returns by month."""
+    """Calculate average returns by month using actual monthly returns."""
     if df.empty:
         return pd.DataFrame()
     
-    monthly_stats = df.groupby('Month')['Returns'].agg([
+    # Create a copy to avoid modifying original
+    df_copy = df.copy()
+    
+    # Group by Year and Month to get first and last price of each month
+    df_copy['Year'] = df_copy.index.year
+    df_copy['Month'] = df_copy.index.month
+    
+    # Calculate monthly returns: (last price of month - first price of month) / first price of month
+    monthly_returns = []
+    
+    for (year, month), group in df_copy.groupby(['Year', 'Month']):
+        if len(group) > 0:
+            first_price = group['Price'].iloc[0]
+            last_price = group['Price'].iloc[-1]
+            monthly_return = ((last_price - first_price) / first_price) * 100
+            monthly_returns.append({
+                'Year': year,
+                'Month': month,
+                'Return': monthly_return
+            })
+    
+    monthly_df = pd.DataFrame(monthly_returns)
+    
+    # Now calculate statistics by month (aggregating across all years)
+    monthly_stats = monthly_df.groupby('Month')['Return'].agg([
         ('Mean Return', 'mean'),
         ('Median Return', 'median'),
         ('Std Dev', 'std'),
