@@ -1740,13 +1740,15 @@ if not sp500_data.empty:
                             # Add vertical lines
                             fig.add_vline(x=avg_annual, line_dash="solid", line_color="#FFFFFF", 
                                         line_width=3, annotation_text="Mean", 
-                                        annotation_position="top right",
-                                        annotation_font_size=12)
+                                        annotation_position="top",
+                                        annotation_font_size=12,
+                                        annotation_yshift=-10)
                             
                             fig.add_vline(x=median_annual, line_dash="dot", line_color="#8A7CF5", 
                                         line_width=2.5, annotation_text="Median", 
-                                        annotation_position="top left",
-                                        annotation_font_size=11)
+                                        annotation_position="top",
+                                        annotation_font_size=11,
+                                        annotation_yshift=10)
                             
                             fig.add_vline(x=plus_1std_annual, line_dash="dash", line_color="rgba(38, 208, 124, 0.9)", 
                                         line_width=2, annotation_text="+1σ", 
