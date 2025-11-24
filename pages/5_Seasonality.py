@@ -948,26 +948,104 @@ if not sp500_data.empty:
     
     weekly_stats = calculate_weekly_seasonality(filtered_data)
     
-    col1, col2 = st.columns([2, 1])
+    # Build HTML for day of week cards
+    html_content_week = '''
+    <style>
+    .week-container {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 15px;
+        margin: 20px 0;
+    }
+    .day-card {
+        border-radius: 10px;
+        padding: 20px 15px;
+        text-align: center;
+        transition: all 0.3s;
+        border: 1px solid rgba(255,255,255,0.1);
+        min-height: 160px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    .day-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+    .day-name-big {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: #FFFFF5;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .day-return-big {
+        font-size: 1.4rem;
+        font-weight: 800;
+        margin-bottom: 10px;
+        color: #FFFFF5;
+    }
+    .day-stat {
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.75);
+        margin: 3px 0;
+    }
+    .day-label {
+        font-size: 0.7rem;
+        color: rgba(255,255,255,0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+    }
+    </style>
+    <div class="week-container">
+    '''
+    
+    day_names_full = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    day_names_abbrev = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+    
+    for idx, row in weekly_stats.iterrows():
+        day_name = day_names_abbrev[idx]
+        day_full = day_names_full[idx]
+        mean_return = row['Mean Return']
+        std_dev = row['Std Dev']
+        win_rate = row['Win Rate']
+        count = row['Count']
+        
+        bg_color = get_month_color(mean_return)
+        
+        html_content_week += f'''
+        <div class="day-card" style="background: {bg_color};">
+            <div class="day-name-big">{day_name}</div>
+            <div class="day-return-big">{mean_return:+.3f}%</div>
+            <div class="day-label">Win Rate</div>
+            <div class="day-stat">{win_rate:.1f}%</div>
+            <div class="day-label">Volatility</div>
+            <div class="day-stat">σ: {std_dev:.2f}%</div>
+        </div>
+        '''
+    
+    html_content_week += '</div>'
+    
+    import streamlit.components.v1 as components
+    components.html(html_content_week, height=220)
+    
+    # Key insights below cards
+    best_day = weekly_stats.loc[weekly_stats['Mean Return'].idxmax()]
+    worst_day = weekly_stats.loc[weekly_stats['Mean Return'].idxmin()]
+    
+    col1, col2 = st.columns(2)
     
     with col1:
-        weekly_chart = create_weekly_chart(weekly_stats)
-        st.plotly_chart(weekly_chart, use_container_width=True)
+        st.markdown(f"""
+        **Best Day:** {best_day['Day Name']} ({best_day['Mean Return']:+.3f}% avg, {best_day['Win Rate']:.1f}% win rate)
+        """)
     
     with col2:
-        st.markdown("### Key Insights")
-        
-        best_day = weekly_stats.loc[weekly_stats['Mean Return'].idxmax()]
-        worst_day = weekly_stats.loc[weekly_stats['Mean Return'].idxmin()]
-        
         st.markdown(f"""
-        **Best Day:**
-        - {best_day['Day Name']}: **{best_day['Mean Return']:.3f}%**
-        - Win Rate: {best_day['Win Rate']:.1f}%
-        
-        **Worst Day:**
-        - {worst_day['Day Name']}: **{worst_day['Mean Return']:.3f}%**
-        - Win Rate: {worst_day['Win Rate']:.1f}%
+        **Worst Day:** {worst_day['Day Name']} ({worst_day['Mean Return']:+.3f}% avg, {worst_day['Win Rate']:.1f}% win rate)
         """)
     
     with st.expander("View Detailed Weekly Statistics"):
