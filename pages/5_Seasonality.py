@@ -2025,6 +2025,154 @@ if not sp500_data.empty:
                     st.markdown(f"**Outperformance:** {difference:+.2f}%")
                 else:
                     st.markdown(f"**Outperformance:** N/A")
+            
+            # Add expandable section showing all 4 cycle type charts
+            with st.expander("Compare All Election Cycle Year Types", expanded=False):
+                st.markdown("Historical weekly performance patterns for all four election cycle year types")
+                
+                # Loop through all 4 cycle types and create charts
+                for compare_cycle in [0, 1, 2, 3]:
+                    st.markdown(f"#### {cycle_labels[compare_cycle]}")
+                    
+                    # Get historical data for this cycle type
+                    compare_historical_cycle = df_with_cycle[df_with_cycle['Years_Since_Election'] == compare_cycle].copy()
+                    compare_historical_cycle['WeekNum'] = compare_historical_cycle.index.isocalendar().week
+                    compare_historical_cycle['Year'] = compare_historical_cycle.index.year
+                    
+                    # Calculate base 100 indices
+                    compare_historical_indices = []
+                    
+                    for year in compare_historical_cycle['Year'].unique():
+                        year_data = compare_historical_cycle[compare_historical_cycle['Year'] == year]
+                        if len(year_data) > 10:
+                            base_price_year = year_data['Price'].iloc[0]
+                            year_data = year_data.copy()
+                            year_data['Index'] = (year_data['Price'] / base_price_year) * 100
+                            
+                            year_weekly = year_data.groupby('WeekNum')['Index'].last().reset_index()
+                            year_weekly['Year'] = year
+                            compare_historical_indices.append(year_weekly)
+                    
+                    if len(compare_historical_indices) > 0:
+                        compare_historical_df = pd.concat(compare_historical_indices, ignore_index=True)
+                        
+                        # Calculate stats
+                        compare_weekly_stats = compare_historical_df.groupby('WeekNum')['Index'].agg(['mean', 'std']).reset_index()
+                        compare_weekly_stats['upper_band'] = compare_weekly_stats['mean'] + compare_weekly_stats['std']
+                        compare_weekly_stats['lower_band'] = compare_weekly_stats['mean'] - compare_weekly_stats['std']
+                        compare_weekly_stats['Week_Label'] = compare_weekly_stats['WeekNum'].astype(int)
+                        
+                        # Create chart
+                        fig_compare = go.Figure()
+                        
+                        # Add bands
+                        fig_compare.add_trace(go.Scatter(
+                            x=compare_weekly_stats['Week_Label'],
+                            y=compare_weekly_stats['upper_band'],
+                            mode='lines',
+                            name='Avg +1σ',
+                            line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                            fill=None,
+                            showlegend=True,
+                            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+                        ))
+                        
+                        fig_compare.add_trace(go.Scatter(
+                            x=compare_weekly_stats['Week_Label'],
+                            y=compare_weekly_stats['lower_band'],
+                            mode='lines',
+                            name='Avg -1σ',
+                            line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                            fill='tonexty',
+                            fillcolor='rgba(138, 124, 245, 0.15)',
+                            showlegend=True,
+                            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+                        ))
+                        
+                        # Add average line
+                        fig_compare.add_trace(go.Scatter(
+                            x=compare_weekly_stats['Week_Label'],
+                            y=compare_weekly_stats['mean'],
+                            mode='lines',
+                            name=f'Avg {cycle_labels[compare_cycle]}',
+                            line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
+                            showlegend=True,
+                            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+                        ))
+                        
+                        # Add current year if it matches this cycle type
+                        if compare_cycle == current_cycle:
+                            fig_compare.add_trace(go.Scatter(
+                                x=current_weekly['Week_Label'],
+                                y=current_weekly['Index'],
+                                mode='lines+markers',
+                                name=f'{current_year} YTD',
+                                line=dict(color='#26D07C', width=3),
+                                marker=dict(size=4, color='#26D07C'),
+                                showlegend=True,
+                                hovertemplate=f'Wk %{{x}}: %{{y:.1f}}<extra></extra>'
+                            ))
+                        
+                        # Add horizontal line at 100
+                        fig_compare.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.3)")
+                        
+                        fig_compare.update_layout(
+                            template='plotly_dark',
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            font=dict(color='#FFFFFF', size=11),
+                            xaxis=dict(
+                                title=dict(text='Week of Year', font=dict(color='#FFFFFF', size=11)),
+                                gridcolor='rgba(255,255,255,0.1)',
+                                showgrid=True,
+                                dtick=4,
+                                range=[0, 53],
+                                tickfont=dict(color='#FFFFFF', size=10)
+                            ),
+                            yaxis=dict(
+                                title=dict(text='Index (Base 100)', font=dict(color='#FFFFFF', size=11)),
+                                gridcolor='rgba(255,255,255,0.1)',
+                                showgrid=True,
+                                tickfont=dict(color='#FFFFFF', size=10)
+                            ),
+                            hovermode='x unified',
+                            hoverlabel=dict(
+                                bgcolor='rgba(0,0,0,0.8)',
+                                font_size=10,
+                                font_color='#FFFFFF'
+                            ),
+                            height=350,
+                            margin=dict(l=50, r=30, t=20, b=40),
+                            showlegend=True,
+                            legend=dict(
+                                yanchor="top",
+                                y=0.99,
+                                xanchor="left",
+                                x=0.01,
+                                bgcolor='rgba(0,0,0,0.5)',
+                                bordercolor='rgba(255,255,255,0.2)',
+                                borderwidth=1,
+                                font=dict(color='#FFFFFF', size=10)
+                            )
+                        )
+                        
+                        st.plotly_chart(fig_compare, use_container_width=True, key=f"compare_cycle_{compare_cycle}")
+                        
+                        # Stats below each chart
+                        final_index = compare_weekly_stats['mean'].iloc[-1]
+                        final_return = final_index - 100
+                        avg_count = len(compare_historical_df['Year'].unique())
+                        
+                        st.markdown(f"""
+                        <div style="padding: 10px; background: rgba(138, 124, 245, 0.1); border-radius: 6px; margin-bottom: 15px;">
+                            <span style="color: var(--text); font-size: 0.9rem;">
+                                <strong>Typical Year-End:</strong> {final_return:+.2f}% &nbsp;|&nbsp; 
+                                <strong>Based on:</strong> {avg_count} years
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.info(f"Insufficient data for {cycle_labels[compare_cycle]}")
     
     st.markdown("---")
 
