@@ -1113,29 +1113,36 @@ if not sp500_data.empty:
             
             # STEP 3: Build compounded index starting at 100
             compounded_mean = [100]  # Week 0
-            compounded_upper = [100]
-            compounded_lower = [100]
             
             for week in range(1, 53):
                 if week == 1:
-                    # Week 1 starts at 100 (no return yet, since we calculate from week 2)
                     compounded_mean.append(100)
+                elif week in avg_returns_by_week['WeekNum'].values:
+                    row = avg_returns_by_week[avg_returns_by_week['WeekNum'] == week].iloc[0]
+                    mean_ret = row['mean']
+                    compounded_mean.append(compounded_mean[-1] * (1 + mean_ret / 100))
+                else:
+                    compounded_mean.append(compounded_mean[-1])
+            
+            # Calculate bands as additive offsets: mean ± (std * 100)
+            compounded_upper = []
+            compounded_lower = []
+            
+            for i, week in enumerate(range(0, 53)):
+                if week == 0 or week == 1:
                     compounded_upper.append(100)
                     compounded_lower.append(100)
                 elif week in avg_returns_by_week['WeekNum'].values:
                     row = avg_returns_by_week[avg_returns_by_week['WeekNum'] == week].iloc[0]
-                    mean_ret = row['mean']
                     std_ret = row['std']
-                    
-                    # Compound: new = old * (1 + return/100)
-                    compounded_mean.append(compounded_mean[-1] * (1 + mean_ret / 100))
-                    compounded_upper.append(compounded_upper[-1] * (1 + (mean_ret + std_ret) / 100))
-                    compounded_lower.append(compounded_lower[-1] * (1 + (mean_ret - std_ret) / 100))
+                    # Offset = std as percentage of base 100
+                    offset = (std_ret / 100) * 100  # std_ret is already in %, so this is just std_ret
+                    compounded_upper.append(compounded_mean[i] + offset)
+                    compounded_lower.append(compounded_mean[i] - offset)
                 else:
-                    # No data for this week, carry forward
-                    compounded_mean.append(compounded_mean[-1])
-                    compounded_upper.append(compounded_upper[-1])
-                    compounded_lower.append(compounded_lower[-1])
+                    offset = 0  # No data, no offset
+                    compounded_upper.append(compounded_mean[i] + offset)
+                    compounded_lower.append(compounded_mean[i] - offset)
             
             # STEP 4: Calculate current year compounded index
             current_weekly_closes = current_year_data.groupby('WeekNum')['Price'].last()
