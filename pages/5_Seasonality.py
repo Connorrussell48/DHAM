@@ -2170,15 +2170,29 @@ if not sp500_data.empty:
                         
                         st.plotly_chart(fig_compare, use_container_width=True, key=f"compare_cycle_{compare_cycle}")
                         
-                        # Stats below each chart
-                        final_index = compare_weekly_stats['mean'].iloc[-1]
-                        final_return = final_index - 100
-                        avg_count = len(compare_historical_df['Year'].unique())
+                        # Stats below each chart - calculate actual average annual return
+                        # Get the actual years and calculate their returns properly
+                        compare_cycle_years = compare_historical_cycle['Year'].unique()
+                        actual_annual_returns = []
+                        
+                        for year in compare_cycle_years:
+                            year_data = compare_historical_cycle[compare_historical_cycle['Year'] == year]
+                            if len(year_data) > 10:
+                                year_return = ((year_data['Price'].iloc[-1] - year_data['Price'].iloc[0]) / 
+                                             year_data['Price'].iloc[0]) * 100
+                                actual_annual_returns.append(year_return)
+                        
+                        if len(actual_annual_returns) > 0:
+                            avg_annual_return = np.mean(actual_annual_returns)
+                            avg_count = len(actual_annual_returns)
+                        else:
+                            avg_annual_return = 0
+                            avg_count = 0
                         
                         st.markdown(f"""
                         <div style="padding: 10px; background: rgba(138, 124, 245, 0.1); border-radius: 6px; margin-bottom: 15px;">
                             <span style="color: var(--text); font-size: 0.9rem;">
-                                <strong>Typical Year-End:</strong> {final_return:+.2f}% &nbsp;|&nbsp; 
+                                <strong>Avg Annual Return:</strong> {avg_annual_return:+.2f}% &nbsp;|&nbsp; 
                                 <strong>Based on:</strong> {avg_count} years
                             </span>
                         </div>
