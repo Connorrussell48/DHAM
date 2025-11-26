@@ -1085,15 +1085,14 @@ if not sp500_data.empty:
         
         # Calculate base 100 index for current year
         base_price = current_year_data['Price'].iloc[0]
-        current_year_data['Index'] = (current_year_data['Price'] / base_price) * 100
         
-        # Group by week and take last value of each week
+        # Group by week and take last price of each week
         current_weekly = current_year_data.groupby('WeekNum').agg({
-            'Index': 'last',
             'Price': 'last'
         }).reset_index()
         
-        # Add week labels
+        # Calculate index from the prices
+        current_weekly['Index'] = (current_weekly['Price'] / base_price) * 100
         current_weekly['Week_Label'] = current_weekly['WeekNum'].astype(int)
         
         # Calculate historical base 100 indices
@@ -1107,11 +1106,12 @@ if not sp500_data.empty:
             year_data = historical_data[historical_data['Year'] == year]
             if len(year_data) > 10:  # Only include years with reasonable data
                 base_price_year = year_data['Price'].iloc[0]
-                year_data = year_data.copy()
-                year_data['Index'] = (year_data['Price'] / base_price_year) * 100
                 
-                # Group by week
-                year_weekly = year_data.groupby('WeekNum')['Index'].last().reset_index()
+                # Group by week and take last price
+                year_weekly = year_data.groupby('WeekNum')['Price'].last().reset_index()
+                
+                # Calculate index from prices
+                year_weekly['Index'] = (year_weekly['Price'] / base_price_year) * 100
                 year_weekly['Year'] = year
                 historical_indices.append(year_weekly)
         
@@ -1874,13 +1874,14 @@ if not sp500_data.empty:
         
         # Calculate base 100 index for current year
         base_price = current_year_data['Price'].iloc[0]
-        current_year_data['Index'] = (current_year_data['Price'] / base_price) * 100
         
-        # Group by week
+        # Group by week and take last price
         current_weekly = current_year_data.groupby('WeekNum').agg({
-            'Index': 'last',
             'Price': 'last'
         }).reset_index()
+        
+        # Calculate index from prices
+        current_weekly['Index'] = (current_weekly['Price'] / base_price) * 100
         current_weekly['Week_Label'] = current_weekly['WeekNum'].astype(int)
         
         historical_cycle['WeekNum'] = historical_cycle.index.isocalendar().week
@@ -1894,10 +1895,12 @@ if not sp500_data.empty:
                 year_data = historical_cycle[historical_cycle['Year'] == year]
                 if len(year_data) > 10:
                     base_price_year = year_data['Price'].iloc[0]
-                    year_data = year_data.copy()
-                    year_data['Index'] = (year_data['Price'] / base_price_year) * 100
                     
-                    year_weekly = year_data.groupby('WeekNum')['Index'].last().reset_index()
+                    # Group by week and take last price
+                    year_weekly = year_data.groupby('WeekNum')['Price'].last().reset_index()
+                    
+                    # Calculate index from prices
+                    year_weekly['Index'] = (year_weekly['Price'] / base_price_year) * 100
                     year_weekly['Year'] = year
                     historical_indices.append(year_weekly)
         
@@ -2053,10 +2056,12 @@ if not sp500_data.empty:
                         year_data = compare_historical_cycle[compare_historical_cycle['Year'] == year]
                         if len(year_data) > 10:
                             base_price_year = year_data['Price'].iloc[0]
-                            year_data = year_data.copy()
-                            year_data['Index'] = (year_data['Price'] / base_price_year) * 100
                             
-                            year_weekly = year_data.groupby('WeekNum')['Index'].last().reset_index()
+                            # Group by week and take last price
+                            year_weekly = year_data.groupby('WeekNum')['Price'].last().reset_index()
+                            
+                            # Calculate index from prices
+                            year_weekly['Index'] = (year_weekly['Price'] / base_price_year) * 100
                             year_weekly['Year'] = year
                             compare_historical_indices.append(year_weekly)
                     
