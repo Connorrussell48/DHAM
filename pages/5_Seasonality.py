@@ -1187,107 +1187,107 @@ if not sp500_data.empty:
             import plotly.graph_objects as go
             
             fig = go.Figure()
-        
-        # Add upper band
-        fig.add_trace(go.Scatter(
-            x=weekly_stats_hist['Week_Label'],
-            y=weekly_stats_hist['upper_band'],
-            mode='lines',
-            name='Avg +1σ',
-            line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
-            fill=None,
-            showlegend=True,
-            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
-        ))
-        
-        # Add lower band with fill
-        fig.add_trace(go.Scatter(
-            x=weekly_stats_hist['Week_Label'],
-            y=weekly_stats_hist['lower_band'],
-            mode='lines',
-            name='Avg -1σ',
-            line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
-            fill='tonexty',
-            fillcolor='rgba(138, 124, 245, 0.15)',
-            showlegend=True,
-            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
-        ))
-        
-        # Add historical average
-        fig.add_trace(go.Scatter(
-            x=weekly_stats_hist['Week_Label'],
-            y=weekly_stats_hist['mean'],
-            mode='lines',
-            name='Historical Avg',
-            line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
-            showlegend=True,
-            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
-        ))
-        
-        # Add current year
-        fig.add_trace(go.Scatter(
-            x=current_weekly['Week_Label'],
-            y=current_weekly['Index'],
-            mode='lines+markers',
-            name=f'{current_year} YTD',
-            line=dict(color='#26D07C', width=3),
-            marker=dict(size=4, color='#26D07C'),
-            showlegend=True,
-            hovertemplate=f'Wk %{{x}}: %{{y:.1f}}<extra></extra>'
-        ))
-        
-        # Add horizontal line at 100
-        fig.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.3)", 
-                      annotation_text="Start", annotation_position="right")
-        
-        fig.update_layout(
-            template='plotly_dark',
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#FFFFFF', size=12),
-            xaxis=dict(
-                title=dict(text='Week of Year', font=dict(color='#FFFFFF')),
-                gridcolor='rgba(255,255,255,0.1)',
-                showgrid=True,
-                dtick=4,  # Show every 4th week
-                range=[0, 53],
-                tickfont=dict(color='#FFFFFF')
-            ),
-            yaxis=dict(
-                title=dict(text='Index (Base 100 = Year Start)', font=dict(color='#FFFFFF')),
-                gridcolor='rgba(255,255,255,0.1)',
-                showgrid=True,
-                tickfont=dict(color='#FFFFFF')
-            ),
-            hovermode='x unified',
-            hoverlabel=dict(
-                bgcolor='rgba(0,0,0,0.8)',
-                font_size=11,
-                font_color='#FFFFFF'
-            ),
-            height=500,
-            margin=dict(l=50, r=50, t=30, b=50),
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01,
-                bgcolor='rgba(0,0,0,0.5)',
-                bordercolor='rgba(255,255,255,0.2)',
-                borderwidth=1,
-                font=dict(color='#FFFFFF')
+            
+            # Add upper band
+            fig.add_trace(go.Scatter(
+                x=weekly_stats_hist['Week_Label'],
+                y=weekly_stats_hist['upper_band'],
+                mode='lines',
+                name='Avg +1σ',
+                line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                fill=None,
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            # Add lower band with fill
+            fig.add_trace(go.Scatter(
+                x=weekly_stats_hist['Week_Label'],
+                y=weekly_stats_hist['lower_band'],
+                mode='lines',
+                name='Avg -1σ',
+                line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                fill='tonexty',
+                fillcolor='rgba(138, 124, 245, 0.15)',
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            # Add historical average
+            fig.add_trace(go.Scatter(
+                x=weekly_stats_hist['Week_Label'],
+                y=weekly_stats_hist['mean'],
+                mode='lines',
+                name='Historical Avg',
+                line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            # Add current year
+            fig.add_trace(go.Scatter(
+                x=current_weekly['Week_Label'],
+                y=current_weekly['Index'],
+                mode='lines+markers',
+                name=f'{current_year} YTD',
+                line=dict(color='#26D07C', width=3),
+                marker=dict(size=4, color='#26D07C'),
+                showlegend=True,
+                hovertemplate=f'Wk %{{x}}: %{{y:.1f}}<extra></extra>'
+            ))
+            
+            # Add horizontal line at 100
+            fig.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.3)", 
+                          annotation_text="Start", annotation_position="right")
+            
+            fig.update_layout(
+                template='plotly_dark',
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#FFFFFF', size=12),
+                xaxis=dict(
+                    title=dict(text='Week of Year', font=dict(color='#FFFFFF')),
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showgrid=True,
+                    dtick=4,  # Show every 4th week
+                    range=[0, 53],
+                    tickfont=dict(color='#FFFFFF')
+                ),
+                yaxis=dict(
+                    title=dict(text='Index (Base 100 = Year Start)', font=dict(color='#FFFFFF')),
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showgrid=True,
+                    tickfont=dict(color='#FFFFFF')
+                ),
+                hovermode='x unified',
+                hoverlabel=dict(
+                    bgcolor='rgba(0,0,0,0.8)',
+                    font_size=11,
+                    font_color='#FFFFFF'
+                ),
+                height=500,
+                margin=dict(l=50, r=50, t=30, b=50),
+                legend=dict(
+                    yanchor="top",
+                    y=0.99,
+                    xanchor="left",
+                    x=0.01,
+                    bgcolor='rgba(0,0,0,0.5)',
+                    bordercolor='rgba(255,255,255,0.2)',
+                    borderwidth=1,
+                    font=dict(color='#FFFFFF')
+                )
             )
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Get current week number
-        current_week_num = current_weekly['WeekNum'].max()
-        next_week_num = current_week_num + 1
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Get current week number
+            current_week_num = current_weekly['WeekNum'].max()
+            next_week_num = current_week_num + 1
         
         # Calculate current week's actual return (from previous Friday close to current price)
-        current_week_data = current_year_data[current_year_data['WeekNum'] == current_week_num]
-        if len(current_week_data) > 0:
+            current_week_data = current_year_data[current_year_data['WeekNum'] == current_week_num]
+            if len(current_week_data) > 0:
             # Get the close of the last day of the previous week
             prev_week_data = current_year_data[current_year_data['WeekNum'] == (current_week_num - 1)]
             if len(prev_week_data) > 0:
@@ -1313,12 +1313,12 @@ if not sp500_data.empty:
             
             # Calculate cumulative return from previous week close to now
             current_week_return = ((current_price - week_start_price) / week_start_price) * 100
-        else:
+            else:
             current_week_return = 0
         
         # Get historical stats for current week
-        current_week_hist = historical_df[historical_df['WeekNum'] == current_week_num]
-        if len(current_week_hist) > 0:
+            current_week_hist = historical_df[historical_df['WeekNum'] == current_week_num]
+            if len(current_week_hist) > 0:
             # Calculate weekly returns for historical data
             hist_weekly_returns = []
             for year in current_week_hist['Year'].unique():
@@ -1352,14 +1352,14 @@ if not sp500_data.empty:
                         daily_vols.append(daily_vol)
             
             avg_daily_vol = np.mean(daily_vols) if len(daily_vols) > 0 else 0
-        else:
+            else:
             avg_week_return = 0
             win_rate_week = 0
             avg_daily_vol = 0
         
         # Get historical stats for next week
-        next_week_hist = historical_df[historical_df['WeekNum'] == next_week_num]
-        if len(next_week_hist) > 0:
+            next_week_hist = historical_df[historical_df['WeekNum'] == next_week_num]
+            if len(next_week_hist) > 0:
             # Calculate weekly returns for next week
             hist_next_weekly_returns = []
             for year in next_week_hist['Year'].unique():
@@ -1390,15 +1390,15 @@ if not sp500_data.empty:
                         daily_vols_next.append(daily_vol)
             
             avg_daily_vol_next = np.mean(daily_vols_next) if len(daily_vols_next) > 0 else 0
-        else:
+            else:
             avg_next_week_return = 0
             win_rate_next_week = 0
             avg_daily_vol_next = 0
         
         # Display info boxes
-        col1, col2 = st.columns(2)
+            col1, col2 = st.columns(2)
         
-        with col1:
+            with col1:
             st.markdown(f"""
                 <div style="background: var(--inputlight); padding: 20px; border-radius: 10px; border: 1px solid var(--neutral); margin-bottom: 15px;">
                     <h4 style="color: var(--purple); margin-top: 0;">Current Week {current_week_num}</h4>
@@ -1421,7 +1421,7 @@ if not sp500_data.empty:
                 </div>
             """, unsafe_allow_html=True)
         
-        with col2:
+            with col2:
             st.markdown(f"""
                 <div style="background: var(--inputlight); padding: 20px; border-radius: 10px; border: 1px solid var(--neutral); margin-bottom: 15px;">
                     <h4 style="color: var(--purple); margin-top: 0;">Next Week {next_week_num}</h4>
@@ -1446,26 +1446,26 @@ if not sp500_data.empty:
             """, unsafe_allow_html=True)
         
         # Key statistics
-        st.markdown("### Year-to-Date Performance")
-        col1, col2, col3 = st.columns(3)
+            st.markdown("### Year-to-Date Performance")
+            col1, col2, col3 = st.columns(3)
         
-        with col1:
+            with col1:
             current_index = current_weekly['Index'].iloc[-1]
             current_return = current_index - 100
             st.markdown(f"**{current_year} Performance:** {current_return:+.2f}%")
         
-        with col2:
+            with col2:
             hist_index = weekly_stats_hist[weekly_stats_hist['WeekNum'] == current_weekly['WeekNum'].max()]['mean'].iloc[0]
             hist_return = hist_index - 100
             st.markdown(f"**Historical Avg (Week {int(current_weekly['WeekNum'].max())}):** {hist_return:+.2f}%")
         
-        with col3:
+            with col3:
             difference = current_return - hist_return
             st.markdown(f"**Outperformance:** {difference:+.2f}%")
-    else:
-        st.info("Insufficient data to create weekly comparison chart.")
+            else:
+            st.info("Insufficient data to create weekly comparison chart.")
     
-    st.markdown("---")
+            st.markdown("---")
     
     # --------------------------------------------------------------------------------------
     # Election Cycle Seasonality
