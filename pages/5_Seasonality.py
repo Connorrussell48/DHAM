@@ -1102,88 +1102,91 @@ if not sp500_data.empty:
                 year_weekly_prices['Year'] = year
                 historical_weekly_returns.append(year_weekly_prices[['WeekNum', 'Year', 'Weekly_Return']])
         
-        historical_df = pd.concat(historical_weekly_returns, ignore_index=True)
-        
-        # Calculate average weekly return for each week number
-        avg_weekly_returns = historical_df.groupby('WeekNum')['Weekly_Return'].agg(['mean', 'std']).reset_index()
-        
-        # Step 2: Build compounded index from average weekly returns
-        compounded_index = [100]  # Start at base 100
-        
-        for week in range(1, 53):
-            if week in avg_weekly_returns['WeekNum'].values:
-                avg_return = avg_weekly_returns[avg_weekly_returns['WeekNum'] == week]['mean'].iloc[0]
-                # Compound: new_value = old_value * (1 + return/100)
-                new_index = compounded_index[-1] * (1 + avg_return / 100)
-                compounded_index.append(new_index)
-            else:
-                compounded_index.append(compounded_index[-1])
-        
-        # Create dataframe for plotting
-        weekly_stats_hist = pd.DataFrame({
-            'WeekNum': range(0, 53),
-            'mean': compounded_index,
-            'Week_Label': range(0, 53)
-        })
-        
-        # Add std bands based on weekly return std
-        weekly_stats_hist = weekly_stats_hist.merge(
-            avg_weekly_returns[['WeekNum', 'std']].rename(columns={'std': 'weekly_std'}),
-            on='WeekNum',
-            how='left'
-        )
-        weekly_stats_hist['weekly_std'] = weekly_stats_hist['weekly_std'].fillna(0)
-        
-        # Calculate bands by compounding with +/- 1 std
-        upper_index = [100]
-        lower_index = [100]
-        
-        for i in range(1, 53):
-            if i in avg_weekly_returns['WeekNum'].values:
-                row = avg_weekly_returns[avg_weekly_returns['WeekNum'] == i].iloc[0]
-                avg_ret = row['mean']
-                std_ret = row['std']
-                
-                upper_index.append(upper_index[-1] * (1 + (avg_ret + std_ret) / 100))
-                lower_index.append(lower_index[-1] * (1 + (avg_ret - std_ret) / 100))
-            else:
-                upper_index.append(upper_index[-1])
-                lower_index.append(lower_index[-1])
-        
-        weekly_stats_hist['upper_band'] = upper_index
-        weekly_stats_hist['lower_band'] = lower_index
-        
-        # Step 3: Calculate current year's actual compounded index
-        current_year_prices = current_year_data.groupby('WeekNum')['Price'].last().reset_index()
-        current_year_prices['Price_Prev'] = current_year_prices['Price'].shift(1)
-        
-        # For week 1, use the year start price as previous
-        if len(current_year_prices) > 0:
-            year_start_price = current_year_data['Price'].iloc[0]
-            current_year_prices.loc[0, 'Price_Prev'] = year_start_price
-        
-        current_year_prices['Weekly_Return'] = ((current_year_prices['Price'] - current_year_prices['Price_Prev']) / 
-                                                 current_year_prices['Price_Prev']) * 100
-        
-        # Build current year compounded index
-        current_compounded = [100]
-        for _, row in current_year_prices.iterrows():
-            new_index = current_compounded[-1] * (1 + row['Weekly_Return'] / 100)
-            current_compounded.append(new_index)
-        
-        current_weekly = pd.DataFrame({
-            'WeekNum': [0] + current_year_prices['WeekNum'].tolist(),
-            'Index': current_compounded,
-            'Week_Label': [0] + current_year_prices['WeekNum'].tolist()
-        })
-        
-        # Keep full year of historical data (don't limit to current week)
-        # This shows where the year typically goes even if we're not there yet
-        
-        # Create Plotly chart
-        import plotly.graph_objects as go
-        
-        fig = go.Figure()
+        if len(historical_weekly_returns) == 0:
+            st.warning("Insufficient historical data to generate weekly chart.")
+        else:
+            historical_df = pd.concat(historical_weekly_returns, ignore_index=True)
+            
+            # Calculate average weekly return for each week number
+            avg_weekly_returns = historical_df.groupby('WeekNum')['Weekly_Return'].agg(['mean', 'std']).reset_index()
+            
+            # Step 2: Build compounded index from average weekly returns
+            compounded_index = [100]  # Start at base 100
+            
+            for week in range(1, 53):
+                if week in avg_weekly_returns['WeekNum'].values:
+                    avg_return = avg_weekly_returns[avg_weekly_returns['WeekNum'] == week]['mean'].iloc[0]
+                    # Compound: new_value = old_value * (1 + return/100)
+                    new_index = compounded_index[-1] * (1 + avg_return / 100)
+                    compounded_index.append(new_index)
+                else:
+                    compounded_index.append(compounded_index[-1])
+            
+            # Create dataframe for plotting
+            weekly_stats_hist = pd.DataFrame({
+                'WeekNum': range(0, 53),
+                'mean': compounded_index,
+                'Week_Label': range(0, 53)
+            })
+            
+            # Add std bands based on weekly return std
+            weekly_stats_hist = weekly_stats_hist.merge(
+                avg_weekly_returns[['WeekNum', 'std']].rename(columns={'std': 'weekly_std'}),
+                on='WeekNum',
+                how='left'
+            )
+            weekly_stats_hist['weekly_std'] = weekly_stats_hist['weekly_std'].fillna(0)
+            
+            # Calculate bands by compounding with +/- 1 std
+            upper_index = [100]
+            lower_index = [100]
+            
+            for i in range(1, 53):
+                if i in avg_weekly_returns['WeekNum'].values:
+                    row = avg_weekly_returns[avg_weekly_returns['WeekNum'] == i].iloc[0]
+                    avg_ret = row['mean']
+                    std_ret = row['std']
+                    
+                    upper_index.append(upper_index[-1] * (1 + (avg_ret + std_ret) / 100))
+                    lower_index.append(lower_index[-1] * (1 + (avg_ret - std_ret) / 100))
+                else:
+                    upper_index.append(upper_index[-1])
+                    lower_index.append(lower_index[-1])
+            
+            weekly_stats_hist['upper_band'] = upper_index
+            weekly_stats_hist['lower_band'] = lower_index
+            
+            # Step 3: Calculate current year's actual compounded index
+            current_year_prices = current_year_data.groupby('WeekNum')['Price'].last().reset_index()
+            current_year_prices['Price_Prev'] = current_year_prices['Price'].shift(1)
+            
+            # For week 1, use the year start price as previous
+            if len(current_year_prices) > 0:
+                year_start_price = current_year_data['Price'].iloc[0]
+                current_year_prices.loc[0, 'Price_Prev'] = year_start_price
+            
+            current_year_prices['Weekly_Return'] = ((current_year_prices['Price'] - current_year_prices['Price_Prev']) / 
+                                                     current_year_prices['Price_Prev']) * 100
+            
+            # Build current year compounded index
+            current_compounded = [100]
+            for _, row in current_year_prices.iterrows():
+                new_index = current_compounded[-1] * (1 + row['Weekly_Return'] / 100)
+                current_compounded.append(new_index)
+            
+            current_weekly = pd.DataFrame({
+                'WeekNum': [0] + current_year_prices['WeekNum'].tolist(),
+                'Index': current_compounded,
+                'Week_Label': [0] + current_year_prices['WeekNum'].tolist()
+            })
+            
+            # Keep full year of historical data (don't limit to current week)
+            # This shows where the year typically goes even if we're not there yet
+            
+            # Create Plotly chart
+            import plotly.graph_objects as go
+            
+            fig = go.Figure()
         
         # Add upper band
         fig.add_trace(go.Scatter(
