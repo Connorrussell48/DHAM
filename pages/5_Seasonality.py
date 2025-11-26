@@ -1080,14 +1080,199 @@ if not sp500_data.empty:
     historical_data = filtered_data[filtered_data.index.year < current_year].copy()
     
     if not current_year_data.empty and not historical_data.empty:
-        # Calculate week number within the year (1-52)
         current_year_data['WeekNum'] = current_year_data.index.isocalendar().week
         historical_data['WeekNum'] = historical_data.index.isocalendar().week
         historical_data['Year'] = historical_data.index.year
         
-        # Step 1: Calculate historical average weekly returns (week-to-week)
-        historical_weekly_returns = []
+        # STEP 1: For each historical year, calculate week-to-week returns
+        all_weekly_returns = []
         
+        for year in historical_data['Year'].unique():
+            year_data = historical_data[historical_data['Year'] == year].copy()
+            if len(year_data) > 50:  # Need reasonable data
+                # Get the last close price of each week
+                weekly_closes = year_data.groupby('WeekNum')['Price'].last()
+                
+                # Calculate week-to-week return: (week_n - week_n-1) / week_n-1
+                for week_num in range(2, 53):  # Weeks 2-52
+                    if week_num in weekly_closes.index and (week_num - 1) in weekly_closes.index:
+                        prev_week_close = weekly_closes[week_num - 1]
+                        current_week_close = weekly_closes[week_num]
+                        weekly_return = ((current_week_close - prev_week_close) / prev_week_close) * 100
+                        
+                        all_weekly_returns.append({
+                            'Year': year,
+                            'WeekNum': week_num,
+                            'Return': weekly_return
+                        })
+        
+        if len(all_weekly_returns) > 0:
+            # STEP 2: Calculate average return and std for each week number
+            returns_df = pd.DataFrame(all_weekly_returns)
+            avg_returns_by_week = returns_df.groupby('WeekNum')['Return'].agg(['mean', 'std']).reset_index()
+            
+            # STEP 3: Build compounded index starting at 100
+            compounded_mean = [100]  # Week 0
+            compounded_upper = [100]
+            compounded_lower = [100]
+            
+            for week in range(1, 53):
+                if week == 1:
+                    # Week 1 starts at 100 (no return yet, since we calculate from week 2)
+                    compounded_mean.append(100)
+                    compounded_upper.append(100)
+                    compounded_lower.append(100)
+                elif week in avg_returns_by_week['WeekNum'].values:
+                    row = avg_returns_by_week[avg_returns_by_week['WeekNum'] == week].iloc[0]
+                    mean_ret = row['mean']
+                    std_ret = row['std']
+                    
+                    # Compound: new = old * (1 + return/100)
+                    compounded_mean.append(compounded_mean[-1] * (1 + mean_ret / 100))
+                    compounded_upper.append(compounded_upper[-1] * (1 + (mean_ret + std_ret) / 100))
+                    compounded_lower.append(compounded_lower[-1] * (1 + (mean_ret - std_ret) / 100))
+                else:
+                    # No data for this week, carry forward
+                    compounded_mean.append(compounded_mean[-1])
+                    compounded_upper.append(compounded_upper[-1])
+                    compounded_lower.append(compounded_lower[-1])
+            
+            # STEP 4: Calculate current year compounded index
+            current_weekly_closes = current_year_data.groupby('WeekNum')['Price'].last()
+            current_compounded = [100]  # Week 0
+            
+            for week in range(1, 53):
+                if week == 1:
+                    current_compounded.append(100)
+                elif week in current_weekly_closes.index and (week - 1) in current_weekly_closes.index:
+                    prev_close = current_weekly_closes[week - 1]
+                    curr_close = current_weekly_closes[week]
+                    weekly_return = ((curr_close - prev_close) / prev_close) * 100
+                    current_compounded.append(current_compounded[-1] * (1 + weekly_return / 100))
+                elif week <= current_weekly_closes.index.max():
+                    # Week exists but no previous week, carry forward
+                    current_compounded.append(current_compounded[-1])
+                else:
+                    # Future week
+                    break
+            
+            # STEP 5: Create the chart
+            import plotly.graph_objects as go
+            
+            fig = go.Figure()
+            
+            # Historical upper band
+            fig.add_trace(go.Scatter(
+                x=list(range(len(compounded_upper))),
+                y=compounded_upper,
+                mode='lines',
+                name='Avg +1σ',
+                line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            # Historical lower band (with fill)
+            fig.add_trace(go.Scatter(
+                x=list(range(len(compounded_lower))),
+                y=compounded_lower,
+                mode='lines',
+                name='Avg -1σ',
+                line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                fill='tonexty',
+                fillcolor='rgba(138, 124, 245, 0.15)',
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            # Historical average
+            fig.add_trace(go.Scatter(
+                x=list(range(len(compounded_mean))),
+                y=compounded_mean,
+                mode='lines',
+                name='Historical Avg',
+                line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            # Current year
+            fig.add_trace(go.Scatter(
+                x=list(range(len(current_compounded))),
+                y=current_compounded,
+                mode='lines+markers',
+                name=f'{current_year} YTD',
+                line=dict(color='#26D07C', width=3),
+                marker=dict(size=4, color='#26D07C'),
+                showlegend=True,
+                hovertemplate=f'Wk %{{x}}: %{{y:.1f}}<extra></extra>'
+            ))
+            
+            # Horizontal line at 100
+            fig.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.3)",
+                         annotation_text="Start", annotation_position="right")
+            
+            fig.update_layout(
+                template='plotly_dark',
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#FFFFFF', size=12),
+                xaxis=dict(
+                    title=dict(text='Week of Year', font=dict(color='#FFFFFF')),
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showgrid=True,
+                    dtick=4,
+                    range=[0, 53],
+                    tickfont=dict(color='#FFFFFF')
+                ),
+                yaxis=dict(
+                    title=dict(text='Index (Base 100 = Year Start)', font=dict(color='#FFFFFF')),
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showgrid=True,
+                    tickfont=dict(color='#FFFFFF')
+                ),
+                hovermode='x unified',
+                hoverlabel=dict(
+                    bgcolor='rgba(0,0,0,0.8)',
+                    font_size=11,
+                    font_color='#FFFFFF'
+                ),
+                height=500,
+                margin=dict(l=50, r=50, t=30, b=50),
+                legend=dict(
+                    yanchor="top",
+                    y=0.99,
+                    xanchor="left",
+                    x=0.01,
+                    bgcolor='rgba(0,0,0,0.5)',
+                    bordercolor='rgba(255,255,255,0.2)',
+                    borderwidth=1,
+                    font=dict(color='#FFFFFF')
+                )
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Statistics below chart
+            current_week = len(current_compounded) - 1
+            current_index = current_compounded[-1]
+            current_return = current_index - 100
+            
+            hist_index = compounded_mean[min(current_week, len(compounded_mean) - 1)]
+            hist_return = hist_index - 100
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown(f"**{current_year} Performance:** {current_return:+.2f}%")
+            with col2:
+                st.markdown(f"**Historical Avg (Week {current_week}):** {hist_return:+.2f}%")
+            with col3:
+                difference = current_return - hist_return
+                st.markdown(f"**Outperformance:** {difference:+.2f}%")
+        else:
+            st.warning("Insufficient data to generate weekly chart.")
+    else:
+        st.info("Insufficient data for weekly comparison.")
         for year in historical_data['Year'].unique():
             year_data = historical_data[historical_data['Year'] == year].copy()
             if len(year_data) > 10:
