@@ -158,6 +158,13 @@ st.markdown(f"""
     </p>
 """, unsafe_allow_html=True)
 
+# Add cache clear button
+col_title, col_cache = st.columns([5, 1])
+with col_cache:
+    if st.button("Clear Cache", key="clear_cache_btn"):
+        st.cache_data.clear()
+        st.rerun()
+
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
