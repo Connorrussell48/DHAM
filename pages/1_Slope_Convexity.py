@@ -50,6 +50,11 @@ html, body {
     padding-bottom: 2rem;
 }
 
+/* Transparent header */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+}
+
 /* Headers */
 h1, h2, h3 {
     color: var(--text) !important;
@@ -73,7 +78,12 @@ h3 {
     margin-bottom: 0.8rem;
 }
 
-/* Input fields */
+/* All text and labels white */
+label, p, span, div {
+    color: var(--text) !important;
+}
+
+/* Input fields with white text */
 input, textarea, select {
     background: var(--input-bg) !important;
     color: var(--text) !important;
@@ -81,15 +91,53 @@ input, textarea, select {
     border-radius: 8px !important;
 }
 
-/* Select boxes */
+input::placeholder, textarea::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Select boxes with white text */
 [data-baseweb="select"] > div {
     background: var(--input-bg) !important;
     border-color: var(--neutral) !important;
     color: var(--text) !important;
 }
 
+[data-baseweb="select"] input {
+    color: var(--text) !important;
+}
+
 [data-baseweb="select"] svg {
     fill: var(--text) !important;
+}
+
+[data-baseweb="select"] span {
+    color: var(--text) !important;
+}
+
+/* Number input controls white */
+[data-testid="stNumberInput"] button {
+    color: var(--text) !important;
+}
+
+/* Multiselect with white text */
+[data-baseweb="tag"] {
+    background: var(--accent-green) !important;
+    color: #000 !important;
+}
+
+/* Slider labels white */
+[data-testid="stSlider"] label,
+[data-testid="stSlider"] div {
+    color: var(--text) !important;
+}
+
+/* Sidebar with dark background */
+[data-testid="stSidebar"] {
+    background: var(--bg-panel) !important;
+}
+
+[data-testid="stSidebar"] * {
+    color: var(--text) !important;
 }
 
 /* Buttons */
@@ -391,7 +439,7 @@ st.session_state['sector_map'] = sync_watchlist_sectors(
 # ============================================================================
 # PAGE HEADER
 # ============================================================================
-st.title("📊 Slope & Convexity Strategy")
+st.title("Slope & Convexity Strategy")
 st.markdown("""
 Scan for momentum signals based on 200-period moving average **slope** (direction) 
 and **convexity** (acceleration). Signals occur when both indicators turn bullish or bearish simultaneously.
@@ -402,7 +450,7 @@ st.markdown("---")
 # ============================================================================
 # CONFIGURATION SECTION
 # ============================================================================
-st.markdown("## ⚙️ Scan Configuration")
+st.markdown("## Scan Configuration")
 
 config_col1, config_col2, config_col3 = st.columns(3)
 
@@ -451,10 +499,10 @@ watchlist_tickers = [item['Ticker'] for item in st.session_state['watchlist'] if
 # Run scan button
 col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 4])
 with col_btn1:
-    run_scan_btn = st.button("🚀 Run Scan", type="primary", use_container_width=True)
+    run_scan_btn = st.button("Run Scan", type="primary", use_container_width=True)
 with col_btn2:
     if st.session_state['scan_results'] is not None:
-        if st.button("🔄 Clear Results", use_container_width=True):
+        if st.button("Clear Results", use_container_width=True):
             st.session_state['scan_results'] = None
             st.rerun()
 
@@ -472,7 +520,7 @@ if run_scan_btn:
                 selected_sectors=selected_sectors
             )
             st.session_state['scan_results'] = results
-            st.success(f"✅ Scan complete! Found {len(results)} signals")
+            st.success(f"Scan complete! Found {len(results)} signals")
             st.rerun()
 
 st.markdown("---")
@@ -484,7 +532,7 @@ if st.session_state['scan_results'] is not None and not st.session_state['scan_r
     results = st.session_state['scan_results']
     
     # Summary metrics
-    st.markdown("## 📈 Summary")
+    st.markdown("## Summary")
     
     total_signals = len(results)
     bullish_count = len(results[results['Sentiment'] == 'Bullish'])
@@ -595,21 +643,21 @@ if st.session_state['scan_results'] is not None and not st.session_state['scan_r
     # Download button
     csv_data = display_results.to_csv(index=False).encode('utf-8')
     st.download_button(
-        "📥 Download Results CSV",
+        "Download Results CSV",
         csv_data,
         file_name=f"slope_convexity_scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
     )
 
 else:
-    st.info("👆 Configure your scan settings above and click **Run Scan** to begin")
+    st.info("Configure your scan settings above and click Run Scan to begin")
 
 st.markdown("---")
 
 # ============================================================================
 # WATCHLIST SECTION
 # ============================================================================
-st.markdown("## 📓 Watchlist Manager")
+st.markdown("## Watchlist Manager")
 
 # Add to watchlist form
 with st.form("add_watchlist", clear_on_submit=True):
@@ -628,7 +676,7 @@ with st.form("add_watchlist", clear_on_submit=True):
     
     with form_col4:
         st.markdown("<br>", unsafe_allow_html=True)
-        add_btn = st.form_submit_button("➕ Add", use_container_width=True)
+        add_btn = st.form_submit_button("Add", use_container_width=True)
 
 if add_btn and new_ticker:
     st.session_state['watchlist'].append({
@@ -643,7 +691,7 @@ if add_btn and new_ticker:
         st.session_state['sector_map'][new_ticker] = "Unknown"
         save_sector_map(st.session_state['sector_map'])
     
-    st.success(f"✅ Added {new_ticker} to watchlist")
+    st.success(f"Added {new_ticker} to watchlist")
     st.rerun()
 
 # Display watchlist
@@ -690,7 +738,7 @@ if st.session_state['watchlist']:
         )
     
     with delete_col2:
-        if st.button("🗑️ Delete Selected", use_container_width=True):
+        if st.button("Delete Selected", use_container_width=True):
             if ticker_to_delete and ticker_to_delete != "(none)":
                 st.session_state['watchlist'] = [
                     item for item in st.session_state['watchlist'] 
@@ -701,7 +749,7 @@ if st.session_state['watchlist']:
                 st.rerun()
     
     with delete_col3:
-        if st.button("🗑️ Clear All", use_container_width=True):
+        if st.button("Clear All", use_container_width=True):
             st.session_state['watchlist'] = []
             save_watchlist(st.session_state['watchlist'])
             st.success("Watchlist cleared")
