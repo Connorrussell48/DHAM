@@ -3,7 +3,6 @@ import pandas as pd
 import yfinance as yf
 import streamlit as st
 import plotly.graph_objects as go
-from scipy import integrate
 from datetime import date, datetime
 import json
 import os
@@ -386,8 +385,8 @@ def calculate_indicators(df, ma_period=200, lookback=30):
         secant = start_ma + slope * t_window
         
         # Calculate area between secant and MA (convexity measure)
-        from scipy import integrate
-        area = integrate.trapezoid(secant - ma_window, t_window)
+        # Using numpy's trapz for trapezoidal integration
+        area = np.trapz(secant - ma_window, t_window)
         normalized_area = (area / price[i]) * lookback
         
         # Normalize using tanh to keep values bounded
