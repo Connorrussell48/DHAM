@@ -1,15 +1,11 @@
 import numpy as np
 import pandas as pd
 import yfinance as yf
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import streamlit as st
+import plotly.graph_objects as go
 from datetime import date, datetime
 import json
 import os
-import io
-import math
 
 # ============================================================================
 # PAGE CONFIGURATION
@@ -515,38 +511,38 @@ if st.session_state['scan_results'] is not None and not st.session_state['scan_r
     # Pie chart visualization
     st.markdown("### Overall Distribution")
     
-    fig, ax = plt.subplots(figsize=(8, 8), facecolor='none')
-    ax.set_facecolor('none')
+    # Create Plotly pie chart
+    colors = ['#26D07C', '#D9534F']  # Green for bullish, red for bearish
     
-    colors = ['#26D07C' if bullish_count > 0 else '#999999',
-              '#D9534F' if bearish_count > 0 else '#999999']
-    
-    wedges, texts = ax.pie(
-        [bullish_count, bearish_count],
+    fig = go.Figure(data=[go.Pie(
         labels=['Bullish', 'Bearish'],
-        colors=colors,
-        startangle=90,
-        textprops={'fontsize': 16, 'fontweight': 'bold', 'color': 'white'}
+        values=[bullish_count, bearish_count],
+        marker=dict(colors=colors),
+        textinfo='label+percent',
+        textfont=dict(size=16, color='white'),
+        hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>',
+        hole=0.0
+    )])
+    
+    fig.update_layout(
+        template='plotly_dark',
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#FFFFFF', size=14),
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.1,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=14, color='#FFFFFF')
+        ),
+        height=400,
+        margin=dict(l=20, r=20, t=20, b=60)
     )
     
-    # Add percentage labels
-    if total_signals > 0:
-        for i, (wedge, count) in enumerate(zip(wedges, [bullish_count, bearish_count])):
-            if count > 0:
-                pct = 100.0 * count / total_signals
-                if pct >= 5:
-                    theta = math.radians((wedge.theta2 + wedge.theta1) / 2.0)
-                    x, y = 0.6 * math.cos(theta), 0.6 * math.sin(theta)
-                    ax.text(x, y, f"{pct:.0f}%", ha="center", va="center",
-                           fontsize=20, fontweight="bold", color="white")
-    
-    ax.axis("equal")
-    fig.patch.set_alpha(0)
-    
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=144, transparent=True, bbox_inches="tight", pad_inches=0.3)
-    buf.seek(0)
-    st.image(buf, use_container_width=False, width=400)
+    st.plotly_chart(fig, use_container_width=True)
     
     # Sector breakdown
     st.markdown("### Breakdown by Sector")
