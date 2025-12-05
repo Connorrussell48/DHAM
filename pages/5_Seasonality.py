@@ -1777,7 +1777,383 @@ if not sp500_data.empty:
     historical_cycle = df_with_cycle[df_with_cycle['Years_Since_Election'] == current_cycle].copy()
     
     if not current_year_data.empty and not historical_cycle.empty:
-        # Calculate week numbers
+        # Assign calendar weeks (same logic as main chart)
+        def assign_calendar_weeks(df):
+            df = df.copy()
+            df['Year'] = df.index.year
+            week_nums = []
+            for idx in df.index:
+                year = idx.year
+                jan_1 = pd.Timestamp(year=year, month=1, day=1)
+                days_since_jan1 = (idx - jan_1).days
+                week_num = (days_since_jan1 // 7) + 1
+                week_nums.append(max(1, min(week_num, 52)))
+            df['WeekNum'] = week_nums
+            return df
+        
+        current_year_data = assign_calendar_weeks(current_year_data)
+        historical_cycle = assign_calendar_weeks(historical_cycle)
+        historical_cycle['Year'] = historical_cycle.index.year
+        
+        # Calculate week-to-week returns for this cycle type only
+        all_weekly_returns = []
+        
+        for year in historical_cycle['Year'].unique():
+            if year != current_year:
+                year_data = historical_cycle[historical_cycle['Year'] == year].copy()
+                if len(year_data) > 50:
+                    weekly_closes = year_data.groupby('WeekNum')['Price'].last()
+                    
+                    for week_num in range(2, 53):
+                        if week_num in weekly_closes.index and (week_num - 1) in weekly_closes.index:
+                            prev_close = weekly_closes[week_num - 1]
+                            curr_close = weekly_closes[week_num]
+                            weekly_return = ((curr_close - prev_close) / prev_close) * 100
+                            
+                            all_weekly_returns.append({
+                                'Year': year,
+                                'WeekNum': week_num,
+                                'Return': weekly_return
+                            })
+        
+        if len(all_weekly_returns) > 0:
+            returns_df = pd.DataFrame(all_weekly_returns)
+            avg_returns_by_week = returns_df.groupby('WeekNum')['Return'].agg(['mean', 'std']).reset_index()
+            
+            # Build compounded index
+            compounded_mean = [100]
+            for week in range(1, 53):
+                if week == 1:
+                    compounded_mean.append(100)
+                elif week in avg_returns_by_week['WeekNum'].values:
+                    row = avg_returns_by_week[avg_returns_by_week['WeekNum'] == week].iloc[0]
+                    mean_ret = row['mean']
+                    compounded_mean.append(compounded_mean[-1] * (1 + mean_ret / 100))
+                else:
+                    compounded_mean.append(compounded_mean[-1])
+            
+            # Calculate bands as additive offsets
+            compounded_upper = []
+            compounded_lower = []
+            
+            for i, week in enumerate(range(0, 53)):
+                if week == 0 or week == 1:
+                    compounded_upper.append(100)
+                    compounded_lower.append(100)
+                elif week in avg_returns_by_week['WeekNum'].values:
+                    row = avg_returns_by_week[avg_returns_by_week['WeekNum'] == week].iloc[0]
+                    std_ret = row['std']
+                    offset = std_ret
+                    compounded_upper.append(compounded_mean[i] + offset)
+                    compounded_lower.append(compounded_mean[i] - offset)
+                else:
+                    compounded_upper.append(compounded_mean[i])
+                    compounded_lower.append(compounded_mean[i])
+            
+            # Calculate current year compounded index
+            current_weekly_closes = current_year_data.groupby('WeekNum')['Price'].last()
+            current_compounded = [100]
+            
+            for week in range(1, 53):
+                if week == 1:
+                    current_compounded.append(100)
+                elif week in current_weekly_closes.index and (week - 1) in current_weekly_closes.index:
+                    prev_close = current_weekly_closes[week - 1]
+                    curr_close = current_weekly_closes[week]
+                    weekly_return = ((curr_close - prev_close) / prev_close) * 100
+                    current_compounded.append(current_compounded[-1] * (1 + weekly_return / 100))
+                elif week <= current_weekly_closes.index.max():
+                    current_compounded.append(current_compounded[-1])
+                else:
+                    break
+            
+            # Create chart
+            import plotly.graph_objects as go
+            
+            fig_ytd = go.Figure()
+            
+            fig_ytd.add_trace(go.Scatter(
+                x=list(range(len(compounded_upper))),
+                y=compounded_upper,
+                mode='lines',
+                name='Avg +1σ',
+                line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            fig_ytd.add_trace(go.Scatter(
+                x=list(range(len(compounded_lower))),
+                y=compounded_lower,
+                mode='lines',
+                name='Avg -1σ',
+                line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                fill='tonexty',
+                fillcolor='rgba(138, 124, 245, 0.15)',
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            fig_ytd.add_trace(go.Scatter(
+                x=list(range(len(compounded_mean))),
+                y=compounded_mean,
+                mode='lines',
+                name=f'Avg {cycle_labels[current_cycle]}',
+                line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
+                showlegend=True,
+                hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+            ))
+            
+            fig_ytd.add_trace(go.Scatter(
+                x=list(range(len(current_compounded))),
+                y=current_compounded,
+                mode='lines+markers',
+                name=f'{current_year} YTD',
+                line=dict(color='#26D07C', width=3),
+                marker=dict(size=4, color='#26D07C'),
+                showlegend=True,
+                hovertemplate=f'Wk %{{x}}: %{{y:.1f}}<extra></extra>'
+            ))
+            
+            fig_ytd.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.3)",
+                          annotation_text="Start", annotation_position="right")
+            
+            fig_ytd.update_layout(
+                template='plotly_dark',
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#FFFFFF', size=12),
+                xaxis=dict(
+                    title=dict(text='Week of Year', font=dict(color='#FFFFFF')),
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showgrid=True,
+                    dtick=4,
+                    range=[0, 53],
+                    tickfont=dict(color='#FFFFFF')
+                ),
+                yaxis=dict(
+                    title=dict(text='Index (Base 100 = Year Start)', font=dict(color='#FFFFFF')),
+                    gridcolor='rgba(255,255,255,0.1)',
+                    showgrid=True,
+                    tickfont=dict(color='#FFFFFF')
+                ),
+                hovermode='x unified',
+                hoverlabel=dict(
+                    bgcolor='rgba(0,0,0,0.8)',
+                    font_size=11,
+                    font_color='#FFFFFF'
+                ),
+                height=500,
+                margin=dict(l=50, r=50, t=30, b=50),
+                legend=dict(
+                    yanchor="top",
+                    y=0.99,
+                    xanchor="left",
+                    x=0.01,
+                    bgcolor='rgba(0,0,0,0.5)',
+                    bordercolor='rgba(255,255,255,0.2)',
+                    borderwidth=1,
+                    font=dict(color='#FFFFFF')
+                )
+            )
+            
+            st.plotly_chart(fig_ytd, use_container_width=True)
+            
+            # Statistics
+            current_week = len(current_compounded) - 1
+            current_index = current_compounded[-1]
+            current_return = current_index - 100
+            
+            hist_index = compounded_mean[min(current_week, len(compounded_mean) - 1)]
+            hist_return = hist_index - 100
+            
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            
+            with col_stat1:
+                st.markdown(f"**{current_year} Performance:** {current_return:+.2f}%")
+            
+            with col_stat2:
+                st.markdown(f"**Avg {cycle_labels[current_cycle]} (Week {current_week}):** {hist_return:+.2f}%")
+            
+            with col_stat3:
+                difference = current_return - hist_return
+                st.markdown(f"**Outperformance:** {difference:+.2f}%")
+            
+            # Add 4-chart comparison expander
+            with st.expander("Compare All Election Cycle Year Types", expanded=False):
+                st.markdown("Historical weekly performance patterns for all four election cycle year types")
+                
+                for compare_cycle in [0, 1, 2, 3]:
+                    st.markdown(f"#### {cycle_labels[compare_cycle]}")
+                    
+                    # Get data for this cycle type
+                    compare_historical_cycle = df_with_cycle[df_with_cycle['Years_Since_Election'] == compare_cycle].copy()
+                    compare_historical_cycle = assign_calendar_weeks(compare_historical_cycle)
+                    compare_historical_cycle['Year'] = compare_historical_cycle.index.year
+                    
+                    # Calculate returns
+                    compare_returns = []
+                    for year in compare_historical_cycle['Year'].unique():
+                        year_data = compare_historical_cycle[compare_historical_cycle['Year'] == year].copy()
+                        if len(year_data) > 50:
+                            weekly_closes = year_data.groupby('WeekNum')['Price'].last()
+                            
+                            for week_num in range(2, 53):
+                                if week_num in weekly_closes.index and (week_num - 1) in weekly_closes.index:
+                                    prev_close = weekly_closes[week_num - 1]
+                                    curr_close = weekly_closes[week_num]
+                                    weekly_return = ((curr_close - prev_close) / prev_close) * 100
+                                    compare_returns.append({'Year': year, 'WeekNum': week_num, 'Return': weekly_return})
+                    
+                    if len(compare_returns) > 0:
+                        compare_df = pd.DataFrame(compare_returns)
+                        compare_avg = compare_df.groupby('WeekNum')['Return'].agg(['mean', 'std']).reset_index()
+                        
+                        # Build compounded
+                        compare_mean = [100]
+                        for week in range(1, 53):
+                            if week == 1:
+                                compare_mean.append(100)
+                            elif week in compare_avg['WeekNum'].values:
+                                row = compare_avg[compare_avg['WeekNum'] == week].iloc[0]
+                                compare_mean.append(compare_mean[-1] * (1 + row['mean'] / 100))
+                            else:
+                                compare_mean.append(compare_mean[-1])
+                        
+                        # Bands
+                        compare_upper = []
+                        compare_lower = []
+                        for i, week in enumerate(range(0, 53)):
+                            if week == 0 or week == 1:
+                                compare_upper.append(100)
+                                compare_lower.append(100)
+                            elif week in compare_avg['WeekNum'].values:
+                                row = compare_avg[compare_avg['WeekNum'] == week].iloc[0]
+                                compare_upper.append(compare_mean[i] + row['std'])
+                                compare_lower.append(compare_mean[i] - row['std'])
+                            else:
+                                compare_upper.append(compare_mean[i])
+                                compare_lower.append(compare_mean[i])
+                        
+                        # Chart
+                        fig_compare = go.Figure()
+                        
+                        fig_compare.add_trace(go.Scatter(
+                            x=list(range(len(compare_upper))),
+                            y=compare_upper,
+                            mode='lines',
+                            name='Avg +1σ',
+                            line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+                        ))
+                        
+                        fig_compare.add_trace(go.Scatter(
+                            x=list(range(len(compare_lower))),
+                            y=compare_lower,
+                            mode='lines',
+                            name='Avg -1σ',
+                            line=dict(color='rgba(138, 124, 245, 0.3)', width=1, dash='dash'),
+                            fill='tonexty',
+                            fillcolor='rgba(138, 124, 245, 0.15)',
+                            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+                        ))
+                        
+                        fig_compare.add_trace(go.Scatter(
+                            x=list(range(len(compare_mean))),
+                            y=compare_mean,
+                            mode='lines',
+                            name=f'Avg {cycle_labels[compare_cycle]}',
+                            line=dict(color='rgba(138, 124, 245, 0.8)', width=2),
+                            hovertemplate='Wk %{x}: %{y:.1f}<extra></extra>'
+                        ))
+                        
+                        if compare_cycle == current_cycle:
+                            fig_compare.add_trace(go.Scatter(
+                                x=list(range(len(current_compounded))),
+                                y=current_compounded,
+                                mode='lines+markers',
+                                name=f'{current_year} YTD',
+                                line=dict(color='#26D07C', width=3),
+                                marker=dict(size=4, color='#26D07C'),
+                                hovertemplate=f'Wk %{{x}}: %{{y:.1f}}<extra></extra>'
+                            ))
+                        
+                        fig_compare.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.3)")
+                        
+                        fig_compare.update_layout(
+                            template='plotly_dark',
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            font=dict(color='#FFFFFF', size=11),
+                            xaxis=dict(
+                                title=dict(text='Week of Year', font=dict(color='#FFFFFF', size=11)),
+                                gridcolor='rgba(255,255,255,0.1)',
+                                showgrid=True,
+                                dtick=4,
+                                range=[0, 53],
+                                tickfont=dict(color='#FFFFFF', size=10)
+                            ),
+                            yaxis=dict(
+                                title=dict(text='Index (Base 100)', font=dict(color='#FFFFFF', size=11)),
+                                gridcolor='rgba(255,255,255,0.1)',
+                                showgrid=True,
+                                tickfont=dict(color='#FFFFFF', size=10)
+                            ),
+                            hovermode='x unified',
+                            hoverlabel=dict(
+                                bgcolor='rgba(0,0,0,0.8)',
+                                font_size=10,
+                                font_color='#FFFFFF'
+                            ),
+                            height=350,
+                            margin=dict(l=50, r=30, t=20, b=40),
+                            showlegend=True,
+                            legend=dict(
+                                yanchor="top",
+                                y=0.99,
+                                xanchor="left",
+                                x=0.01,
+                                bgcolor='rgba(0,0,0,0.5)',
+                                bordercolor='rgba(255,255,255,0.2)',
+                                borderwidth=1,
+                                font=dict(color='#FFFFFF', size=10)
+                            )
+                        )
+                        
+                        st.plotly_chart(fig_compare, use_container_width=True, key=f"compare_cycle_{compare_cycle}")
+                        
+                        # Calculate actual annual return for this cycle
+                        compare_years = compare_historical_cycle['Year'].unique()
+                        actual_annual_returns = []
+                        
+                        for year in compare_years:
+                            year_data = compare_historical_cycle[compare_historical_cycle['Year'] == year]
+                            if len(year_data) > 10:
+                                year_return = ((year_data['Price'].iloc[-1] - year_data['Price'].iloc[0]) / 
+                                             year_data['Price'].iloc[0]) * 100
+                                actual_annual_returns.append(year_return)
+                        
+                        if len(actual_annual_returns) > 0:
+                            avg_annual_return = np.mean(actual_annual_returns)
+                            avg_count = len(actual_annual_returns)
+                        else:
+                            avg_annual_return = 0
+                            avg_count = 0
+                        
+                        st.markdown(f"""
+                        <div style="padding: 10px; background: rgba(138, 124, 245, 0.1); border-radius: 6px; margin-bottom: 15px;">
+                            <span style="color: var(--text); font-size: 0.9rem;">
+                                <strong>Avg Annual Return:</strong> {avg_annual_return:+.2f}% &nbsp;|&nbsp; 
+                                <strong>Based on:</strong> {avg_count} years
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.info(f"Insufficient data for {cycle_labels[compare_cycle]}")
+        else:
+            st.warning("Insufficient historical data for this cycle type.")
+    else:
+        st.info("Insufficient data for comparison.")
         current_year_data['WeekNum'] = current_year_data.index.isocalendar().week
         historical_cycle['WeekNum'] = historical_cycle.index.isocalendar().week
         historical_cycle['Year'] = historical_cycle.index.year
