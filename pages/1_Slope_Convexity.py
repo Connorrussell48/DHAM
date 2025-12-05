@@ -125,6 +125,39 @@ input::placeholder, textarea::placeholder {
     color: #000 !important;
 }
 
+/* Dropdown menu backgrounds - same gray as sidebar */
+[data-baseweb="popover"] {
+    background: var(--bg-panel) !important;
+}
+
+[data-baseweb="menu"],
+[role="listbox"] {
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--neutral) !important;
+}
+
+[data-baseweb="menu"] li,
+[role="option"] {
+    background: var(--bg-panel) !important;
+    color: var(--text) !important;
+}
+
+[data-baseweb="menu"] li:hover,
+[role="option"]:hover {
+    background: var(--input-bg) !important;
+}
+
+/* Number input +/- buttons - same gray as sidebar */
+[data-testid="stNumberInput"] button {
+    background: var(--bg-panel) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--neutral) !important;
+}
+
+[data-testid="stNumberInput"] button:hover {
+    background: var(--input-bg) !important;
+}
+
 /* Slider labels white */
 [data-testid="stSlider"] label,
 [data-testid="stSlider"] div {
