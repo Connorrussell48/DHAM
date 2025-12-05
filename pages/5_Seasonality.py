@@ -1080,8 +1080,32 @@ if not sp500_data.empty:
     historical_data = filtered_data[filtered_data.index.year < current_year].copy()
     
     if not current_year_data.empty and not historical_data.empty:
-        current_year_data['WeekNum'] = current_year_data.index.isocalendar().week
-        historical_data['WeekNum'] = historical_data.index.isocalendar().week
+        # Assign week numbers based on calendar weeks
+        # Week 1 = week containing January 1st of that year
+        
+        def assign_calendar_weeks(df):
+            """Assign week numbers where Week 1 contains January 1"""
+            df = df.copy()
+            df['Year'] = df.index.year
+            
+            # For each year, find Jan 1 and calculate weeks from there
+            week_nums = []
+            for idx, row in df.iterrows():
+                year = idx.year
+                jan_1 = pd.Timestamp(year=year, month=1, day=1)
+                
+                # Calculate days since Jan 1
+                days_since_jan1 = (idx - jan_1).days
+                
+                # Week number (week 1 starts on Jan 1, regardless of day of week)
+                week_num = (days_since_jan1 // 7) + 1
+                week_nums.append(max(1, min(week_num, 52)))  # Cap at 52
+            
+            df['WeekNum'] = week_nums
+            return df
+        
+        current_year_data = assign_calendar_weeks(current_year_data)
+        historical_data = assign_calendar_weeks(historical_data)
         historical_data['Year'] = historical_data.index.year
         
         # STEP 1: For each historical year, calculate week-to-week returns
