@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 import streamlit as st
 import plotly.graph_objects as go
+from scipy import integrate
 from datetime import date, datetime
 import json
 import os
@@ -329,77 +330,135 @@ def sync_watchlist_sectors(watchlist, sector_map):
     return sector_map
 
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_price_data(ticker, lookback_days=60):
-    """Fetch historical price data for a ticker"""
+def fetch_price_data(ticker, interval):
+    """Fetch historical price data for a ticker at a specific interval"""
     try:
-        end_date = date.today()
-        stock = yf.Ticker(ticker)
+        # Hard-coded periods for each interval (enough for 200 MA + calculations)
+        period_map = {
+            "5m": "60d",   # 60 days for 5-minute data
+            "15m": "60d",  # 60 days for 15-minute data
+            "30m": "60d",  # 60 days for 30-minute data
+            "1h": "730d",  # 2 years for hourly data
+            "1d": "5y"     # 5 years for daily data
+        }
         
-        # Try different intervals
-        for interval, period in [("1d", f"{lookback_days}d"), ("1h", "60d"), 
-                                  ("30m", "60d"), ("15m", "60d"), ("5m", "60d")]:
-            try:
-                df = stock.history(period=period, interval=interval)
-                if not df.empty:
-                    return df
-            except:
-                continue
-        return pd.DataFrame()
-    except:
+        period = period_map.get(interval, "60d")
+        
+        stock = yf.Ticker(ticker)
+        df = stock.history(period=period, interval=interval, auto_adjust=True)
+        
+        return df if not df.empty else pd.DataFrame()
+    except Exception as e:
         return pd.DataFrame()
 
-def calculate_ma_slope_convexity(prices, window=200):
+def calculate_indicators(df, ma_period=200, lookback=30):
     """
-    Calculate moving average, slope (1st derivative), and convexity (2nd derivative)
+    Calculate slope and convexity based on MA200
     
-    Returns: (ma, slope, convexity) all as pandas Series
+    Parameters:
+    - ma_period: Moving average window (default 200)
+    - lookback: Number of periods to look back for secant line (default 30)
+    
+    Returns: DataFrame with slope, convexity, and signals
     """
-    if len(prices) < window:
-        return None, None, None
-    
-    # Calculate 200-period moving average
-    ma = prices.rolling(window=window, min_periods=window).mean()
-    
-    # First derivative (slope): difference between consecutive MA values
-    slope = ma.diff()
-    
-    # Second derivative (convexity): difference between consecutive slopes
-    convexity = slope.diff()
-    
-    return ma, slope, convexity
-
-def detect_signals(df, ma_window=200):
-    """
-    Detect bullish/bearish signals based on slope and convexity
-    
-    Signal occurs when:
-    - Bullish: Both slope > 0 AND convexity > 0 (accelerating uptrend)
-    - Bearish: Both slope < 0 AND convexity < 0 (accelerating downtrend)
-    """
-    if df is None or df.empty or len(df) < ma_window:
+    if len(df) < ma_period + lookback:
         return pd.DataFrame()
     
-    prices = df['Close']
-    ma, slope, convexity = calculate_ma_slope_convexity(prices, window=ma_window)
+    # Calculate 200-period MA
+    df = df.copy()
+    df['MA200'] = df['Close'].rolling(window=ma_period).mean()
     
-    if ma is None:
+    price = df['Close'].values
+    ma200 = df['MA200'].values
+    
+    slopes = np.zeros(len(df))
+    convexity = np.zeros(len(df))
+    
+    # Calculate slope and convexity for each valid point
+    for i in range(ma_period + lookback, len(df)):
+        # Get MA window for lookback period
+        ma_window = ma200[i-lookback:i+1]
+        t_window = np.arange(lookback + 1)
+        
+        # Calculate secant line (straight line from start to end of window)
+        start_ma, end_ma = ma_window[0], ma_window[-1]
+        slope = (end_ma - start_ma) / lookback
+        secant = start_ma + slope * t_window
+        
+        # Calculate area between secant and MA (convexity measure)
+        from scipy import integrate
+        area = integrate.trapezoid(secant - ma_window, t_window)
+        normalized_area = (area / price[i]) * lookback
+        
+        # Normalize using tanh to keep values bounded
+        slopes[i] = 100 * np.tanh(float((slope / ma200[i]) * 100 * lookback))
+        convexity[i] = 100 * np.tanh(float(normalized_area))
+    
+    # Create results dataframe
+    results_df = pd.DataFrame({
+        'datetime': df.index[ma_period+lookback:],
+        'slope': slopes[ma_period+lookback:],
+        'convexity': convexity[ma_period+lookback:],
+        'price': price[ma_period+lookback:],
+        'ma': ma200[ma_period+lookback:]
+    })
+    
+    return results_df.set_index('datetime')
+
+def detect_signals(indicator_df):
+    """
+    Detect bullish/bearish signals based on slope and convexity transitions
+    
+    Bullish: Slope crosses from negative to positive, convexity > 0, price > MA
+    Bearish: Slope crosses from positive to negative, convexity < 0, price < MA
+    """
+    if indicator_df is None or indicator_df.empty:
         return pd.DataFrame()
     
-    # Detect when both turn positive (bullish) or both turn negative (bearish)
-    bullish_signal = (slope > 0) & (convexity > 0) & (slope.shift(1) <= 0) | (convexity.shift(1) <= 0)
-    bearish_signal = (slope < 0) & (convexity < 0) & (slope.shift(1) >= 0) | (convexity.shift(1) >= 0)
+    df = indicator_df.copy()
     
-    signals = pd.DataFrame(index=df.index)
-    signals['Sentiment'] = 'Neutral'
-    signals.loc[bullish_signal, 'Sentiment'] = 'Bullish'
-    signals.loc[bearish_signal, 'Sentiment'] = 'Bearish'
+    # Bullish conditions
+    bullish_conditions = (
+        (df['slope'].shift(1) < 0) &      # Previous slope was negative
+        (df['slope'] > 0) &                # Current slope is positive (crossover)
+        (df['convexity'] > 0) &            # Convexity is positive
+        (df['price'] > df['ma'])           # Price above MA
+    )
     
-    # Only return rows with actual signals
-    signals = signals[signals['Sentiment'] != 'Neutral']
+    # Bearish conditions
+    bearish_conditions = (
+        (df['slope'].shift(1) > 0) &      # Previous slope was positive
+        (df['slope'] < 0) &                # Current slope is negative (crossover)
+        (df['convexity'] < 0) &            # Convexity is negative
+        (df['price'] < df['ma'])           # Price below MA
+    )
     
-    return signals
+    # Extract signals
+    signals = []
+    
+    for idx in df[bullish_conditions].index:
+        signals.append({
+            'Timestamp': idx,
+            'Sentiment': 'Bullish',
+            'Slope': df.loc[idx, 'slope'],
+            'Convexity': df.loc[idx, 'convexity'],
+            'Price': df.loc[idx, 'price'],
+            'MA': df.loc[idx, 'ma']
+        })
+    
+    for idx in df[bearish_conditions].index:
+        signals.append({
+            'Timestamp': idx,
+            'Sentiment': 'Bearish',
+            'Slope': df.loc[idx, 'slope'],
+            'Convexity': df.loc[idx, 'convexity'],
+            'Price': df.loc[idx, 'price'],
+            'MA': df.loc[idx, 'ma']
+        })
+    
+    return pd.DataFrame(signals)
 
-def run_scan(tickers, sector_map, lookback_days, ma_window, timeframes, selected_sectors):
+def run_scan(tickers, sector_map, ma_window, secant_lookback, timeframes, selected_sectors):
     """
     Run the slope/convexity scan across all tickers and timeframes
     """
@@ -422,24 +481,33 @@ def run_scan(tickers, sector_map, lookback_days, ma_window, timeframes, selected
         for timeframe in timeframes:
             status_text.text(f"Scanning {ticker} ({timeframe})...")
             
-            # Fetch data
-            df = fetch_price_data(ticker, lookback_days)
+            # Fetch data with correct period for this interval
+            df = fetch_price_data(ticker, timeframe)
             
             if not df.empty:
-                # Detect signals
-                signals = detect_signals(df, ma_window=ma_window)
+                # Calculate indicators
+                indicator_df = calculate_indicators(df, ma_period=ma_window, lookback=secant_lookback)
                 
-                # Add to results
-                for idx, row in signals.iterrows():
-                    all_results.append({
-                        'Ticker': ticker,
-                        'Sector': sector,
-                        'Timeframe': timeframe,
-                        'Date': idx.strftime('%Y-%m-%d'),
-                        'Time (EST)': idx.strftime('%H:%M:%S'),
-                        'Sentiment': row['Sentiment'],
-                        'Timestamp': idx
-                    })
+                if not indicator_df.empty:
+                    # Detect signals
+                    signals = detect_signals(indicator_df)
+                    
+                    # Add to results
+                    for _, row in signals.iterrows():
+                        timestamp = row['Timestamp']
+                        all_results.append({
+                            'Ticker': ticker,
+                            'Sector': sector,
+                            'Timeframe': timeframe,
+                            'Date': timestamp.strftime('%Y-%m-%d'),
+                            'Time (EST)': timestamp.strftime('%H:%M:%S'),
+                            'Sentiment': row['Sentiment'],
+                            'Slope': row['Slope'],
+                            'Convexity': row['Convexity'],
+                            'Price': row['Price'],
+                            'MA': row['MA'],
+                            'Timestamp': timestamp
+                        })
             
             completed += 1
             progress_bar.progress(completed / total_scans)
@@ -488,13 +556,13 @@ st.markdown("## Scan Configuration")
 config_col1, config_col2, config_col3 = st.columns(3)
 
 with config_col1:
-    lookback_days = st.slider(
-        "Lookback Period (days)",
-        min_value=30,
-        max_value=200,
-        value=60,
-        step=10,
-        help="Number of days of historical data to analyze"
+    secant_lookback = st.slider(
+        "Secant Lookback Period",
+        min_value=10,
+        max_value=100,
+        value=30,
+        step=5,
+        help="Number of periods to look back for secant line calculation (default: 30)"
     )
 
 with config_col2:
@@ -547,8 +615,8 @@ if run_scan_btn:
             results = run_scan(
                 tickers=scan_tickers,
                 sector_map=st.session_state['sector_map'],
-                lookback_days=lookback_days,
                 ma_window=ma_window,
+                secant_lookback=secant_lookback,
                 timeframes=selected_timeframes,
                 selected_sectors=selected_sectors
             )
@@ -647,16 +715,24 @@ if st.session_state['scan_results'] is not None and not st.session_state['scan_r
             # Sector-specific data
             sector_data = results[results['Sector'] == sector]
             st.dataframe(
-                sector_data[['Ticker', 'Timeframe', 'Date', 'Time (EST)', 'Sentiment']],
+                sector_data[['Ticker', 'Timeframe', 'Date', 'Time (EST)', 'Sentiment', 
+                            'Slope', 'Convexity', 'Price', 'MA']],
                 use_container_width=True,
                 hide_index=True,
-                height=300
+                height=300,
+                column_config={
+                    "Slope": st.column_config.NumberColumn(format="%.2f"),
+                    "Convexity": st.column_config.NumberColumn(format="%.2f"),
+                    "Price": st.column_config.NumberColumn(format="$%.2f"),
+                    "MA": st.column_config.NumberColumn(format="$%.2f"),
+                }
             )
     
     # Full results table
     st.markdown("### All Signals")
     
-    display_results = results[['Ticker', 'Sector', 'Timeframe', 'Date', 'Time (EST)', 'Sentiment']].copy()
+    display_results = results[['Ticker', 'Sector', 'Timeframe', 'Date', 'Time (EST)', 
+                                'Sentiment', 'Slope', 'Convexity', 'Price', 'MA']].copy()
     
     st.dataframe(
         display_results,
@@ -670,6 +746,10 @@ if st.session_state['scan_results'] is not None and not st.session_state['scan_r
             "Date": st.column_config.TextColumn(width="medium"),
             "Time (EST)": st.column_config.TextColumn(width="small"),
             "Sentiment": st.column_config.TextColumn(width="medium"),
+            "Slope": st.column_config.NumberColumn(width="small", format="%.2f"),
+            "Convexity": st.column_config.NumberColumn(width="small", format="%.2f"),
+            "Price": st.column_config.NumberColumn(width="medium", format="$%.2f"),
+            "MA": st.column_config.NumberColumn(width="medium", format="$%.2f"),
         }
     )
     
