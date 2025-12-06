@@ -472,8 +472,8 @@ def run_scan(tickers, sector_map, ma_window, secant_lookback, timeframes, select
     total_scans = len(tickers) * len(timeframes)
     completed = 0
     
-    # Calculate cutoff date for filtering
-    cutoff_date = datetime.now() - pd.Timedelta(days=days_filter)
+    # Calculate cutoff date for filtering (convert to pandas Timestamp)
+    cutoff_date = pd.Timestamp(datetime.now() - pd.Timedelta(days=days_filter))
     
     for ticker in tickers:
         sector = sector_map.get(ticker, "Unknown")
@@ -500,6 +500,10 @@ def run_scan(tickers, sector_map, ma_window, secant_lookback, timeframes, select
                     # Add to results (with date filtering)
                     for _, row in signals.iterrows():
                         timestamp = row['Timestamp']
+                        
+                        # Convert timestamp to timezone-naive if needed
+                        if hasattr(timestamp, 'tz_localize'):
+                            timestamp = timestamp.tz_localize(None) if timestamp.tz is not None else timestamp
                         
                         # Only include signals from the last N days
                         if timestamp >= cutoff_date:
