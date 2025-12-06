@@ -457,9 +457,12 @@ def detect_signals(indicator_df):
     
     return pd.DataFrame(signals)
 
-def run_scan(tickers, sector_map, ma_window, secant_lookback, timeframes, selected_sectors):
+def run_scan(tickers, sector_map, ma_window, secant_lookback, timeframes, selected_sectors, days_filter=1):
     """
     Run the slope/convexity scan across all tickers and timeframes
+    
+    Parameters:
+    - days_filter: Only return signals from the last N days
     """
     all_results = []
     
@@ -468,6 +471,9 @@ def run_scan(tickers, sector_map, ma_window, secant_lookback, timeframes, select
     
     total_scans = len(tickers) * len(timeframes)
     completed = 0
+    
+    # Calculate cutoff date for filtering
+    cutoff_date = datetime.now() - pd.Timedelta(days=days_filter)
     
     for ticker in tickers:
         sector = sector_map.get(ticker, "Unknown")
@@ -491,22 +497,25 @@ def run_scan(tickers, sector_map, ma_window, secant_lookback, timeframes, select
                     # Detect signals
                     signals = detect_signals(indicator_df)
                     
-                    # Add to results
+                    # Add to results (with date filtering)
                     for _, row in signals.iterrows():
                         timestamp = row['Timestamp']
-                        all_results.append({
-                            'Ticker': ticker,
-                            'Sector': sector,
-                            'Timeframe': timeframe,
-                            'Date': timestamp.strftime('%Y-%m-%d'),
-                            'Time (EST)': timestamp.strftime('%H:%M:%S'),
-                            'Sentiment': row['Sentiment'],
-                            'Slope': row['Slope'],
-                            'Convexity': row['Convexity'],
-                            'Price': row['Price'],
-                            'MA': row['MA'],
-                            'Timestamp': timestamp
-                        })
+                        
+                        # Only include signals from the last N days
+                        if timestamp >= cutoff_date:
+                            all_results.append({
+                                'Ticker': ticker,
+                                'Sector': sector,
+                                'Timeframe': timeframe,
+                                'Date': timestamp.strftime('%Y-%m-%d'),
+                                'Time (EST)': timestamp.strftime('%H:%M:%S'),
+                                'Sentiment': row['Sentiment'],
+                                'Slope': row['Slope'],
+                                'Convexity': row['Convexity'],
+                                'Price': row['Price'],
+                                'MA': row['MA'],
+                                'Timestamp': timestamp
+                            })
             
             completed += 1
             progress_bar.progress(completed / total_scans)
@@ -552,7 +561,7 @@ st.markdown("---")
 # ============================================================================
 st.markdown("## Scan Configuration")
 
-config_col1, config_col2, config_col3 = st.columns(3)
+config_col1, config_col2, config_col3, config_col4 = st.columns(4)
 
 with config_col1:
     secant_lookback = st.slider(
@@ -575,6 +584,16 @@ with config_col2:
     )
 
 with config_col3:
+    days_filter = st.number_input(
+        "Show Signals From Last N Days",
+        min_value=1,
+        max_value=30,
+        value=1,
+        step=1,
+        help="Filter signals to show only those from the last N days (1 = today only)"
+    )
+
+with config_col4:
     all_timeframes = ["5m", "15m", "30m", "1h", "1d"]
     selected_timeframes = st.multiselect(
         "Timeframes",
@@ -617,10 +636,16 @@ if run_scan_btn:
                 ma_window=ma_window,
                 secant_lookback=secant_lookback,
                 timeframes=selected_timeframes,
-                selected_sectors=selected_sectors
+                selected_sectors=selected_sectors,
+                days_filter=days_filter
             )
             st.session_state['scan_results'] = results
-            st.success(f"Scan complete! Found {len(results)} signals")
+            st.session_state['last_days_filter'] = days_filter
+            
+            if len(results) > 0:
+                st.success(f"Scan complete! Found {len(results)} signals from the last {days_filter} day(s)")
+            else:
+                st.warning(f"No signals found in the last {days_filter} day(s)")
             st.rerun()
 
 st.markdown("---")
@@ -630,6 +655,13 @@ st.markdown("---")
 # ============================================================================
 if st.session_state['scan_results'] is not None and not st.session_state['scan_results'].empty:
     results = st.session_state['scan_results']
+    
+    # Show filter info
+    last_days = st.session_state.get('last_days_filter', 1)
+    if last_days == 1:
+        st.info(f"Showing signals from today only")
+    else:
+        st.info(f"Showing signals from the last {last_days} days")
     
     # Summary metrics
     st.markdown("## Summary")
